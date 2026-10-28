@@ -46,6 +46,11 @@ const COPY_COLUMNS = [
   { key: "publisherPrice", label: "Publisher price (EUR)", type: "eur" },
   { key: "notes", label: "Notes", type: "text" },
   { key: "sold", label: "Date sold", type: "date" },
+  // Added at the END so the older columns keep their place for anyone who built a sheet on them.
+  { key: "acquiredAt", label: "Date received", type: "date" },
+  { key: "acquisitionCost", label: "Cost (EUR)", type: "eur" },
+  { key: "suggestedPrice", label: "Suggested price (EUR)", type: "eur" },
+  { key: "genresFr", label: "Genres (French)", type: "text" },
 ];
 
 const BOOK_COLUMNS = [
@@ -63,6 +68,7 @@ const BOOK_COLUMNS = [
   { key: "reserved", label: "Reserved", type: "int" },
   { key: "sold", label: "Sold", type: "int" },
   { key: "other", label: "Donated or withdrawn", type: "int" },
+  { key: "genresFr", label: "Genres (French)", type: "text" },
 ];
 
 // ---------- ISBN ----------
@@ -114,6 +120,7 @@ function copyRow(r) {
     added: r.added, copyId: r.id, tillCode: `UB-${r.id}`, bookId: r.book_id,
     genres: r.categories, clearance: r.is_clearance ? "Yes" : "No",
     publisherPrice: r.publisher_price, notes: r.notes, sold: r.sold,
+    acquiredAt: r.acquired, acquisitionCost: r.acquisition_cost, suggestedPrice: r.suggested_price, genresFr: r.categories_fr,
   };
 }
 
@@ -122,7 +129,7 @@ function bookRow(r) {
     ...isbnForms(r.isbn), bookId: r.id, title: r.title, authors: r.authors, publisher: r.publisher,
     year: r.published_year, binding: bindingLabel(r.binding) || "", genres: r.categories,
     copies: r.copies, inStock: r.in_stock, reserved: r.reserved, sold: r.sold,
-    other: r.copies - r.in_stock - r.reserved - r.sold,
+    other: r.copies - r.in_stock - r.reserved - r.sold, genresFr: r.categories_fr,
   };
 }
 
@@ -179,7 +186,8 @@ async function writeCopiesCsv(db, sink, { batch = BATCH, filter = null } = {}) {
     const { rows: page } = await db.query(
       `SELECT c.id, c.book_id, c.condition, c.price, c.publisher_price, c.is_clearance, c.location, c.source,
               c.status, c.notes, ${PARIS_DAY("c.created_at")} AS added, ${PARIS_DAY("c.sold_at")} AS sold,
-              b.isbn, b.title, b.authors, b.publisher, b.published_year, b.binding, b.categories
+              to_char(c.acquired_at, 'YYYY-MM-DD') AS acquired, c.acquisition_cost, c.suggested_price,
+              b.isbn, b.title, b.authors, b.publisher, b.published_year, b.binding, b.categories, b.categories_fr
        FROM book_copies c JOIN books b ON b.id = c.book_id
        WHERE c.id > $${ai}${extra} ORDER BY c.id LIMIT $${ai + 1}`, [...fp.params, after, batch]
     );
@@ -206,7 +214,7 @@ async function writeBooksCsv(db, sink, { batch = BATCH, filter = null } = {}) {
   const extra = fp.parts.length ? ` AND ${fp.parts.join(" AND ")}` : "";
   for (;;) {
     const { rows: page } = await db.query(
-      `SELECT b.id, b.isbn, b.title, b.authors, b.publisher, b.published_year, b.binding, b.categories,
+      `SELECT b.id, b.isbn, b.title, b.authors, b.publisher, b.published_year, b.binding, b.categories, b.categories_fr,
               COUNT(c.id)::int AS copies,
               COUNT(c.id) FILTER (WHERE c.status = 'in_stock')::int AS in_stock,
               COUNT(c.id) FILTER (WHERE c.status = 'reserved')::int AS reserved,

@@ -13,6 +13,7 @@ const { toCsv } = require("../../src/lib/reports");
 const COPY_HEADER = [
   "ISBN-13", "ISBN-10", "Title", "Author(s)", "Publisher", "Year", "Binding", "Condition", "Price (EUR)", "Location",
   "Source", "Status", "Date added", "Copy ID", "Till code", "Book ID", "Genres", "Clearance", "Publisher price (EUR)", "Notes", "Date sold",
+  "Date received", "Cost (EUR)", "Suggested price (EUR)", "Genres (French)",
 ];
 
 test("the per-copy header is exactly this list, and has no personal-data column", () => {
@@ -24,7 +25,7 @@ test("the per-copy header is exactly this list, and has no personal-data column"
 test("the per-book header", () => {
   assert.deepEqual(x.BOOK_COLUMNS.map((c) => c.label), [
     "Book ID", "ISBN-13", "ISBN-10", "Title", "Author(s)", "Publisher", "Year", "Binding", "Genres",
-    "Copies (all)", "In store", "Reserved", "Sold", "Donated or withdrawn",
+    "Copies (all)", "In store", "Reserved", "Sold", "Donated or withdrawn", "Genres (French)",
   ]);
 });
 
@@ -33,6 +34,7 @@ const dbRow = {
   source: "donation", status: "in_stock", notes: '=HYPERLINK("http://x")', added: "2026-10-01", sold: null,
   isbn: "978-2-07-036822-8", title: 'Le "Petit" Prince; suite', authors: "A. de Saint-Exupéry", publisher: "Gallimard",
   published_year: 1999, binding: "mass_market", categories: "Fiction, Classics",
+  acquired: "2026-09-15", acquisition_cost: "0.00", suggested_price: "5.00", categories_fr: "Fiction, Classiques",
 };
 
 test("one copy line: semicolons, decimal comma, quoted text, bare numbers, neutralised formula, labels", () => {
@@ -41,6 +43,7 @@ test("one copy line: semicolons, decimal comma, quoted text, bare numbers, neutr
     '"9782070368228"', '"207036822X"', '"Le ""Petit"" Prince; suite"', '"A. de Saint-Exupéry"', '"Gallimard"', "1999", '"Mass Market"',
     '"Like New"', "6,50", '"Store"', '"Donation"', '"In Store"', '"2026-10-01"', "42", '"UB-42"', "7", '"Fiction, Classics"', '"Yes"', "",
     "\"'=HYPERLINK(\"\"http://x\"\")\"", '""',
+    '"2026-09-15"', "0,00", "5,00", '"Fiction, Classiques"',
   ].join(";"));
 });
 
@@ -98,8 +101,8 @@ test("zero rows: just the header", async () => {
 });
 
 test("book rows: totals and the donated/withdrawn remainder", async () => {
-  const b = { id: 1, isbn: "9780306406157", title: "T", authors: null, publisher: null, published_year: null, binding: null, categories: null, copies: 5, in_stock: 2, reserved: 1, sold: 1 };
+  const b = { id: 1, isbn: "9780306406157", title: "T", authors: null, publisher: null, published_year: null, binding: null, categories: null, copies: 5, in_stock: 2, reserved: 1, sold: 1, categories_fr: "Fiction" };
   let text = "";
   await x.writeBooksCsv(fakeDb([b]), (s) => { text += s; });
-  assert.equal(text.split("\r\n")[1], '1;"9780306406157";"0306406152";"T";"";"";;"";"";5;2;1;1;1');
+  assert.equal(text.split("\r\n")[1], '1;"9780306406157";"0306406152";"T";"";"";;"";"";5;2;1;1;1;"Fiction"');
 });
