@@ -39,9 +39,19 @@ async function generateBookDescription(input) {
 
   const prompt = `Write a short, appealing back-cover-style description (2-3 sentences, no more than 60 words) for this second-hand book, for a bookshop's website:
 Title: "${title}" ${details}
-Only describe the book itself — no marketing fluff about the shop, no mention that it's second-hand. If you don't recognize the book, write a brief generic description based only on the title. Respond with ONLY the description text, no preamble, no quotes around it.`;
+Only describe the book itself — no marketing fluff about the shop, no mention that it's second-hand. If you do not recognize this exact book, or are not sure what it is about, answer with exactly NONE and nothing else: never guess or invent a description from the title alone. Respond with ONLY the description text, no preamble, no quotes around it.`;
 
-  return (await callClaude(prompt, { maxTokens: 200, label: "AI description" })).text;
+  return usableDescription((await callClaude(prompt, { maxTokens: 200, label: "AI description" })).text);
+}
+
+// Sharon: when a description cannot be generated, write nothing. The prompt tells the model to answer NONE for a book it
+// does not know; this also drops a refusal or an apology that came back instead of a description. null = no description.
+const NOT_A_DESCRIPTION = /^(none|n\/a|unknown)\b[.!]*$|^(i\s+(do\s*n[o']t|don[’']t|can[’']?not|can[’']t|couldn[’']t|could\s+not|am\s+not|[’']m\s+not|am\s+unable)|i[’']m\s+(not|unable|sorry)|sorry|unfortunately|there\s+is\s+no|no\s+(information|description)|as\s+an\s+ai)\b/i;
+function usableDescription(text) {
+  if (typeof text !== "string") return null;
+  const t = text.trim().replace(/^["“”']+|["“”']+$/g, "").trim();
+  if (!t || NOT_A_DESCRIPTION.test(t)) return null;
+  return text;
 }
 
 // Translates an existing (English) description to French — used both
@@ -65,4 +75,4 @@ async function translateDescriptionToFrenchWhy(englishText) {
   return callClaude(prompt, { maxTokens: 250, label: "AI description (French)", feature: "translation" });
 }
 
-module.exports = { generateBookDescription, translateDescriptionToFrench, translateDescriptionToFrenchWhy };
+module.exports = { generateBookDescription, usableDescription, translateDescriptionToFrench, translateDescriptionToFrenchWhy };
