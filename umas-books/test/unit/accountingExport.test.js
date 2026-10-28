@@ -72,22 +72,16 @@ test("lastFiscalYearStart: the most recent year that has fully ended", () => {
   assert.equal(ax.lastFiscalYearStart(at("2027-08-02T04:00:00Z"), 7), 2026);
 });
 
-test("the Paris hour gate: exactly one of the two UTC schedules passes on the 1st, summer and winter", () => {
-  // The workflow runs at 05:00 and 06:00 UTC; the first step only lets 07:xx Paris on day 1 through.
-  for (let month = 1; month <= 12; month++) {
-    const day = `2027-${String(month).padStart(2, "0")}-01`;
-    const passes = ["05", "06"].filter((h) => ax.isMonthlyRunTime(at(`${day}T${h}:00:00Z`)));
-    assert.equal(passes.length, 1, `${day}: ${passes}`);
-    const expected = [4, 5, 6, 7, 8, 9, 10].includes(month) ? "05" : "06"; // CEST 28 Mar - 31 Oct 2027
-    assert.deepEqual(passes, [expected], day);
-  }
-  // DST edges: Sunday 28 March 2027 (spring forward) and 31 October 2027 (fall back) are not the 1st,
-  // but the days around them must still behave.
-  assert.equal(ax.isMonthlyRunTime(at("2027-04-01T05:00:00Z")), true);
-  assert.equal(ax.isMonthlyRunTime(at("2027-03-01T06:00:00Z")), true);
-  assert.equal(ax.isMonthlyRunTime(at("2027-11-01T06:00:00Z")), true);
-  assert.equal(ax.isMonthlyRunTime(at("2027-11-01T05:00:00Z")), false);
-  assert.equal(ax.isMonthlyRunTime(at("2027-04-02T05:00:00Z")), false);
+test("isPeriodOver: a month is over from 00:00 Paris on the 1st of the next month (summer and winter)", () => {
+  // Only a finished month is stored under its real name by the monthly workflow (complete=true).
+  assert.equal(ax.isPeriodOver(ax.monthRange("2026-10"), at("2026-10-27T12:00:00Z")), false, "current month (a test run)");
+  assert.equal(ax.isPeriodOver(ax.monthRange("2026-10"), at("2026-10-31T22:59:59Z")), false, "31 Oct 23:59:59 Paris (CET)");
+  assert.equal(ax.isPeriodOver(ax.monthRange("2026-10"), at("2026-10-31T23:00:00Z")), true, "1 Nov 00:00 Paris");
+  assert.equal(ax.isPeriodOver(ax.monthRange("2026-06"), at("2026-06-30T21:59:59Z")), false, "30 Jun 23:59:59 Paris (CEST)");
+  assert.equal(ax.isPeriodOver(ax.monthRange("2026-06"), at("2026-06-30T22:00:00Z")), true, "1 Jul 00:00 Paris");
+  assert.equal(ax.isPeriodOver(ax.monthRange("2026-12"), at("2027-01-01T05:00:00Z")), true, "December, on 1 January");
+  assert.equal(ax.isPeriodOver(ax.monthRange("2026-11"), at("2026-10-27T12:00:00Z")), false, "future month");
+  assert.equal(ax.isPeriodOver(ax.yearRange(2026, 1), at("2027-01-02T04:00:00Z")), true, "a finished year");
 });
 
 test("parisParts at the spring-forward and fall-back instants", () => {

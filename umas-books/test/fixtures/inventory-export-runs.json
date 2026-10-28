@@ -1,0 +1,153 @@
+{
+ "source": "gh run list --workflow \"Nightly inventory export\" --limit 60 --json createdAt,event,conclusion (umasbooksadmin/umasbookswebsite, taken 2026-10-27; 37 runs existed). Real start times of the runs, oldest first.",
+ "runs": [
+  {
+   "createdAt": "2026-10-09T19:08:47Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-09T20:06:55Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-10T22:11:39Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-10T23:08:39Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-11T22:39:17Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-11T23:24:22Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-13T01:05:21Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-13T01:46:22Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-13T23:11:02Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-13T23:34:13Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-14T22:01:59Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-14T22:56:36Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-15T21:55:00Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-15T22:51:19Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-16T21:54:13Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-16T22:26:06Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-17T21:13:06Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-17T21:56:30Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-18T21:13:51Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-18T22:10:54Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-19T22:47:57Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-19T23:15:39Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-20T22:03:58Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-20T22:53:20Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-21T22:03:58Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-21T22:58:40Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-22T22:03:13Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-22T22:55:45Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-23T21:50:24Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-23T22:50:40Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-24T21:24:13Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-24T22:12:28Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-25T21:23:55Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-25T22:14:44Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-26T23:00:55Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-26T23:31:30Z",
+   "event": "schedule"
+  },
+  {
+   "createdAt": "2026-10-27T12:31:27Z",
+   "event": "workflow_dispatch"
+  }
+ ]
+}

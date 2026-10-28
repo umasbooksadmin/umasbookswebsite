@@ -105,8 +105,13 @@ function checkMonthAllowed(label, now = new Date(), force = false) {
   if (ym === cur) throw new Error(`${ym} is the current month and is not over yet. Nothing was exported. (Use --force only for a test.)`);
 }
 
-// Mirrors the first step of the monthly workflow: 07:xx Paris on the 1st.
-const isMonthlyRunTime = (now = new Date()) => { const p = parisParts(now); return p.d === 1 && p.h === 7; };
+// True once the whole period is in the past (its last Paris day is before today). A --force run
+// of the current month is NOT over: the monthly workflow then does not store it under the real
+// file name, so it cannot stand in for the month's export.
+function isPeriodOver(range, now = new Date()) {
+  const p = parisParts(now);
+  return range.to < `${p.y}-${pad(p.m)}-${pad(p.d)}`;
+}
 
 // ---------- money / text ----------
 
@@ -295,6 +300,6 @@ function emailBody(range, stats) {
 
 module.exports = {
   ACCOUNTING_HEADER, TILL_HEADER, FIX_MONTH,
-  parisParts, parseMonth, currentMonth, previousMonth, monthRange, yearRange, lastFiscalYearStart, checkMonthAllowed, isMonthlyRunTime,
+  parisParts, parseMonth, currentMonth, previousMonth, monthRange, yearRange, lastFiscalYearStart, checkMonthAllowed, isPeriodOver,
   eurText, assertNoPersonalData, tillDays, buildExport, fileNames, emailBody,
 };
