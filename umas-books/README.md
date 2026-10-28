@@ -345,7 +345,10 @@ it sits on.
   and the page lists what happened. If you have two copies of a book, scan it
   twice. Sold, donated and in-cart copies are left alone.
 - **Finding books:** the inventory list shows each book's locations, and the
-  **Location** box filters the list to one place.
+  **Location** box filters the list to one place. **Received from** and
+  **Received to** find copies by their Acquisition Date (both days included;
+  either may be left empty), and **No date received set** finds copies without
+  one. Like location, condition and price, one copy has to match them all.
 - **Changing one copy:** open the book and edit **Location** on the copy.
 - Location names keep the capital letters you type (`Store`, `Fiction A1`); only
   extra spaces are tidied. Capitals do not make a different place: `store`,

@@ -422,15 +422,22 @@ html.is-admin-nav-open, html.is-admin-nav-open body { overflow: hidden; }
 .inv-search-main { display: flex; gap: 8px; align-items: end; }
 .inv-search-main > div { flex: 1; min-width: 0; }
 .inv-search { container-type: inline-size; }
-/* The six choices flow ACROSS the page in even rows (never an orphan): 2 per row by default, 3 per row from 400px of form
-   width, all 6 in one row from 740px; one column only below 280px. Sized by the form's own width (a container query), so
-   it holds whatever the admin sidebar is doing. */
+/* The eight choices flow ACROSS the page in even rows (never an orphan): 2 per row by default, 3 per row from 400px of form
+   width, 6 per row from 740px; one column only below 280px. The "No date received set" checkbox closes the grid: its own
+   full row at 1-2 per row, the 9th cell at 3 per row, the rest of the 2nd row (next to the two dates) at 6 per row. Sized by
+   the form's own width (a container query), so it holds whatever the admin sidebar is doing. */
 .inv-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-@container (min-width: 400px) { .inv-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@container (min-width: 740px) { .inv-filters { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
-@container (max-width: 279px) { .inv-filters { grid-template-columns: minmax(0, 1fr); } }
+.inv-filters > .inv-filter-check { grid-column: 1 / -1; }
+@container (min-width: 400px) { .inv-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } .inv-filters > .inv-filter-check { grid-column: auto; } }
+@container (min-width: 740px) { .inv-filters { grid-template-columns: repeat(6, minmax(0, 1fr)); } .inv-filters > .inv-filter-check { grid-column: span 4; } }
+@container (max-width: 279px) { .inv-filters { grid-template-columns: minmax(0, 1fr); } .inv-filters > .inv-filter-check { grid-column: 1 / -1; } }
 .inv-filters > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .inv-filters select, .inv-filters input, .inv-search-main input { width: 100%; font-size: 16px; min-height: 44px; box-sizing: border-box; }
+.inv-filters > .inv-filter-check { justify-content: flex-end; }
+/* A date (dd/mm/yyyy + the calendar icon) needs nearly all of a half-width phone column: less side padding keeps it whole. */
+.inv-filters input[type=date] { padding-left: 6px; padding-right: 4px; }
+.inv-filter-check label { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
+.inv-filters .inv-filter-check input[type=checkbox] { width: auto; min-width: 22px; min-height: 22px; margin: 0; }
 .inv-search-main .btn { min-height: 44px; }
 .inv-matched { margin-top: 2px; color: var(--ink); overflow-wrap: anywhere; }
 
