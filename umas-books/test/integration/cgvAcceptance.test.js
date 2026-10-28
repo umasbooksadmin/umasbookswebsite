@@ -54,7 +54,7 @@ test("the reservation confirmation email carries the acceptance line and the cur
     assert.ok(mail, "confirmation sent");
     assert.match(mail.text, line, lang);
   }
-  assert.equal(TERMS_OF_SALE_VERSION, "2026-10-09", "bump this test with the terms");
+  assert.equal(TERMS_OF_SALE_VERSION, "2026-10-28", "bump this test with the terms");
 });
 
 test("the proof is in the member data export and survives erasure (anonymised order keeps it)", async () => {

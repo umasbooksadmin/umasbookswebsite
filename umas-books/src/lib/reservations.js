@@ -187,8 +187,12 @@ async function expireOrderReservations(pool) {
   let released = 0;
   for (const { id } of rows) {
     try {
+      // A guest reservation whose email link was never opened (lib/guestOrders.js, GUEST_CONFIRM_HOURS) ends the same
+      // way, with the reason 'unconfirmed': no "your reservation has ended" email goes to an address nobody confirmed.
+      const { rows: kind } = await pool.query("SELECT is_guest AND guest_confirmed_at IS NULL AS unconfirmed FROM orders WHERE id = $1", [id]);
+      const reason = kind[0] && kind[0].unconfirmed ? "unconfirmed" : "expired";
       const r = await releaseReservation(pool, id, {
-        status: "expired", reason: "expired",
+        status: "expired", reason,
         // Re-checked under the lock: an admin may have extended it meanwhile.
         guard: async (client, o) => (o.reserved_until && new Date(o.reserved_until).getTime() < Date.now() ? undefined : { outcome: "skipped" }),
       });
@@ -250,6 +254,16 @@ async function releaseEndedSeats(pool) {
 async function cancelReservationAsCustomer(pool, orderId, userId) {
   const { rows } = await pool.query("SELECT id FROM orders WHERE id = $1 AND user_id = $2", [orderId, userId]);
   if (!rows.length) return { outcome: "not_found" }; // not theirs and not there: the same answer
+  return customerRelease(pool, orderId);
+}
+
+// The same cancellation for a GUEST, who proved it is theirs with the private manage link (lib/guestOrders.js
+// resolves the link to the order id first): the same release, the same seat rule, the same reason 'customer'.
+function cancelReservationAsGuest(pool, orderId) {
+  return customerRelease(pool, orderId);
+}
+
+function customerRelease(pool, orderId) {
   return releaseReservation(pool, orderId, {
     status: "cancelled", reason: "customer",
     guard: async (client) => {
@@ -288,7 +302,7 @@ async function extendReservation(pool, orderId) {
 
 module.exports = {
   expireStaleReservations, expireStaleReservationsThrottled, makeThrottledExpiry, EXPIRY_THROTTLE_MS, sendPickupReminders, expireOrderReservations, releaseEndedSeats,
-  releaseReservation, cancelReservationAsCustomer, extendReservation,
+  releaseReservation, cancelReservationAsCustomer, cancelReservationAsGuest, extendReservation,
   RESERVATION_DAYS, RESERVATION_TTL_DAYS, RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SEAT_CANCEL_HOURS,
   SESSION_OVER_SQL,
 };

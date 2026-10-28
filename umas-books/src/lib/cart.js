@@ -18,31 +18,37 @@ const { buildOrderConfirmationText, orderConfirmationSubject } = require("./orde
 const { configuredBaseUrl } = require("./baseUrl");
 const { seatsTakenExpr } = require("./classCapacity");
 const { SITE_TIME_ZONE } = require("./tz");
-const { RESERVATION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SESSION_OVER_SQL } = require("./reservations");
+const { RESERVATION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SESSION_OVER_SQL, expireOrderReservations } = require("./reservations");
+const { startGuestHold, queueGuestResend } = require("./guestOrders");
 
 // ---------- the reservation ----------
 
 // Turns the cart's lines into a reservation, atomically: the order, its items,
 // the held copies and the held seats exist together or not at all.
-//   user:   { id, email } the confirmed account (the order is always under it)
+//   user:   { id, email } the confirmed account (the order is under it), OR
+//   guest:  { email } a reservation WITHOUT an account (lib/guestOrders.js): user_id NULL,
+//           is_guest TRUE, held GUEST_CONFIRM_HOURS until the emailed link is opened;
+//           the limits below count per email address; `base` builds the links
 //   items:  cart lines as loaded by routes/cart.js (kind 'book' | 'dropin', price > 0)
 // Resolves the new order row. Rejects with an Error whose message is one of
 //   SOLD_OUT                 something in the cart was taken in the meantime
 //   NOT_FOR_SALE             a copy is still on the shelf but its price was cleared or set to 0 since the customer
 //                            saw the cart (err.titles lists them): not "taken by someone else"
-//   TOO_MANY_RESERVATIONS    the account already has MAX_ACTIVE_RESERVATIONS open
-//   TOO_MANY_COPIES          the account would hold more than MAX_RESERVED_COPIES books
+//   TOO_MANY_RESERVATIONS    the account (a guest: the email) already has MAX_ACTIVE_RESERVATIONS open
+//   TOO_MANY_COPIES          the account (a guest: the email) would hold more than MAX_RESERVED_COPIES books
+//   MAIL_THROTTLED           a guest: the confirmation link could not be sent to that address now (too many mails)
 //   PRICE_CHANGED            a price differs from what the customer saw (err.changes lists them)
 //   BUSY                     deadlock twice in a row
 // (Anything else is an unexpected failure.)
-async function createReservation(pool, { user, name, phone = null, items, lang = null, hasDropin = false, acceptedVersion }) {
+async function createReservation(pool, { user = null, guest = null, base = "", name, phone = null, items, lang = null, hasDropin = false, acceptedVersion }) {
+  if (!user === !guest) throw new Error("createReservation: exactly one of user and guest");
   const bookItems = items.filter((i) => i.kind === "book");
   const dropinItems = items.filter((i) => i.kind === "dropin");
   const cents = items.reduce((sum, i) => sum + Math.round(Number(i.price) * 100), 0);
   const total = cents / 100;
-  const email = String(user.email).toLowerCase();
+  const email = String((user || guest).email).toLowerCase();
 
-  const attempt = (client) => reserveInTransaction(client, { user, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion });
+  const attempt = (client) => reserveInTransaction(client, { user, guest, base, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion });
   let order;
   try {
     order = await withTransaction(pool, attempt);
@@ -68,15 +74,18 @@ function priceChangedError(changes) {
   return err;
 }
 
-async function reserveInTransaction(client, { user, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion }) {
-  // One reservation at a time per account, so the limits below cannot be raced past.
-  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`reserve-user:${user.id}`]);
+async function reserveInTransaction(client, { user, guest, base, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion }) {
+  // One reservation at a time per account (a guest: per email address), so the limits below cannot be raced past.
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [user ? `reserve-user:${user.id}` : `reserve-guest:${email}`]);
 
+  // A guest's limits count every open GUEST reservation of the address, confirmed or not
+  // (attached to an account since or not), whatever the case of the address.
+  const owner = user ? "o.user_id = $1" : "o.is_guest AND lower(o.buyer_email) = $1";
   const { rows: usage } = await client.query(
-    `SELECT (SELECT COUNT(*) FROM orders WHERE user_id = $1 AND status = 'reserved')::int AS reservations,
+    `SELECT (SELECT COUNT(*) FROM orders o WHERE ${owner} AND o.status = 'reserved')::int AS reservations,
             (SELECT COUNT(*) FROM book_copies c JOIN orders o ON o.id = c.cart_order_id
-             WHERE o.user_id = $1 AND o.status = 'reserved' AND c.status = 'reserved')::int AS copies`,
-    [user.id]
+             WHERE ${owner} AND o.status = 'reserved' AND c.status = 'reserved')::int AS copies`,
+    [user ? user.id : email]
   );
   if (usage[0].reservations >= MAX_ACTIVE_RESERVATIONS) throw new Error("TOO_MANY_RESERVATIONS");
   if (usage[0].copies + bookItems.length > MAX_RESERVED_COPIES) throw new Error("TOO_MANY_COPIES");
@@ -85,11 +94,11 @@ async function reserveInTransaction(client, { user, email, name, phone, bookItem
   // An order with only seats is set below, once its seats exist.
   const { rows: orderRows } = await client.query(
     `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, status, withdrawal_waiver_at, lang,
-                         cgv_accepted_at, cgv_version, user_id, reserved_until)
+                         cgv_accepted_at, cgv_version, user_id, reserved_until, is_guest)
      VALUES ($1, $2, $3, $4, 'reserved', CASE WHEN $5::boolean THEN now() END, $6, now(), $7, $8,
-             CASE WHEN $10::boolean THEN (((now() AT TIME ZONE '${SITE_TIME_ZONE}')::date + $9::int + 1)::timestamp AT TIME ZONE '${SITE_TIME_ZONE}') END)
+             CASE WHEN $10::boolean THEN (((now() AT TIME ZONE '${SITE_TIME_ZONE}')::date + $9::int + 1)::timestamp AT TIME ZONE '${SITE_TIME_ZONE}') END, $11)
      RETURNING *`,
-    [name, email, phone, total, hasDropin, lang, acceptedVersion, user.id, RESERVATION_DAYS, bookItems.length > 0]
+    [name, email, phone, total, hasDropin, lang, acceptedVersion, user ? user.id : null, RESERVATION_DAYS, bookItems.length > 0, Boolean(guest)]
   );
   const order = orderRows[0];
 
@@ -200,6 +209,13 @@ async function reserveInTransaction(client, { user, email, name, phone, bookItem
   // exists without its confirmation being queued (the savepoint inside
   // queueOrderConfirmation keeps a failure to BUILD the text from undoing the
   // reservation).
+  // A guest gets the "confirm within 2 hours" email instead (its links, lib/guestOrders.js); it is not optional: a
+  // failure there rolls the reservation back.
+  if (guest) {
+    const confirmationId = await startGuestHold(client, order, base);
+    const { rows: fresh } = await client.query("SELECT * FROM orders WHERE id = $1", [order.id]);
+    return { ...fresh[0], confirmationId };
+  }
   const { rows: fresh } = await client.query("SELECT * FROM orders WHERE id = $1", [order.id]);
   const confirmationId = await queueOrderConfirmation(client, fresh[0]);
   return { ...fresh[0], confirmationId };
@@ -236,13 +252,16 @@ async function queueOrderConfirmation(db, order, { kind = "order_confirmation" }
 
 // Admin "Resend confirmation": queue a fresh copy for a reserved order and try to
 // send it now. Resolves { ok, sent } or { ok: false, reason }.
-async function resendOrderConfirmation(pool, orderId) {
+async function resendOrderConfirmation(pool, orderId, { base = configuredBaseUrl() } = {}) {
   const { rows } = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
   const order = rows[0];
   if (!order) return { ok: false, reason: "not_found" };
   if (order.status !== "reserved") return { ok: false, reason: "not_reserved" };
   if (/@erased\.invalid$/i.test(order.buyer_email)) return { ok: false, reason: "erased" };
-  const id = await queueOrderConfirmation(pool, order, { kind: "order_confirmation" });
+  // A guest order (no account) gets fresh private links instead (lib/guestOrders.js).
+  const id = order.is_guest && !order.user_id
+    ? await queueGuestResend(pool, order, base).catch((err) => { console.error(`Guest resend failed for order ${order.id}:`, err.message); return null; })
+    : await queueOrderConfirmation(pool, order, { kind: "order_confirmation" });
   if (!id) return { ok: false, reason: "queue_failed" };
   const result = await deliverNow(pool, id);
   return { ok: true, sent: result.sent, id };
@@ -314,12 +333,20 @@ async function releaseCartHold(pool, orderId, status) {
   });
 }
 
-// The 10-minute job: only the leftover cleanup above is left of the old cart job.
+// The 10-minute job: the leftover cleanup above, and the reservation expiry, so an
+// unconfirmed GUEST hold (2 hours, lib/guestOrders.js) is released within 10 minutes
+// of its deadline even when nobody opens a page (the 6-hourly order job is too slow
+// for it; page reads release it too).
 async function runCartMaintenance(pool) {
   try {
     await module.exports.expireStaleCartHolds(pool);
   } catch (err) {
     console.error("Cart hold expiry failed:", err);
+  }
+  try {
+    await expireOrderReservations(pool);
+  } catch (err) {
+    console.error("Reservation expiry (cart maintenance) failed:", err);
   }
 }
 

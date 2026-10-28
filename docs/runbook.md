@@ -1065,8 +1065,8 @@ a day. Only the book's ISBN is sent out; no member or customer data.
 
 ## k) Reservations, collecting and paying in the shop, refunds
 
-**How it works.** A customer with an account reserves books (and drop-in seats)
-on the website. **Nothing is paid online.** The customer comes to the shop
+**How it works.** A customer reserves books (and drop-in seats) on the website,
+with an account or as a **guest** (no account: name, email, optional phone). **Nothing is paid online.** The customer comes to the shop
 (Rue Peyrolière, Wednesday to Saturday, 14:00 to 19:00), and you take the payment
 yourself (cash, card machine or cheque). Then you record it on the website, so
 the books count as sold and the sale appears in the reports. For a drop-in seat
@@ -1079,9 +1079,20 @@ terms of sale, `/terms-of-sale.html`):
 - Books are held **14 days** (until the end of the 14th day, Paris time). You
   can extend a reservation **once, by 7 days**.
 - A reserved drop-in seat is held until the session is over.
-- One account can hold at most **10 books** and **3 open reservations**.
-- A customer can cancel their reservation from their account page; a seat only
-  until **24 hours** before the session.
+- One account can hold at most **10 books** and **3 open reservations**; for
+  guests the same limits count per email address.
+- **Guest reservations**: the books are held at once, but only for **2 hours**
+  until the guest opens the link in their email ("Confirm my reservation").
+  Not confirmed, the reservation is released by itself (the list shows it as
+  expired; the order page says "The email link was never opened"); confirmed, it
+  is held 14 days like any other. Guest reservations are marked **Guest** in the
+  list and on the order page, with name, email and phone. Collecting, refunds,
+  no-show and cancelling work exactly the same. If the guest later creates an
+  account with the same email and confirms it, their guest reservations move to
+  that account. **Resend confirmation** sends the guest fresh links.
+- A customer can cancel their reservation from their account page (a guest:
+  with the private link in their email); a seat only until **24 hours** before
+  the session.
 - Customer emails: a confirmation right after reserving (with the deadline, the
   shop address and how to cancel; it is a reservation, not a proof of purchase), a reminder on
   day 10, a short "your reservation has ended" email if it lapses (no penalty),
@@ -1168,8 +1179,8 @@ If you want to act before that:
 
 ### Cancelling a reservation
 
-- **The customer cancels:** from their account page (or the reservation page)
-  they press **Cancel reservation**. Books go back on sale at once; for a
+- **The customer cancels:** from their account page (or the reservation page;
+  a guest from the private link in their email) they press **Cancel reservation**. Books go back on sale at once; for a
   drop-in seat this works until 24 hours before the session. Within 24 hours they
   must write to you; you can then cancel it yourself.
 - **You cancel:** open the reservation and press **Cancel reservation**

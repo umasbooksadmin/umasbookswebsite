@@ -191,7 +191,7 @@ test("privacy policy: GitHub is a named recipient (backup job), the cookie, rete
   assert.match(en["pp.s4.list"], /<strong>GitHub<\/strong> \(United States\) — runs our automatic backup job; the database copy passes through it briefly before it is stored at Backblaze\./);
   assert.match(fr["pp.s4.list"], /<strong>GitHub<\/strong> \(États-Unis\) — exécute notre sauvegarde automatique\u00a0; la copie de la base y transite brièvement avant d’être stockée chez Backblaze\./);
   assert.match(en["pp.s3.p"], /keep you logged in, remember your cart and protect forms/);
-  assert.match(en["pp.s3.p"], /cart and login pages/);
+  assert.match(en["pp.s3.p"], /cart, guest reservation and login pages/);
   assert.match(fr["pp.s3.p"], /mémoriser votre panier et protéger les formulaires/);
   assert.match(en["pp.s5.list"], /Accounts with a current membership are not deleted automatically/);
   assert.match(fr["pp.s5.list"], /Les comptes ayant une adhésion en cours ne sont pas supprimés automatiquement/);

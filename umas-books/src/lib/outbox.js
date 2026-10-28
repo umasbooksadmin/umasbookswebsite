@@ -59,7 +59,8 @@ const FAST_PATH_WAIT_MS = 5000;
 
 // Kinds whose body is a live login/confirmation link. The link is single-use
 // and short-lived, so the body is blanked as soon as the mail is sent.
-const TOKEN_KINDS = new Set(["verification", "password_reset", "book_request_confirm", "book_request_list", "signup_attempt"]);
+// guest_reservation / guest_reservation_confirmed carry a guest's confirm and manage links (lib/guestOrders.js).
+const TOKEN_KINDS = new Set(["verification", "password_reset", "book_request_confirm", "book_request_list", "signup_attempt", "guest_reservation", "guest_reservation_confirmed"]);
 // How long the link inside such a mail works; a still-pending mail older than
 // this is dead weight (and a live link in the database) and is expired.
 // verification / password_reset match lib/emailVerification.js (24 h) and
@@ -70,11 +71,13 @@ const TOKEN_LIFETIME_MINUTES = {
   signup_attempt: 24 * 60,
   book_request_confirm: 7 * 24 * 60,
   book_request_list: 30 * 24 * 60,
+  guest_reservation: 2 * 60, // legal.GUEST_CONFIRM_HOURS: the hold itself is released then
+  guest_reservation_confirmed: 30 * 24 * 60,
 };
 
 // Kinds an anonymous visitor can trigger toward ANY address they type. Order and
 // reservation confirmations, reminders and admin mail are never in this set.
-const THROTTLED_KINDS = new Set(["verification", "signup_attempt", "password_reset", "book_request_confirm", "book_request_list"]);
+const THROTTLED_KINDS = new Set(["verification", "signup_attempt", "password_reset", "book_request_confirm", "book_request_list", "guest_reservation"]);
 const THROTTLE = {
   intervalMinutes: 10, // at most 1 mail per (recipient, kind) per this many minutes
   perRecipientPerDay: 5, // and at most this many throttled-kind mails per recipient per 24 h
@@ -83,7 +86,7 @@ const THROTTLE = {
   // determined flood can use the ceiling up and delay genuine signups for an
   // hour (the per-IP limits still apply first); the log counter shows it. The
   // MAIL_GLOBAL_PER_HOUR environment variable overrides all of them (tests).
-  globalPerHour: { verification: 100, signup_attempt: 100, password_reset: 60, book_request_confirm: 60, book_request_list: 60 },
+  globalPerHour: { verification: 100, signup_attempt: 100, password_reset: 60, book_request_confirm: 60, book_request_list: 60, guest_reservation: 60 },
 };
 const throttleCounts = new Map(); // "kind:reason" -> number since boot (never any address)
 const getThrottleCounts = () => Object.fromEntries(throttleCounts);
@@ -132,7 +135,9 @@ function globalCap(kind, limits) {
 async function enqueueThrottled(db, msg, { mode, limits } = {}) {
   if (mode === "off") return { id: await enqueueEmail(db, msg) };
   const t = { ...THROTTLE, ...(limits || {}) };
-  const own = typeof db.connect === "function";
+  // A pool: own transaction. A client checked out of a pool (it has release()) is already inside the caller's
+  // transaction (lib/guestOrders.js queues the guest's link inside the reservation's): the lock and the row join it.
+  const own = typeof db.connect === "function" && typeof db.release !== "function";
   const client = own ? await db.connect() : db;
   try {
     if (own) await client.query("BEGIN");
@@ -204,7 +209,8 @@ async function sendClaimed(pool, row) {
        WHERE id = $1`,
       [row.id, TOKEN_KINDS.has(row.kind)]
     );
-    if (row.kind === "order_confirmation" && row.related_order_id) {
+    // A guest reservation's emails (lib/guestOrders.js) are its confirmation too.
+    if ((row.kind === "order_confirmation" || row.kind === "guest_reservation" || row.kind === "guest_reservation_confirmed") && row.related_order_id) {
       await pool.query("UPDATE orders SET confirmation_sent_at = now() WHERE id = $1 AND confirmation_sent_at IS NULL", [row.related_order_id]);
     }
   } catch (err) {

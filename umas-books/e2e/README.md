@@ -10,7 +10,7 @@ runs in CI after the crawl.
 
 There are exactly **five kinds of user** (personas), the same as the five
 scripts of the manual plan, plus the edge cases: **guest** (anyone not logged
-in; browses and can fill a cart, but cannot reserve), **account holder** (logged in
+in; browses, fills a cart and can reserve as a guest or log in), **account holder** (logged in
 with a confirmed email, not a member; this is who reserves), **member** (an account
 holder who also paid the membership fee), **volunteer**, **admin**.
 

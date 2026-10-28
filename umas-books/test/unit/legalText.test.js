@@ -98,5 +98,5 @@ test("the pickup hours match the opening hours in the home page's structured dat
 });
 
 test("the terms of sale version was bumped for this change", () => {
-  assert.equal(legal.TERMS_OF_SALE_VERSION, "2026-10-09");
+  assert.equal(legal.TERMS_OF_SALE_VERSION, "2026-10-28");
 });

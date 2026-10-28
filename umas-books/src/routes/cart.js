@@ -3,14 +3,17 @@ const { localCover } = require("../lib/coverStore");
 const { pool } = require("../db");
 const { createReservation } = require("../lib/cart");
 const { expireStaleReservations, cancelReservationAsCustomer, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SEAT_CANCEL_HOURS } = require("../lib/reservations");
+const guestOrders = require("../lib/guestOrders");
+const { GUEST_CONFIRM_HOURS } = require("../lib/legal");
+const { baseUrl } = require("../lib/baseUrl");
 const { seatsTakenExpr } = require("../lib/classCapacity");
 const { isPreviewMode } = require("../lib/preview");
 const { TERMS_OF_SALE_VERSION } = require("../lib/legal");
 const { loadOrderItems, orderItemLabel, orderItemParts, reservationLastDay } = require("../lib/orderItems");
 const { saveSession } = require("../lib/session");
-const { clean, parseId } = require("../lib/validation");
+const { clean, parseId, isEmail } = require("../lib/validation");
 const { CART_RETURN, safeReturnTo } = require("../lib/returnTo");
-const { checkoutLimiter, cartEditLimiter } = require("../middleware/rateLimits");
+const { checkoutLimiter, cartEditLimiter, limit } = require("../middleware/rateLimits");
 const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
 
 const router = express.Router();
@@ -29,9 +32,12 @@ function isSafeLocalPath(value) {
 // a total (it would otherwise be charged as 0). It is "ask in the shop" only.
 //
 // Browsing, adding to and viewing the cart need no login (matches /books and
-// /sessions); RESERVING does: reserving books or class seats requires an
-// account (see accountForCheckout and POST /cart/reserve). Nothing is paid
-// online: the customer pays in person at the shop or at the class session. The cart itself is
+// /sessions). RESERVING is done either with an account (POST /cart/reserve, see
+// accountForCheckout) or as a GUEST, without one (GET/POST /cart/guest: name,
+// email, optional phone; the hold is confirmed from an emailed link within 2
+// hours, see lib/guestOrders.js). Drop-in seats share this path, so a guest can
+// reserve them too. Nothing is paid online: the customer pays in person at the
+// shop or at the class session. The cart itself is
 // just a list of lines in the session (it is carried across the login's
 // session regeneration, see loginAs in routes/auth.js); nothing is held in
 // the database until the reservation is made (see src/lib/cart.js). A line is either a book copy ({ kind: "book", copyId }) or a
@@ -196,13 +202,12 @@ router.get("/cart/checkout", async (req, res) => {
 // limits in lib/legal.js cap what can be held at once).
 const MAX_CART_LINES = 20;
 
-// Two callers: the book page's Add to Cart buttons, and the cart icon on a book card (via=card, lib/cardCart.js). The
-// card icon follows "buying requires an account": a guest's book is put in the session's cart (which login carries
-// across, see loginAs in routes/auth.js) and they are sent to sign in, with the existing returnTo bringing them back to
-// the page they were on, the book now in their cart. public/cart-add.js posts here with Accept: application/json and
-// gets the outcome as JSON instead of a redirect (same CSRF token, same limiter):
-//   { ok: true, inCart: true, cartCount, bookId [, login] }   added (or already there); login: go sign in first
-//   { ok: false, error: "unavailable" | "full" }                 nothing added
+// Two callers: the book page's Add to Cart buttons, and the cart icon on a book card (via=card, lib/cardCart.js). Signed
+// in or not, the book goes straight into the session's cart (a signed-out visitor's cart is the same session cart, and
+// login carries it across, see loginAs in routes/auth.js). public/cart-add.js posts here with Accept: application/json
+// and gets the outcome as JSON instead of a redirect (same CSRF token, same limiter):
+//   { ok: true, inCart: true, cartCount, bookId }   added (or already there)
+//   { ok: false, error: "unavailable" | "full" }    nothing added
 router.post("/cart/add", cartEditLimiter, async (req, res) => {
   const copyId = parseId(req.body.copyId);
   const backTo = isSafeLocalPath(req.body.backTo) ? req.body.backTo : "/cart";
@@ -226,16 +231,12 @@ router.post("/cart/add", cartEditLimiter, async (req, res) => {
     }
   }
   await saveSession(req);
-  const login = fromCard && outcome === "added" && !req.session.user
-    ? `/login?returnTo=${encodeURIComponent(safeReturnTo(backTo) || CART_RETURN)}`
-    : null;
   if (wantsJson) {
     res.set("Cache-Control", "no-store");
     if (outcome !== "added") return res.json({ ok: false, error: outcome });
-    const cartCount = req.session.cart.length;
-    return res.json(login ? { ok: true, inCart: true, cartCount, bookId, login } : { ok: true, inCart: true, cartCount, bookId });
+    return res.json({ ok: true, inCart: true, cartCount: req.session.cart.length, bookId });
   }
-  res.redirect(login || backTo);
+  res.redirect(fromCard ? safeReturnTo(backTo) || backTo : backTo);
 });
 
 router.post("/cart/add-dropin", cartEditLimiter, async (req, res) => {
@@ -272,6 +273,68 @@ router.post("/cart/remove", async (req, res) => {
 
 // The policy numbers shown to customers (lib/legal.js is the single source).
 const LIMITS = { copies: MAX_RESERVED_COPIES, reservations: MAX_ACTIVE_RESERVATIONS, seatHours: SEAT_CANCEL_HOURS };
+
+// The seen prices of the cart form (hidden seenPrice_<copyId> fields): the reservation is refused, not silently
+// re-priced, when the copy's price under the row lock differs (lib/cart.js). A missing field falls back to the price just loaded.
+function withSeenPrices(req, items) {
+  return items.map((i) => {
+    if (i.kind !== "book") return i;
+    const raw = String(req.body[`seenPrice_${i.copyId}`] ?? "").trim().replace(",", ".");
+    const seen = Number(raw);
+    return raw !== "" && Number.isFinite(seen) && seen > 0 ? { ...i, price: Math.round(seen * 100) / 100 } : i;
+  });
+}
+
+// Keeps only the lines that are still available (after SOLD_OUT / NOT_FOR_SALE).
+async function prune(req, cart) {
+  const fresh = await loadCartItems(cart);
+  req.session.cart = fresh.map((i) => ({
+    kind: i.kind, lineId: i.lineId,
+    ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
+  }));
+}
+
+// The customer's message for a refused createReservation (lib/cart.js); `guest`: the limits are per email address.
+async function reservationRefusal(req, err, cart, { guest }) {
+  if (err.message === "TOO_MANY_RESERVATIONS") {
+    return guest
+      ? req.tr(`There are already ${MAX_ACTIVE_RESERVATIONS} open reservations for this email address, which is the most we can hold for one address. Please collect or cancel one first (with the link in its email).`, `Il y a déjà ${MAX_ACTIVE_RESERVATIONS} réservations en cours pour cette adresse e-mail, ce qui est le maximum pour une adresse. Veuillez en retirer ou en annuler une avant d’en faire une autre (avec le lien de son e-mail).`)
+      : req.tr(`You already have ${MAX_ACTIVE_RESERVATIONS} open reservations, which is the most we can hold for one account. Please collect or cancel one first (see your account page).`, `Vous avez déjà ${MAX_ACTIVE_RESERVATIONS} réservations en cours, ce qui est le maximum pour un compte. Veuillez en retirer ou en annuler une avant d’en faire une autre (voir votre page de compte).`);
+  }
+  if (err.message === "TOO_MANY_COPIES") {
+    return guest
+      ? req.tr(`We can hold at most ${MAX_RESERVED_COPIES} books at a time for one email address, counting its other open reservations (confirmed or not). Please remove some books from your cart, or collect or cancel a reservation first.`, `Nous pouvons garder au plus ${MAX_RESERVED_COPIES} livres à la fois pour une adresse e-mail, ses autres réservations en cours comprises (confirmées ou non). Veuillez retirer des livres de votre panier, ou retirer ou annuler une réservation avant d’en faire une autre.`)
+      : req.tr(`We can hold at most ${MAX_RESERVED_COPIES} books at a time for one account, counting your other open reservations. Please remove some books from your cart, or collect or cancel a reservation first.`, `Nous pouvons garder au plus ${MAX_RESERVED_COPIES} livres à la fois pour un compte, vos autres réservations en cours comprises. Veuillez retirer des livres de votre panier, ou retirer ou annuler une réservation avant d’en faire une autre.`);
+  }
+  if (err.message === "MAIL_THROTTLED") {
+    return req.tr("We have sent several emails to this address recently, so nothing was reserved. Please try again later, or log in or create an account.", "Nous avons déjà envoyé plusieurs e-mails à cette adresse récemment, donc rien n’a été réservé. Veuillez réessayer plus tard, ou vous connecter ou créer un compte.");
+  }
+  if (err.message === "PRICE_CHANGED") {
+    // Nothing was reserved. The cart page now shows the new price; pressing Reserve again confirms it.
+    const msgs = (err.changes || []).map((c) => req.tr(
+      `The price of "${c.title}" changed to EUR ${c.newPrice.toFixed(2)}, please review your reservation.`,
+      `Le prix de « ${c.title} » est passé à ${c.newPrice.toFixed(2).replace(".", ",")} €, veuillez vérifier votre réservation.`));
+    return msgs.join(" ");
+  }
+  if (err.message === "NOT_FOR_SALE") {
+    // A copy's price was cleared (or set to 0) after the customer saw the cart: it is not "taken by someone else".
+    await prune(req, cart);
+    const names = (err.titles || []).map((t) => `"${t}"`).join(", ");
+    const namesFr = (err.titles || []).map((t) => `« ${t} »`).join(", ");
+    return req.tr(
+      `${names} is no longer for sale at the moment (it has no price), so nothing was reserved. Please review your cart and try again.`,
+      `${namesFr} n’est plus en vente pour le moment (il n’a plus de prix), donc rien n’a été réservé. Veuillez vérifier votre panier et réessayer.`);
+  }
+  if (err.message === "BUSY") {
+    return req.tr("The shop is busy right now. Please try again in a moment.", "La boutique est très sollicitée en ce moment. Veuillez réessayer dans un instant.");
+  }
+  if (err.message !== "SOLD_OUT") {
+    console.error("Reservation failed:", err.message);
+    return req.tr("Something went wrong making your reservation. Please try again.", "Une erreur est survenue lors de votre réservation. Veuillez réessayer.");
+  }
+  await prune(req, cart);
+  return req.tr("Sorry, something in your cart was just taken by someone else. Please review your cart and try again.", "Désolé, un article de votre panier vient d’être pris par quelqu’un d’autre. Veuillez vérifier votre panier et réessayer.");
+}
 
 // POST /cart/reserve: "Reserve these books". NOTHING IS PAID ONLINE: the copies
 // and seats are held for the customer (RESERVATION_DAYS for books), who pays in
@@ -319,15 +382,8 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
   if (!name) return refuse(req.tr("Please enter your name.", "Veuillez indiquer votre nom."));
   if (req.body.acceptCgv !== "on") return refuse(req.tr("Please accept the terms of sale to continue.", "Veuillez accepter les conditions générales de vente (CGV) pour continuer."));
 
-  // The price the customer SAW for each book (a hidden field of the cart form): the
-  // reservation is refused, not silently re-priced, when the copy's price under the row
-  // lock differs (lib/cart.js). A missing field falls back to the price just loaded.
-  const priced = items.map((i) => {
-    if (i.kind !== "book") return i;
-    const raw = String(req.body[`seenPrice_${i.copyId}`] ?? "").trim().replace(",", ".");
-    const seen = Number(raw);
-    return raw !== "" && Number.isFinite(seen) && seen > 0 ? { ...i, price: Math.round(seen * 100) / 100 } : i;
-  });
+  // The price the customer SAW for each book (see withSeenPrices).
+  const priced = withSeenPrices(req, items);
 
   let order;
   try {
@@ -335,45 +391,7 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
       user: account.user, name, phone, items: priced, lang: req.lang, hasDropin: false, acceptedVersion: TERMS_OF_SALE_VERSION,
     });
   } catch (err) {
-    if (err.message === "TOO_MANY_RESERVATIONS") {
-      return refuse(req.tr(`You already have ${MAX_ACTIVE_RESERVATIONS} open reservations, which is the most we can hold for one account. Please collect or cancel one first (see your account page).`, `Vous avez déjà ${MAX_ACTIVE_RESERVATIONS} réservations en cours, ce qui est le maximum pour un compte. Veuillez en retirer ou en annuler une avant d’en faire une autre (voir votre page de compte).`));
-    }
-    if (err.message === "TOO_MANY_COPIES") {
-      return refuse(req.tr(`We can hold at most ${MAX_RESERVED_COPIES} books at a time for one account, counting your other open reservations. Please remove some books from your cart, or collect or cancel a reservation first.`, `Nous pouvons garder au plus ${MAX_RESERVED_COPIES} livres à la fois pour un compte, vos autres réservations en cours comprises. Veuillez retirer des livres de votre panier, ou retirer ou annuler une réservation avant d’en faire une autre.`));
-    }
-    if (err.message === "PRICE_CHANGED") {
-      // Nothing was reserved. The cart page now shows the new price; pressing Reserve again confirms it.
-      const msgs = (err.changes || []).map((c) => req.tr(
-        `The price of "${c.title}" changed to EUR ${c.newPrice.toFixed(2)}, please review your reservation.`,
-        `Le prix de « ${c.title} » est passé à ${c.newPrice.toFixed(2).replace(".", ",")} €, veuillez vérifier votre réservation.`));
-      return refuse(msgs.join(" "));
-    }
-    if (err.message === "NOT_FOR_SALE") {
-      // A copy's price was cleared (or set to 0) after the customer saw the cart: it is not "taken by someone else".
-      const fresh = await loadCartItems(cart);
-      req.session.cart = fresh.map((i) => ({
-        kind: i.kind, lineId: i.lineId,
-        ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
-      }));
-      const names = (err.titles || []).map((t) => `"${t}"`).join(", ");
-      const namesFr = (err.titles || []).map((t) => `« ${t} »`).join(", ");
-      return refuse(req.tr(
-        `${names} is no longer for sale at the moment (it has no price), so nothing was reserved. Please review your cart and try again.`,
-        `${namesFr} n’est plus en vente pour le moment (il n’a plus de prix), donc rien n’a été réservé. Veuillez vérifier votre panier et réessayer.`));
-    }
-    if (err.message === "BUSY") {
-      return refuse(req.tr("The shop is busy right now. Please try again in a moment.", "La boutique est très sollicitée en ce moment. Veuillez réessayer dans un instant."));
-    }
-    if (err.message !== "SOLD_OUT") {
-      console.error("Reservation failed:", err.message);
-      return refuse(req.tr("Something went wrong making your reservation. Please try again.", "Une erreur est survenue lors de votre réservation. Veuillez réessayer."));
-    }
-    const fresh = await loadCartItems(cart);
-    req.session.cart = fresh.map((i) => ({
-      kind: i.kind, lineId: i.lineId,
-      ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
-    }));
-    return refuse(req.tr("Sorry, something in your cart was just taken by someone else. Please review your cart and try again.", "Désolé, un article de votre panier vient d’être pris par quelqu’un d’autre. Veuillez vérifier votre panier et réessayer."));
+    return refuse(await reservationRefusal(req, err, cart, { guest: false }));
   }
 
   // The items are now held by the reservation, so the cart is emptied (a second
@@ -383,6 +401,128 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
   req.session.cart = [];
   await saveSession(req);
   res.redirect(`/cart/return?order=${order.access_token}`);
+});
+
+// ---------- reserving as a guest (no account; lib/guestOrders.js) ----------
+
+// Pages reached through a private link are never cached and send no Referer (the token is in the URL).
+function privatePage(res) {
+  res.set("Cache-Control", "no-store");
+  res.set("Referrer-Policy", "no-referrer");
+}
+
+// The confirm and manage links: a cap per connection on top of the token check (a token is 32 random bytes).
+const guestLinkLimiter = limit({ windowMs: 15 * 60 * 1000, max: 30 });
+
+const GUEST_FORM = "/cart/guest";
+
+// The guest form: name and email (required), phone (optional). A signed-in person, an
+// empty cart and preview mode go back to the cart page (which says why).
+router.get(GUEST_FORM, async (req, res) => {
+  if (req.session.user || isPreviewMode()) return res.redirect(CART_RETURN);
+  await expireStaleReservations(pool);
+  const cart = getCart(req);
+  const items = await loadCartItems(cart);
+  req.session.cart = items.map((i) => ({
+    kind: i.kind, lineId: i.lineId,
+    ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
+  }));
+  if (!items.length) {
+    await saveSession(req);
+    return res.redirect(CART_RETURN);
+  }
+  const flash = takePageFlash(req, res, "cartGuest") || {};
+  res.set("Cache-Control", "private, no-store");
+  res.render("cart_guest", {
+    items, total: items.reduce((sum, i) => sum + i.price, 0), error: flash.error || null, limits: LIMITS, confirmHours: GUEST_CONFIRM_HOURS,
+    values: { name: flash.name || "", email: flash.email || "", phone: flash.phone || "" },
+  });
+});
+
+router.post("/cart/guest/reserve", checkoutLimiter, async (req, res) => {
+  // Signed in: the account's own reservation form (its confirmed email), never a guest order.
+  if (req.session.user) return res.redirect(CART_RETURN);
+  const cart = getCart(req);
+  const name = clean(req.body.name, 100);
+  const email = clean(req.body.email, 200).toLowerCase();
+  const phone = clean(req.body.phone, 30) || null;
+  const items = await loadCartItems(cart);
+  req.session.cart = items.map((i) => ({
+    kind: i.kind, lineId: i.lineId,
+    ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
+  }));
+  const refuse = (error) => redirectWithFlash(req, res, GUEST_FORM, "cartGuest", { error, name, email, phone: phone || "" });
+
+  // Preview mode: nothing can be reserved (the cart page says so).
+  if (isPreviewMode()) return redirectWithFlash(req, res, CART_RETURN, "cart", { error: null });
+  if (!items.length) return redirectWithFlash(req, res, CART_RETURN, "cart", { error: req.tr("Your cart is empty.", "Votre panier est vide.") });
+  if (!name || !isEmail(email)) return refuse(req.tr("Please enter your name and a valid email address.", "Veuillez indiquer votre nom et une adresse e-mail valide."));
+  if (req.body.acceptCgv !== "on") return refuse(req.tr("Please accept the terms of sale to continue.", "Veuillez accepter les conditions générales de vente (CGV) pour continuer."));
+
+  let order;
+  try {
+    order = await createReservation(pool, {
+      guest: { email }, base: baseUrl(req), name, phone, items: withSeenPrices(req, items), lang: req.lang, hasDropin: false, acceptedVersion: TERMS_OF_SALE_VERSION,
+    });
+  } catch (err) {
+    return refuse(await reservationRefusal(req, err, cart, { guest: true }));
+  }
+  // Held now; the reservation page says "check your email" until the link is opened.
+  req.session.cart = [];
+  await saveSession(req);
+  res.redirect(`/cart/return?order=${order.access_token}`);
+});
+
+// The confirm link of the email. GET only shows the button (a mail scanner that opens
+// links must not confirm); the POST confirms. A used, expired or unknown link says so.
+router.get("/cart/guest/confirm/:token", guestLinkLimiter, async (req, res) => {
+  privatePage(res);
+  const peek = await guestOrders.peekConfirmToken(pool, req.params.token);
+  let order = null;
+  if (peek.state === "ask") order = (await pool.query("SELECT id, reserved_until FROM orders WHERE id = $1", [peek.orderId])).rows[0];
+  res.status(peek.state === "ask" ? 200 : 400).render("cart_guest_confirm", {
+    state: peek.state, order, token: peek.state === "ask" ? req.params.token : "", confirmHours: GUEST_CONFIRM_HOURS,
+  });
+});
+
+router.post("/cart/guest/confirm/:token", guestLinkLimiter, async (req, res) => {
+  privatePage(res);
+  const r = await guestOrders.confirmGuestOrder(pool, req.params.token, baseUrl(req));
+  if (r.outcome === "confirmed") return res.redirect(303, `/cart/guest/manage/${r.manageToken}?notice=confirmed`);
+  if (r.outcome === "invalid") res.locals.failedAttempt = true;
+  // Back to the link's own page, which says why it cannot be used.
+  res.redirect(303, guestOrders.TOKEN_RE.test(req.params.token) ? `/cart/guest/confirm/${req.params.token}` : "/cart/guest/confirm/invalid");
+});
+
+function guestNotice(req) {
+  switch (String(req.query.notice || "")) {
+    case "confirmed":
+      return req.tr("Thank you, your reservation is confirmed. We have emailed you the details.", "Merci, votre réservation est confirmée. Nous vous avons envoyé les détails par e-mail.");
+    case "cancelled":
+      return req.tr("Your reservation was cancelled and its items are available again.", "Votre réservation a été annulée et ses articles sont de nouveau disponibles.");
+    case "too-late":
+      return req.tr(`A drop-in seat can only be cancelled online until ${SEAT_CANCEL_HOURS} hours before its session. Please contact us.`, `Une place « drop-in » ne peut être annulée en ligne que jusqu’à ${SEAT_CANCEL_HOURS} heures avant la séance. Veuillez nous contacter.`);
+    default:
+      return null;
+  }
+}
+
+// The manage link: the reservation, its status, and "Cancel reservation", without an account.
+router.get("/cart/guest/manage/:token", guestLinkLimiter, async (req, res) => {
+  privatePage(res);
+  await expireStaleReservations(pool);
+  const order = await guestOrders.orderForManageToken(pool, req.params.token);
+  if (!order) return res.status(404).render("cart_guest_confirm", { state: "manage-invalid", order: null, token: "", confirmHours: GUEST_CONFIRM_HOURS });
+  return renderReservationPage(req, res, order, { manageToken: req.params.token, notice: guestNotice(req) });
+});
+
+router.post("/cart/guest/manage/:token/cancel", cartEditLimiter, async (req, res) => {
+  privatePage(res);
+  if (!guestOrders.TOKEN_RE.test(req.params.token)) return res.status(404).render("404");
+  const result = await guestOrders.cancelWithManageToken(pool, req.params.token);
+  if (result.outcome === "not_found") return res.status(404).render("404");
+  const notice = result.outcome === "released" ? "cancelled" : result.outcome === "too_late" ? "too-late" : "";
+  res.redirect(303, `/cart/guest/manage/${req.params.token}${notice ? `?notice=${notice}` : ""}`);
 });
 
 // The customer cancels their OWN reservation (owner-only; a copy is released at
@@ -413,10 +553,21 @@ router.get("/cart/return", async (req, res) => {
   const order = rows[0];
   if (!order) return res.status(404).render("404");
 
+  return renderReservationPage(req, res, order, {});
+});
+
+// The reservation page (by its access token, or a guest's manage link: manageToken). A guest reservation whose email
+// link was not opened yet shows "check your email" (awaitingConfirm) with the hold's deadline.
+async function renderReservationPage(req, res, order, { manageToken = null, notice = null }) {
   const orderItems = (await loadOrderItems(pool, order.id)).map((i) => ({ label: orderItemLabel(i, req.lang), ...orderItemParts(i, req.lang), price: i.price, isSeat: i.class_dropin_seat_id != null }));
   const sessionUser = req.session && req.session.user;
   const isOwner = !!(sessionUser && order.user_id && sessionUser.id === order.user_id);
-  res.render("cart_return", { order, items: orderItems, status: order.status, isOwner, lastDay: reservationLastDay(order), limits: LIMITS });
-});
+  const awaitingConfirm = order.status === "reserved" && order.is_guest && !order.guest_confirmed_at;
+  if (awaitingConfirm) res.set("Cache-Control", "no-store");
+  res.render("cart_return", {
+    order, items: orderItems, status: order.status, isOwner, lastDay: reservationLastDay(order), limits: LIMITS,
+    manageToken, notice, awaitingConfirm, confirmHours: GUEST_CONFIRM_HOURS,
+  });
+}
 
 module.exports = router;

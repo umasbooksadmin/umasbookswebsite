@@ -1,0 +1,43 @@
+<%- include('partials/header', { noindex: true, title: tr('Reserve as a guest', 'Réserver en tant qu’invité') }) %>
+
+<h1><%= tr('Reserve as a guest', 'Réserver en tant qu’invité') %></h1>
+<p class="muted"><%= tr('No account needed. We hold the books at once and email you a link: open it within {hours} hours to confirm, or the books go back on sale.', 'Aucun compte n’est nécessaire. Nous gardons les livres tout de suite et vous envoyons un lien par e-mail : ouvrez-le dans les {hours} heures pour confirmer, sinon les livres sont remis en vente.', { hours: confirmHours }) %></p>
+
+<%- include('partials/form_error_summary', { error, fields: [] }) %>
+
+<div class="card" id="guest-cart-summary">
+  <h2 class="section-title"><%= tr('Your cart', 'Votre panier') %></h2>
+  <ul class="plain">
+    <% items.forEach((i) => { %>
+      <li><% if (i.kind === 'book') { %><%- bookText(i.title) %><% } else { %><% const _frTitle = lang === 'fr' && i.titleFr && String(i.titleFr).trim() ? String(i.titleFr).trim() : null; %><span<% if (lang === 'fr' && !_frTitle) { %> lang="en"<% } %>><%= _frTitle || i.title %></span> <span class="muted small">&middot; <%= tr('Drop-in seat', 'Place drop-in') %> &middot; <%= formatDateTime(i.startsAt) %></span><% } %> <span class="muted small">&middot; <%= eur(i.price) %></span></li>
+    <% }) %>
+  </ul>
+  <p><strong><%= tr('Total:', 'Total :') %> <%= eur(total) %></strong> <a class="small" href="/cart"><%= tr('Change the cart', 'Modifier le panier') %></a></p>
+</div>
+
+<% const hasBooks = items.some((i) => i.kind === 'book'); const hasSeats = items.some((i) => i.kind === 'dropin'); %>
+<div class="card">
+  <h2 class="section-title"><%= tr('Your details', 'Vos coordonnées') %></h2>
+  <form class="stack" method="post" action="/cart/guest/reserve">
+    <%- include('partials/csrf_field') %>
+    <% items.filter((i) => i.kind === 'book').forEach((i) => { %><input type="hidden" name="seenPrice_<%= i.copyId %>" value="<%= i.price.toFixed(2) %>"><% }) %>
+    <label for="name"><%= tr('Name', 'Nom') %></label>
+    <input id="name" name="name" type="text" autocomplete="name" maxlength="100" value="<%= values.name %>" required>
+    <label for="email"><%= tr('Email', 'E-mail') %></label>
+    <input id="email" name="email" type="email" autocomplete="email" maxlength="200" value="<%= values.email %>" required aria-describedby="emailHelp">
+    <p class="muted small" id="emailHelp"><%= tr('We send the confirmation link here.', 'Nous envoyons le lien de confirmation à cette adresse.') %></p>
+    <label for="phone"><%= tr('Phone (optional)', 'Téléphone (facultatif)') %></label>
+    <input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="30" value="<%= values.phone %>">
+    <p class="muted small reserve-note"><%= legalText.nothingPaidOnline %></p>
+    <% if (hasBooks) { %><p class="muted small"><%= legalText.pickupWhere %></p><% } %>
+    <% if (hasSeats) { %><p class="muted small"><%= tr('Drop-in seats: you pay at the session. You can cancel a seat online until {hours} hours before it starts.', 'Places « drop-in » : vous réglez à la séance. Vous pouvez annuler une place en ligne jusqu’à {hours} heures avant le début.', { hours: limits.seatHours }) %></p><% } %>
+    <p class="muted small"><%= tr('At most {copies} books can be held at a time for one email address.', 'Nous pouvons garder au plus {copies} livres à la fois pour une même adresse e-mail.', { copies: limits.copies }) %></p>
+    <label class="ann-check"><input type="checkbox" name="acceptCgv" required> <span><%= tr('I have read and accept the', 'J’ai lu et j’accepte les') %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('terms of sale', 'conditions générales de vente (CGV)') %></a>.</span></label>
+    <%- include('partials/privacy_note', { en: 'We use your name, email and phone only to manage your reservation, and keep them as long as any reservation’s details (no account is created). See our', fr: 'Vos nom, e-mail et téléphone servent uniquement à gérer votre réservation et sont conservés comme ceux de toute réservation (aucun compte n’est créé). Consultez notre' }) %>
+    <p class="muted small no-returns-note"><%= legalText.noReturns %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('Terms of sale', 'Conditions de vente') %></a></p>
+    <button class="btn" type="submit"><%= tr('Reserve (free, no commitment)', 'Réserver (gratuit, sans engagement)') %></button>
+  </form>
+  <p class="muted small"><%= tr('Have an account?', 'Vous avez un compte ?') %> <a href="/login?returnTo=<%= encodeURIComponent('/cart') %>"><%= tr('Log in', 'Se connecter') %></a></p>
+</div>
+
+<%- include('partials/footer') %>

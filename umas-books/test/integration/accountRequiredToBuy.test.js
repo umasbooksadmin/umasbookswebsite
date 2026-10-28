@@ -1,8 +1,12 @@
-// Reserving (books and drop-in seats: nothing is paid online) requires an account.
+// Reserving WITH an account (books and drop-in seats: nothing is paid online).
+// Since 2026-10-28 a signed-out visitor can also reserve as a guest, through its
+// own routes (/cart/guest..., test/integration/guestCheckout.test.js); this file
+// covers the account path and what stays account-only:
 //
-//  - A guest can browse and fill the cart, but POST /cart/reserve (and GET
-//    /cart/checkout, kept as a harmless bookmark redirect) sends them to the
-//    login page (with a safe returnTo=/cart) and creates nothing.
+//  - A signed-out visitor can browse and fill the cart; the cart offers "Continue
+//    as a guest" and log in / create an account, but the ACCOUNT form (POST
+//    /cart/reserve, and GET /cart/checkout, kept as a harmless bookmark redirect)
+//    sends them to the login page (with a safe returnTo=/cart) and creates nothing.
 //  - The cart survives the login's session regeneration, and the whole
 //    signup -> confirm email -> choose password -> login path (the returnTo
 //    travels inside the single-use tokens), and every open-redirect attempt
@@ -174,19 +178,21 @@ test("a drop-in seat needs the account too (same reservation)", async () => {
 
 // ---------- 2. what the cart page shows ----------
 
-test("the cart page: a guest sees the log-in-or-create-account block and no reservation form; an account holder the form with a read-only email", async () => {
+test("the cart page: a signed-out visitor sees continue-as-guest and log in / create account, and no account form; an account holder the form with a read-only email", async () => {
   const copy = await makeCopy();
-  for (const [lang, heading, loginLabel] of [
-    ["en", "Log in or create an account to reserve", "Log in"],
-    ["fr", "Connectez-vous ou créez un compte pour réserver", "Se connecter"],
+  for (const [lang, guestHeading, guestButton, heading, loginLabel] of [
+    ["en", "Reserve without an account", "Continue as a guest", "Or log in, or create an account", "Log in"],
+    ["fr", "Réserver sans compte", "Continuer en tant qu’invité", "Ou connectez-vous, ou créez un compte", "Se connecter"],
   ]) {
     const g = guest(lang);
     await g.post("/cart/add", { copyId: copy });
     const html = (await g.get("/cart")).text.replace(/<span class="nobr">|<\/span>/g, ""); // French headings keep "Connectez-vous" on one line
-    assert.ok(html.includes(heading), `${lang}: heading`);
+    assert.ok(html.includes('id="continue-as-guest"') && html.includes(guestHeading) && html.includes(guestButton), `${lang}: continue as a guest offered`);
+    assert.ok(html.includes('href="/cart/guest"'), `${lang}: the guest form link`);
+    assert.ok(html.includes(heading), `${lang}: log-in heading`);
     assert.ok(html.includes(`href="/login?returnTo=%2Fcart"`) && html.includes(loginLabel), `${lang}: login link carries returnTo`);
     assert.ok(html.includes(`href="/signup?returnTo=%2Fcart"`), `${lang}: signup link carries returnTo`);
-    assert.ok(!html.includes('action="/cart/reserve"'), `${lang}: no reservation form for a guest`);
+    assert.ok(!html.includes('action="/cart/reserve"'), `${lang}: no account reservation form for a signed-out visitor`);
   }
 
   const v = guest();
@@ -198,7 +204,7 @@ test("the cart page: a guest sees the log-in-or-create-account block and no rese
   assert.match(html, /<input id="name" name="name"[^>]*value="Form Person"/);
   assert.match(html, new RegExp(`<input id="accountEmail" type="email" value="${account.email.replace(/\./g, "\\.")}" readonly`));
   assert.doesNotMatch(html, /name="email"/, "the form posts no email at all");
-  assert.ok(!html.includes("Log in or create an account to reserve"));
+  assert.ok(!html.includes("Or log in, or create an account") && !html.includes('id="continue-as-guest"'), "signed in: no guest or login block");
 });
 
 test("login and signup show the cart note when sent from the cart (EN/FR), and nothing for an unknown returnTo", async () => {

@@ -24,7 +24,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const dir = path.join(__dirname, "..", "..", "migrations");
-const KNOWN_GAPS = new Set([49, 51, 52, 61, 64, 67, 69, 70, 71, 72, 73, 102]); // 102: taken by the open PR #347 (genre_runs_note); it fills the gap when it merges
+const KNOWN_GAPS = new Set([49, 51, 52, 61, 64, 67, 69, 70, 71, 72, 73, 105]); // 105: taken by the open PR #354 (till_class_seats_category); it fills the gap when it merges
 
 const files = fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
 

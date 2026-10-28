@@ -226,14 +226,16 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
       const { rows: created } = await client.query(
         `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, status, withdrawal_waiver_at, lang,
                              cgv_accepted_at, cgv_version, user_id, reserved_until, reservation_extended_at, confirmation_sent_at,
-                             customer_pickup_reminder_sent_at, pickup_reminder_sent_at, split_from_order_id)
+                             customer_pickup_reminder_sent_at, pickup_reminder_sent_at, split_from_order_id, is_guest, guest_confirmed_at)
          SELECT buyer_name, buyer_email, buyer_phone, $2, 'reserved', withdrawal_waiver_at, lang,
                 cgv_accepted_at, cgv_version, user_id, reserved_until, reservation_extended_at, confirmation_sent_at,
-                customer_pickup_reminder_sent_at, pickup_reminder_sent_at, id
+                customer_pickup_reminder_sent_at, pickup_reminder_sent_at, id, is_guest, guest_confirmed_at
          FROM orders WHERE id = $1 RETURNING id`,
         [orderId, restTotal]
       );
       newOrderId = created[0].id;
+      // A guest's private links (lib/guestOrders.js) follow the part that is still reserved.
+      await client.query("UPDATE guest_order_tokens SET order_id = $2 WHERE order_id = $1", [orderId, newOrderId]);
       const restCopies = rest.filter((i) => i.book_copy_id != null).map((i) => i.book_copy_id);
       const restSeats = rest.filter((i) => i.class_dropin_seat_id != null).map((i) => i.class_dropin_seat_id);
       await client.query("UPDATE order_items SET order_id = $2 WHERE id = ANY($1::int[])", [rest.map((i) => i.id), newOrderId]);
