@@ -35,8 +35,8 @@ before(async () => {
   // Twelve new Fiction books in stock (New In needs more than one page; the genre grid needs more than one row), one with a
   // long price, all in every published collection.
   const { rows } = await pool.query(
-    `INSERT INTO books (title, authors, categories, categories_fr)
-     SELECT 'Phone Arrow Book ' || g, 'Author ' || g, 'Fiction', 'Fiction' FROM generate_series(1, 12) g RETURNING id`);
+    `INSERT INTO books (title, authors, categories)
+     SELECT 'Phone Arrow Book ' || g, 'Author ' || g, 'Fiction' FROM generate_series(1, 12) g RETURNING id`);
   for (const [i, b] of rows.entries()) {
     await pool.query("INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', $2, 'good')", [b.id, i === 0 ? 12.5 : 4]);
   }

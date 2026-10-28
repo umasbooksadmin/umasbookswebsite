@@ -126,7 +126,7 @@ test("stale-answer guard: only the newest lookup is current", () => {
 });
 
 test("planFill fills untouched fields, empties them for a book without that data, and never touches an edited field", () => {
-  const book = { title: "New Title", author: "Ann", publisher: null, publishedYear: 2011, genre: "Fiction", genreFr: "Fiction", description: "Blurb", coverUrl: "/img/a.jpg" };
+  const book = { title: "New Title", author: "Ann", publisher: null, publishedYear: 2011, genre: "Fiction", description: "Blurb", coverUrl: "/img/a.jpg" };
   const plain = S.planFill(book, {});
   assert.equal(plain.title, "New Title");
   assert.equal(plain.publishedYear, "2011");

@@ -9,7 +9,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { prepareDatabase } = require("../helpers/testDatabase");
 
-const db = prepareDatabase("remove_french_books", { isolated: true });
+// Migration 108 drops the two columns, so this file tests 107 on a database migrated only up to 107.
+const db = prepareDatabase("remove_french_books", { isolated: true, migrateUpTo: 107 });
 const { pool } = require("../../src/db");
 before(() => db.create());
 after(async () => { await pool.end(); db.drop(); });

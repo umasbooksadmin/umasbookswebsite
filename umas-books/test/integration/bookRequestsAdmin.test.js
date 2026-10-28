@@ -54,7 +54,7 @@ beforeEach(() => { sent.length = 0; });
 async function intake({ title, isbn = "", author = "", status = "in_stock", price = "6.50" }) {
   const res = await c.post("/admin/inventory", {
     title, isbn, author, price, status, condition: "very_good",
-    description: "d", descriptionFr: "d fr", coverUrl: "http://cover.example/c.jpg",
+    description: "d", coverUrl: "http://cover.example/c.jpg",
   }, { as: admin });
   assert.equal(res.status, 302, res.text.slice(0, 200));
   const bookId = Number(res.location.match(/\/admin\/inventory\/(\d+)/)[1]);
@@ -153,7 +153,7 @@ test("intake shows the banner: redirect and the book's admin page say how many c
   const t2 = `Scan ${uniq()}`;
   await request({ title: t2 });
   const res = await adminPost("/admin/inventory", {
-    title: t2, price: "5", condition: "very_good", fromScan: "1", description: "d", descriptionFr: "d", coverUrl: "http://cover.example/c.jpg",
+    title: t2, price: "5", condition: "very_good", fromScan: "1", description: "d", coverUrl: "http://cover.example/c.jpg",
   });
   assert.match(res.location, /^\/admin\/inventory\/new\?saved=\d+.*&requests=1$/);
   assert.match((await c.get(res.location, { as: admin })).text, /1 customer asked for this book/);
@@ -165,7 +165,7 @@ test("editing a book's title re-checks the open requests", async () => {
   const r = await request({ title: `Typo Title ${stamp}` });
   assert.equal((await get(r.id)).status, "open");
   const res = await adminPost(`/admin/inventory/${book.bookId}`, {
-    title: `Typo Title ${stamp}`, description: "d", descriptionFr: "d", coverUrl: "http://cover.example/c.jpg",
+    title: `Typo Title ${stamp}`, description: "d", coverUrl: "http://cover.example/c.jpg",
   });
   assert.equal(res.status, 302);
   assert.equal((await get(r.id)).status, "matched");

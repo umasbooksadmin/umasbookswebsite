@@ -3746,13 +3746,25 @@ line (action `books.french_removed`, by "migration 107"): *French book descripti
 kept in table book_french_backup.* N is the number of books that had French text. Running the migration again changes nothing
 and writes no second line.
 
+**The columns are gone (migration 109, 2026-10-28).** The next deploy dropped the four unused columns:
+`books.description_fr`, `books.categories_fr`, `managed_genres.name_fr` and `managed_genres.browse_label_fr`. Before
+dropping, it checked that every French value still in the two book columns was saved in `book_french_backup` (and copied
+any that was not); if a value had differed from the saved one, the deploy would have stopped with nothing dropped. **Admin >
+Admin activity** has one line (action `books.french_columns_dropped`, by "migration 109"): *French book columns dropped
+(books.description_fr, books.categories_fr, managed_genres name_fr / browse_label_fr). Book text, copies and prices are
+untouched. The old French values are kept in table book_french_backup.* **`book_french_backup` stays** until Sharon decides
+otherwise. (The French names of the managed genres were not copied anywhere: they were the shop's standard list seeded by
+migration 100, which still lists them, and the nightly database backups have them until those age out.)
+
 **Restore (only if the French is wanted back).** The site no longer shows or edits these values, so restoring only puts the
-data back in the database (for a later change of mind, or to read the old French). Render dashboard > `umas-books` >
-**Shell**, run `psql "$DATABASE_URL"`, then paste (it fills only French boxes that are empty now, never overwrites, and is
-safe to run twice):
+data back in the database (for a later change of mind, or to read the old French). Since migration 109 the two book columns
+no longer exist, so the recipe first adds them back (empty), then fills them from the backup. Render dashboard >
+`umas-books` > **Shell**, run `psql "$DATABASE_URL"`, then paste (it fills only French boxes that are empty now, never
+overwrites, and is safe to run twice):
 
 <!-- restore-french-books:start -->
 ```sql
+ALTER TABLE books ADD COLUMN IF NOT EXISTS description_fr TEXT, ADD COLUMN IF NOT EXISTS categories_fr TEXT;
 UPDATE books b
    SET description_fr = COALESCE(b.description_fr, k.description_fr),
        categories_fr  = COALESCE(b.categories_fr, k.categories_fr)
@@ -3763,11 +3775,11 @@ UPDATE books b
 ```
 <!-- restore-french-books:end -->
 
-It answers `UPDATE <n>`: the number of books that got French back. To look without changing anything:
+It answers `ALTER TABLE` and then `UPDATE <n>`: the number of books that got French back. The app does not use the
+re-added columns (it neither shows nor edits them); they only hold the data. To look without changing anything:
 `SELECT count(*) FROM book_french_backup;` or `SELECT * FROM book_french_backup WHERE book_id = 123;`.
 
 **Dropping the backup later.** The table holds only book texts (no personal data), costs little, and follows the books (a
 deleted book loses its row; clearing the test data clears it with the books). Once you are sure the French is not wanted
-back, a developer can drop it with a new migration (`DROP TABLE IF EXISTS book_french_backup;`), and later, the same way,
-the two unused columns `books.description_fr` and `books.categories_fr` (and `managed_genres.name_fr` /
-`browse_label_fr`, also unused now). The nightly database backups keep a copy of the table until they age out.
+back (Sharon decides), a developer can drop it with a new migration (`DROP TABLE IF EXISTS book_french_backup;`). The
+nightly database backups keep a copy of the table until they age out.

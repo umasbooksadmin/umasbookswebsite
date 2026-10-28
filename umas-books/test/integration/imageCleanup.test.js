@@ -198,6 +198,10 @@ async function insertReferencing(table, column, value) {
     blog_posts: { title: `${TAG} ref ${n}`, slug: `${TAG}-ref-${n}`, body: "b", status: "published" },
     charities: { name: `${TAG} ref ${n}` },
     curated_collections: { slug: `${TAG}-ref-${n}`, title_en: `${TAG} ref ${n}` },
+    // one row per book (migration 107's copy of the old French book text)
+    book_french_backup: table === "book_french_backup"
+      ? { book_id: (await pool.query("INSERT INTO books (title, authors) VALUES ($1, 'A') RETURNING id", [`${TAG} ref ${n}`])).rows[0].id }
+      : null,
   }[table];
   assert.ok(base, `test has no fixture for table ${table}: add it to insertReferencing`);
   const cols = { ...base, [column]: value };

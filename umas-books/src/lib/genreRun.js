@@ -1,5 +1,5 @@
 // "Update all books" (Admin > Genres): rewrites books.categories of every book through the genre rules. Books have
-// English genres only (Sharon, 2026-10-28): books.categories_fr is never read or written here (older runs' French
+// English genres only (Sharon, 2026-10-28): books have no French genre column (older runs' French
 // before/after values stay in genre_run_changes as history, and Undo puts back the English only). This touches the real catalogue, so it follows the Reprice tool's safety model (lib/pricing/reprice.js):
 //
 //   PREVIEW   planRun() computes the whole rewrite WITHOUT writing: how many books would change, 10 before/after

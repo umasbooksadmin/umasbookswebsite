@@ -89,7 +89,7 @@ test("the AI button explains itself when there is no key; nothing is saved", asy
 test("preview -> confirm -> result -> undo, with real redirects and the audit log", async () => {
   await q("DELETE FROM genre_rules");
   await q("INSERT INTO books (title, categories) VALUES ('K1', 'Children''s Books, Fiction'), ('K2', 'Childrens'), ('K3', 'Zoology')");
-  const [{ id }] = await q("INSERT INTO managed_genres (name_en, name_fr, sort_order, browse_slug, show_on_browse) VALUES ('Children', 'Jeunesse', 50, 'children-new', false) RETURNING id");
+  const [{ id }] = await q("INSERT INTO managed_genres (name_en, sort_order, browse_slug, show_on_browse) VALUES ('Children', 50, 'children-new', false) RETURNING id");
   await follow(adminJar, await post(adminJar, "/admin/genres/rules", { kind: "contains-word", pattern: "Children", target: `m:${id}` }));
   const preview = await follow(adminJar, await post(adminJar, "/admin/genres/apply/preview", {}));
   assert.match(preview.text, /2 books would change/);
@@ -97,7 +97,7 @@ test("preview -> confirm -> result -> undo, with real redirects and the audit lo
   const hash = preview.text.match(/name="expectedHash" value="([0-9a-f]{64})"/)[1];
   const done = await follow(adminJar, await post(adminJar, "/admin/genres/apply", { expectedCount: count, expectedHash: hash }));
   assert.match(done.text, /2 books changed/);
-  assert.deepEqual((await q("SELECT categories, categories_fr FROM books WHERE title IN ('K1','K2') ORDER BY title")).map((r) => [r.categories, r.categories_fr]), [["Children, Fiction", null], ["Children", null]], "English only: no French genre is written");
+  assert.deepEqual((await q("SELECT categories FROM books WHERE title IN ('K1','K2') ORDER BY title")).map((r) => r.categories), ["Children, Fiction", "Children"]);
   assert.equal((await q("SELECT categories FROM books WHERE title = 'K3'"))[0].categories, "Zoology");
   const runId = (await q("SELECT id FROM genre_runs"))[0].id;
   const uc = done.text.match(/name="expectedCount" value="(\d+)"/)[1];
