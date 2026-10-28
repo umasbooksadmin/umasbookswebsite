@@ -20,7 +20,7 @@ const TOOL_NAME = "inventory_query";
 const STILL_WORKS = "The search box and the filters below still work.";
 
 const MESSAGES = {
-  empty: "Type a sentence first, for example: books with a customer price different from the publisher's price.",
+  empty: "Type a sentence first, for example: books with a custom price different from the publisher's price.",
   "too-long": `That sentence is too long: keep it under ${MAX_SENTENCE} characters.`,
   "no-key": `The sentence search is off: the AI service is not set up on this site. ${STILL_WORKS}`,
   credit: `The AI service is out of credit, so the sentence could not be read. ${STILL_WORKS}`,
@@ -93,7 +93,7 @@ Group conditions with {"and": [...]} or {"or": [...]} (at most two levels). A si
 "where" is a JSON object, never a string.
 
 Examples:
-- "books with a customer price different from the publisher's price" -> {"where": {"field": "price", "op": "!=", "field2": "publisher_price"}}
+- "books with a custom price different from the publisher's price" -> {"where": {"field": "price", "op": "!=", "field2": "publisher_price"}}
   (the other price is a FIELD, so it goes in "field2"; "value" is only for a fixed amount such as 5)
 - "books priced above the publisher's price" -> {"where": {"field": "price", "op": ">", "field2": "publisher_price"}}
 - "fantasy books under 6 euros, cheapest first" -> {"where": {"and": [{"field": "genre", "op": "=", "value": "Fantasy"}, {"field": "price", "op": "<", "value": 6}]}, "sort": {"field": "price", "dir": "asc"}}
@@ -120,6 +120,7 @@ const FIELD_BY_WORDS = new Map();
 for (const [name, d] of Object.entries(FIELDS)) {
   FIELD_BY_WORDS.set(fieldKey(name), name);
   FIELD_BY_WORDS.set(fieldKey(d.label), name);
+  for (const alias of d.aliases || []) FIELD_BY_WORDS.set(fieldKey(alias), name);
 }
 function parseIfString(x) {
   if (typeof x !== "string") return x;

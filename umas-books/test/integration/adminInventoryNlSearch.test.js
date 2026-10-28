@@ -106,10 +106,10 @@ test("seed", async () => {
 test("the example sentence: spec -> the right books, Understood as from the server, copy details shown", async () => {
   aiCalls.length = 0;
   aiReply = toolAnswer({ where: { field: "price", op: "!=", field2: "publisher_price" } });
-  const page = await ask("find me all books with a customer price different than the publisher's price");
+  const page = await ask("find me all books with a custom price different than the publisher's price");
   assert.deepEqual(titlesIn(page.text), [T("cheap clearance"), T("diff")], "both set and different, in-stock copies, one copy");
-  assert.equal(understood(page.text), "Books with one copy in the store where: customer price is different from publisher's price (both must be set). Sorted by title.");
-  assert.match(page.text, /You asked: &ldquo;find me all books with a customer price different than the publisher&#39;s price&rdquo;/);
+  assert.equal(understood(page.text), "Books with one copy in the store where: custom price is different from publisher's price (both must be set). Sorted by title.");
+  assert.match(page.text, /You asked: &ldquo;find me all books with a custom price different than the publisher&#39;s price&rdquo;/);
   assert.match(page.text, /€10\.00 &middot; publisher&#39;s price €12\.00/, "price and publisher price of the matching copy");
   // What went to the API: one forced tool call, the sentence only inside <request>, the site's text model.
   assert.equal(aiCalls.length, 1);
@@ -117,7 +117,7 @@ test("the example sentence: spec -> the right books, Understood as from the serv
   assert.equal(body.model, anthropic.MODELS.text.id);
   assert.deepEqual(body.tool_choice, { type: "tool", name: "inventory_query" });
   assert.equal(body.tools[0].name, "inventory_query");
-  assert.equal(body.messages[0].content, "<request>find me all books with a customer price different than the publisher's price</request>");
+  assert.equal(body.messages[0].content, "<request>find me all books with a custom price different than the publisher's price</request>");
   assert.match(body.system, /Today is \d{4}-\d{2}-\d{2}/);
   assert.match(body.system, /Known locations: .*Store/);
   // The URL holds the validated spec, not the sentence.
@@ -134,7 +134,7 @@ test("the example sentence: spec -> the right books, Understood as from the serv
 
 test("the model's slips are put right: the other price sent as a value, or the condition sent as a JSON string", async () => {
   const want = [T("cheap clearance"), T("diff")];
-  const text = "Books with one copy in the store where: customer price is different from publisher's price (both must be set). Sorted by title.";
+  const text = "Books with one copy in the store where: custom price is different from publisher's price (both must be set). Sorted by title.";
   for (const where of [
     { field: "price", op: "!=", value: "publisher_price" },
     { field: "price", op: "!=", value: "publisher\u2019s price" },
@@ -143,10 +143,14 @@ test("the model's slips are put right: the other price sent as a value, or the c
     { and: [{ field: "price", op: "!=", value: "publisher_price" }] },
   ]) {
     aiReply = toolAnswer({ where });
-    const page = await ask("books with a customer price different than the publisher's price");
+    const page = await ask("books with a custom price different than the publisher's price");
     assert.deepEqual(titlesIn(page.text), want, JSON.stringify(where));
     assert.equal(understood(page.text), text, JSON.stringify(where));
   }
+  // The other name of the price ("customer price", the words of the old label) is still recognised as that field.
+  aiReply = toolAnswer({ where: { field: "publisher_price", op: "!=", value: "customer price" } });
+  assert.equal(understood((await ask("publisher price different from customer price", "admin2")).text),
+    "Books with one copy in the store where: publisher's price is different from custom price (both must be set). Sorted by title.");
   // A word that is not a whitelisted field is still refused, and a text field keeps comparing with the word itself.
   aiReply = toolAnswer({ where: { field: "price", op: "!=", value: "reserved_by_email" } });
   assert.match((await ask("price different from reserved_by_email")).text, /must be an amount in euros/);
@@ -230,7 +234,7 @@ test("sort: by a copy field over the matching copies, highest first", async () =
   const { text } = await req(`/admin/inventory?${new URLSearchParams({ nl: specParam(v.spec) })}`);
   const order = [...text.matchAll(/<strong>(NLS [^<]*)<\/strong>\s*<\/a>/g)].map((m) => m[1]);
   assert.deepEqual(order, [T("split"), T("same"), T("diff"), T("nopub"), T("cheap clearance")]);
-  assert.match(understood(text), /Sorted by customer price of the matching copies, highest first\.$/);
+  assert.match(understood(text), /Sorted by custom price of the matching copies, highest first\.$/);
 });
 
 test("AI failures: a clear message on the normal page, never a 500", async () => {
@@ -331,7 +335,7 @@ test("admins only; the form posts with a CSRF field; 10 sentences a minute per a
 
 test("usage is counted under the feature \"search\" and the audit log records the outcome", async () => {
   const { rows } = await pool.query("SELECT action, detail FROM admin_audit_log WHERE action = 'inventory.ai_search' ORDER BY id");
-  assert.ok(rows.some((r) => r.detail.startsWith("ok: find me all books with a customer price")));
+  assert.ok(rows.some((r) => r.detail.startsWith("ok: find me all books with a custom price")));
   assert.ok(rows.some((r) => r.detail.startsWith("credit: ")));
   const stats = require("../../src/lib/aiUsageStats");
   assert.ok(stats.FEATURES.includes("search"));

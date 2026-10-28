@@ -102,17 +102,17 @@ test("NULL handling: a comparison never matches a blank unless or_missing; the e
   const sql = S.buildSpecWhere(strict).conditions[0];
   assert.match(sql, /\(nq\.price <> nq\.publisher_price\)/);
   assert.ok(!/IS NULL|IS DISTINCT/.test(sql), "different = both set and unequal");
-  assert.match(S.explainSpec(strict), /customer price is different from publisher's price \(both must be set\)/);
+  assert.match(S.explainSpec(strict), /custom price is different from publisher's price \(both must be set\)/);
   const loose = ok(leaf({ field: "price", op: "!=", field2: "publisher_price", or_missing: true }));
   assert.match(S.buildSpecWhere(loose).conditions[0], /OR nq\.price IS NULL OR nq\.publisher_price IS NULL/);
   assert.match(S.explainSpec(loose), /\(or either one is not set\)/);
   assert.match(S.explainSpec(ok(leaf({ field: "binding", op: "!=", value: "trade" }))), /binding is not Trade \(books with no binding set are left out\)/);
-  assert.match(S.explainSpec(ok(leaf({ field: "price", op: "<", value: 5, or_missing: true }))), /customer price is under €5\.00, or no customer price set/);
+  assert.match(S.explainSpec(ok(leaf({ field: "price", op: "<", value: 5, or_missing: true }))), /custom price is under €5\.00, or no custom price set/);
 });
 
 test("AND/OR groups, depth and size limits", () => {
   const spec = ok({ where: { or: [{ field: "genre", op: "=", value: "Fantasy" }, { and: [{ field: "price", op: "<", value: 5 }, { field: "location", op: "=", value: "Store" }] }] } });
-  assert.match(S.explainSpec(spec), /has the genre "Fantasy" OR \(customer price is under €5\.00 AND location is "Store" \(any capitals\)\)/);
+  assert.match(S.explainSpec(spec), /has the genre "Fantasy" OR \(custom price is under €5\.00 AND location is "Store" \(any capitals\)\)/);
   const { conditions, params } = S.buildSpecWhere(spec);
   assert.match(conditions[0], / OR /);
   assert.deepEqual(params, ["Fantasy", 5, "Store"]);
