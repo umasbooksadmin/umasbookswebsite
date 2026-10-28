@@ -132,6 +132,28 @@ test("the example sentence: spec -> the right books, Understood as from the serv
   assert.match(page.text, /href="\/admin\/inventory\/results\.csv\?nl=[^"]+"/);
 });
 
+test("the model's slips are put right: the other price sent as a value, or the condition sent as a JSON string", async () => {
+  const want = [T("cheap clearance"), T("diff")];
+  const text = "Books with one copy in the store where: customer price is different from publisher's price (both must be set). Sorted by title.";
+  for (const where of [
+    { field: "price", op: "!=", value: "publisher_price" },
+    { field: "price", op: "!=", value: "publisher\u2019s price" },
+    { field: "price", op: "!=", value: "Publisher price" },
+    JSON.stringify({ field: "price", op: "!=", field2: "publisher_price" }),
+    { and: [{ field: "price", op: "!=", value: "publisher_price" }] },
+  ]) {
+    aiReply = toolAnswer({ where });
+    const page = await ask("books with a customer price different than the publisher's price");
+    assert.deepEqual(titlesIn(page.text), want, JSON.stringify(where));
+    assert.equal(understood(page.text), text, JSON.stringify(where));
+  }
+  // A word that is not a whitelisted field is still refused, and a text field keeps comparing with the word itself.
+  aiReply = toolAnswer({ where: { field: "price", op: "!=", value: "reserved_by_email" } });
+  assert.match((await ask("price different from reserved_by_email")).text, /must be an amount in euros/);
+  aiReply = toolAnswer({ where: { field: "title", op: "=", value: "author" } });
+  assert.match(understood((await ask("title is author")).text), /title is "author"/);
+});
+
 test("Download these results (CSV) honours the spec and never calls the AI", async () => {
   aiCalls.length = 0;
   const spec = specParam(validateSpec({ where: { field: "price", op: "!=", field2: "publisher_price" } }).spec);
