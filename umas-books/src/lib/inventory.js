@@ -2,7 +2,8 @@
 // routes (to validate/default incoming values) and the views (to build
 // the <select> dropdowns) so the two never drift apart.
 
-const { normalizeIsbn } = require("./bookLookup");
+const { normalizeIsbn, STATIC_KNOWN_GENRES } = require("./bookLookup");
+const { canonicalGenres } = require("./genreClean");
 const { parseMoney } = require("./validation");
 const { parisDateString } = require("./tz");
 
@@ -206,19 +207,15 @@ function normalizeStatus(value) {
 // Books can belong to more than one genre — stored as a single
 // comma-separated string in books.categories rather than a separate
 // table, since it's still just free text staff type in (or an ISBN
-// lookup fills in). This trims/dedupes/re-joins it into a consistent
+// lookup fills in). This cleans/dedupes/re-joins it into a consistent
 // "Fantasy, Fiction" form so the same genre typed with different
-// spacing or casing doesn't show up twice in the genre filters.
+// spacing or casing doesn't show up twice in the genre filters. Each genre
+// is cleaned (curly apostrophe, a stray § at the end... see lib/genreClean.js)
+// and a genre of the fixed taxonomy takes its own spelling ("children's
+// fiction" -> "Children's Fiction"). The save paths then do the same with the
+// managed genres of Admin > Genres (lib/genreRules.js applyRulesToBook).
 function normalizeGenres(value) {
-  const seen = new Set();
-  const genres = [];
-  for (const raw of String(value || "").split(",")) {
-    const genre = raw.trim();
-    if (!genre || seen.has(genre.toLowerCase())) continue;
-    seen.add(genre.toLowerCase());
-    genres.push(genre);
-  }
-  return genres.length ? genres.join(", ") : null;
+  return canonicalGenres(value, STATIC_KNOWN_GENRES);
 }
 
 // Shelf/box location of a copy: free text such as "Store" or "Fiction A1".

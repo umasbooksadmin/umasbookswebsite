@@ -6,6 +6,7 @@
 const config = require("./config");
 const { readBoundedJson } = require("./boundedBody");
 const { createInflight } = require("./inflight");
+const { buildKnown, cleanList, frenchOf } = require("./genreClean");
 
 function normalizeIsbn(isbn) {
   return (isbn || "").replace(/[^0-9Xx]/g, "").toUpperCase();
@@ -98,16 +99,16 @@ const GENRE_ALIASES_FR = [
   ["Pets", "Animaux de compagnie"], ["Sports & Recreation", "Sports et loisirs"], ["Games", "Jeux"], ["Reference", "Ouvrages de référence"], ["Fairy Tales", "Contes"],
 ];
 
+// The known genres of the fixed lists (lib/genreClean.js buildKnown): aliases, then the taxonomy. The save paths add the
+// managed genres of Admin > Genres on top (lib/genreRules.js knownGenres).
+const STATIC_KNOWN_GENRES = buildKnown({ aliases: GENRE_ALIASES_FR, common: COMMON_GENRES, commonFr: COMMON_GENRES_FR });
+
+// Each genre is cleaned first (curly apostrophe, a stray § or full stop at the end, extra spaces: lib/genreClean.js),
+// so "Children’s Fiction" and "Children's Fiction§" are translated too. Empty entries are dropped.
 function translateGenresToFrench(genresCsv) {
   if (!genresCsv) return null;
-  const byLowerEn = new Map([
-    ...GENRE_ALIASES_FR.map(([en, fr]) => [en.toLowerCase(), fr]),
-    ...COMMON_GENRES.map((g, i) => [g.toLowerCase(), COMMON_GENRES_FR[i]]),
-  ]);
-  return genresCsv.split(",").map((g) => {
-    const trimmed = g.trim();
-    return byLowerEn.get(trimmed.toLowerCase()) || trimmed;
-  }).join(", ");
+  const out = cleanList(genresCsv).map((g) => frenchOf(g, STATIC_KNOWN_GENRES));
+  return out.length ? out.join(", ") : null;
 }
 
 // A book can reasonably match several of these (e.g. both "Fantasy" and
@@ -526,4 +527,4 @@ async function searchByTitleAuthor(title, author) {
   });
 }
 
-module.exports = { normalizeIsbn, isValidIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, mergeBooks, attributeSources, pickGenres, isbnCoverUrl, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES, COMMON_GENRES_FR, GENRE_ALIASES_FR, translateGenresToFrench };
+module.exports = { normalizeIsbn, isValidIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, mergeBooks, attributeSources, pickGenres, isbnCoverUrl, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES, COMMON_GENRES_FR, GENRE_ALIASES_FR, STATIC_KNOWN_GENRES, translateGenresToFrench };

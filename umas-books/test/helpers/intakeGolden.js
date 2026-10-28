@@ -370,7 +370,8 @@ async function runMatrix({ pool, server, adminId, realFetch }) {
     } else body = scrub(body);
     return { status: r.status, type: r.type, location: r.location ? idsIn(r.location) : null, body, follow: r.follow ? (r.follow.page ? { status: r.follow.status, page: r.follow.page } : { status: r.follow.status, text: scrub(r.follow.text) }) : null, extra: r.extra || null };
   };
-  let auditSeen = 0;
+  // Only what the cases write: a migration can leave a line of its own in a fresh database (107 does).
+  let auditSeen = (await pool.query("SELECT COALESCE(max(id), 0)::int AS id FROM admin_audit_log")).rows[0].id;
   for (const [name, fn] of cases) {
     const responses = await fn();
     await settled();

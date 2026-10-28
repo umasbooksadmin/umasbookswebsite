@@ -7,7 +7,7 @@ const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
 const { normalizeIsbn, isValidIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
-const { applyRulesToBook } = require("../../lib/genreRules");
+const { applyRulesToBook, tidyBookGenres } = require("../../lib/genreRules");
 const { genreFilterOptions } = require("../../lib/genreAdmin");
 const { generateBookDescription, translateDescriptionToFrench, translateDescriptionToFrenchWhy } = require("../../lib/bookDescription");
 const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeBinding, conditionLabel, resolveCopyPricing, normalizeGenres, normalizeLocation, uniqueLocations, locationKey, parseScan, isbnVariants } = require("../../lib/inventory");
@@ -505,7 +505,8 @@ const AI_WHY = {
 router.post("/admin/inventory/translate-french", requireAdmin, descriptionLimiter, async (req, res) => {
   const genre = normalizeGenres(clampText(req.body.genre, FRENCH_GENRE_MAX));
   const description = clampText(req.body.description, FRENCH_DESCRIPTION_MAX);
-  const genreFr = genre ? translateGenresToFrench(genre) : "";
+  // The same clean-up and known genres (managed ones too) as a save: lib/genreRules.js tidyBookGenres.
+  const genreFr = genre ? (await tidyBookGenres(pool, genre, null)).genreFr || "" : "";
   if (!description) return res.json({ genreFr, descriptionFr: null, aiMessage: null });
   const r = await translateDescriptionToFrenchWhy(description);
   if (r.text) return res.json({ genreFr, descriptionFr: r.text, aiMessage: null });

@@ -7,10 +7,12 @@
 <div class="card gn-result">
   <div class="section-title">Run <%= run.id %>: <%= run.books_changed %> book<%= run.books_changed === 1 ? '' : 's' %> changed<%= run.status === 'failed' ? (run.note ? ' (failed: interrupted)' : ' (stopped by an error)') : '' %></div>
   <p>
-    <%= formatDateTime(run.started_at) %> &middot; <%= run.actor_name || 'admin' %><br>
+    <% var automatic = run.status === 'done' && run.note && !run.actor_user_id; %>
+    <%= formatDateTime(run.started_at) %> &middot; <%= run.actor_name || (automatic ? 'automatic, during an update of the site' : 'admin') %><br>
     <%= run.genres_removed %> genre<%= run.genres_removed === 1 ? '' : 's' %> removed.
-    <a href="/admin/audit">See it in Admin activity</a> (action <code>genre.apply</code>, run <%= run.id %>).
+    <a href="/admin/audit">See it in Admin activity</a> (action <code><%= automatic ? 'genre.cleanup' : 'genre.apply' %></code>, run <%= run.id %>).
   </p>
+  <% if (automatic) { %><p class="muted small"><%= run.note %></p><% } %>
   <% if (run.status === 'failed' && run.note) { %>
     <p class="muted small">This run was interrupted: the server stopped before it finished, so only the books listed below were changed. Undo puts them back.</p>
   <% } %>

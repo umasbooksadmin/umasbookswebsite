@@ -24,7 +24,8 @@
 // with nothing left gets NULL.
 
 const config = require("./config");
-const { translateGenresToFrench } = require("./bookLookup");
+const { translateGenresToFrench, STATIC_KNOWN_GENRES, GENRE_ALIASES_FR, COMMON_GENRES, COMMON_GENRES_FR } = require("./bookLookup");
+const { buildKnown, canonicalGenre, canonicalGenres, tidyFrench } = require("./genreClean");
 
 const APOSTROPHES = /[‘’‛ʼ′`´]/g;
 
@@ -125,7 +126,10 @@ function rewriteGenres(csv, rules) {
   const outFr = [];
   let removed = 0, renamed = 0, collapsed = 0, touched = false;
   for (const raw of before) {
-    const { out, rule } = slot(compiled, raw);
+    // Cleaned first (lib/genreClean.js: curly apostrophe, a stray § at the end...), so a rule or a managed name also
+    // takes "Children’s Fiction§"; a genre of the fixed taxonomy takes its own spelling. A genre that is nothing but
+    // such characters ("§") is left as it is here (the bulk run never deletes on its own; a save drops it).
+    const { out, rule } = slot(compiled, canonicalGenre(raw, STATIC_KNOWN_GENRES) || raw);
     if (rule) touched = true;
     if (out == null) { removed++; continue; }
     const k = genreKey(out);
@@ -155,7 +159,9 @@ const sameList = (a, b) => splitGenres(a).join("\u0000") === splitGenres(b).join
 function planBook(categories, categoriesFr, rules) {
   const r = rewriteGenres(categories, rules);
   const frChanged = r.touched && !sameList(r.fr, categoriesFr);
-  return { ...r, changed: r.changed || frChanged, enChanged: r.changed, frChanged, fr: r.touched || r.changed ? r.fr : categoriesFr == null ? null : categoriesFr };
+  // English changed only by the clean-up (no rule took it): the stored French is cleaned too, not made again.
+  const fr = r.touched ? r.fr : r.changed ? tidyFrench(categoriesFr, r.en, STATIC_KNOWN_GENRES) : categoriesFr == null ? null : categoriesFr;
+  return { ...r, changed: r.changed || frChanged, enChanged: r.changed, frChanged, fr };
 }
 
 // ---------- rules as the database stores them ----------
@@ -193,10 +199,33 @@ function clearRulesCache(pool) {
   if (pool) caches.delete(pool);
 }
 
-// The save paths: a book saved with `genre` / `genreFr` as typed. With NO stored rule nothing changes (the managed list
-// alone never rewrites a book on its own). Otherwise the genres go through the rules and the French follows what
-// the rules decided; a rules problem never stops a save.
+// The known genres for the save paths (lib/genreClean.js): the fixed lists plus the managed genres of Admin > Genres
+// (from the cached rules). A database problem falls back to the fixed lists.
+async function knownGenres(pool) {
+  try {
+    const { managed } = await loadRules(pool);
+    return buildKnown({ aliases: GENRE_ALIASES_FR, common: COMMON_GENRES, commonFr: COMMON_GENRES_FR, managed });
+  } catch (err) {
+    console.error("Managed genres not read:", err.message);
+    return STATIC_KNOWN_GENRES;
+  }
+}
+
+// Every save of a book's genres (add, scan intake, edit, the French backfill) goes through this first: each genre is
+// cleaned, a known genre (taxonomy or managed) takes its own spelling, and the French is cleaned too; a French entry
+// that is only the English name of a known genre becomes its French; no French at all: made from the English.
+// -> { genre, genreFr }
+async function tidyBookGenres(pool, genre, genreFr) {
+  const known = await knownGenres(pool);
+  const en = canonicalGenres(genre, known);
+  return { genre: en, genreFr: en ? tidyFrench(genreFr, en, known) : genreFr ? tidyFrench(genreFr, null, known) : null };
+}
+
+// The save paths: a book saved with `genre` / `genreFr` as typed. First the clean-up above (tidyBookGenres). Then, with
+// NO stored rule nothing more changes (the managed list alone never rewrites a book on its own). Otherwise the genres
+// go through the rules and the French follows what the rules decided; a rules problem never stops a save.
 async function applyRulesToBook(pool, genre, genreFr) {
+  ({ genre, genreFr } = await tidyBookGenres(pool, genre, genreFr));
   try {
     const { rules, hasRules } = await loadRules(pool);
     if (!hasRules || !genre) return { genre, genreFr };
@@ -212,5 +241,5 @@ async function applyRulesToBook(pool, genre, genreFr) {
 
 module.exports = {
   genreKey, splitGenres, words, containsWord, compile, ensureCompiled, matchRule, slot, rewriteGenres, applyGenreRules, planBook, sameList,
-  readRules, loadRules, clearRulesCache, applyRulesToBook, CACHE_MS,
+  readRules, loadRules, clearRulesCache, knownGenres, tidyBookGenres, applyRulesToBook, CACHE_MS,
 };

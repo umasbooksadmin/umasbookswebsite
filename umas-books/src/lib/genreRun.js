@@ -179,13 +179,14 @@ async function undoableRunId(db) {
 }
 
 async function runExamples(db, runId, limit = EXAMPLES) {
-  // One book per different before -> after pair, so the examples show different kinds of change.
+  // One book per different before -> after pair (English and French), so the examples show different kinds of change;
+  // a change of the French alone counts too (the genre clean-up of migration 107 has many).
   const { rows } = await db.query(
     `SELECT * FROM (
-       SELECT DISTINCT ON (c.old_categories, c.new_categories) c.book_id, b.title, c.old_categories, c.new_categories, c.old_categories_fr, c.new_categories_fr
+       SELECT DISTINCT ON (c.old_categories, c.new_categories, c.old_categories_fr, c.new_categories_fr) c.book_id, b.title, c.old_categories, c.new_categories, c.old_categories_fr, c.new_categories_fr
        FROM genre_run_changes c LEFT JOIN books b ON b.id = c.book_id
-       WHERE c.run_id = $1 AND c.old_categories IS DISTINCT FROM c.new_categories
-       ORDER BY c.old_categories, c.new_categories, c.book_id) t
+       WHERE c.run_id = $1 AND (c.old_categories IS DISTINCT FROM c.new_categories OR c.old_categories_fr IS DISTINCT FROM c.new_categories_fr)
+       ORDER BY c.old_categories, c.new_categories, c.old_categories_fr, c.new_categories_fr, c.book_id) t
      ORDER BY t.book_id LIMIT $2`, [runId, limit]
   );
   return rows;
