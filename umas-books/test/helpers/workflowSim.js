@@ -8,7 +8,7 @@
 // YAML, with its env and `${{ }}` values), and the export scripts themselves
 // (export-inventory-csv.js / export-accounting-month.js, run by `node` with the database replaced
 // by an empty one and the clock set to the simulated time: test/helpers/exportSimPreload.js).
-// What is fake: the `aws` command (a bucket kept in a state file, with a LastModified per key, set
+// What is fake: the `date +FORMAT` clock (the step's simulated time), the `aws` command (a bucket kept in a state file, with a LastModified per key, set
 // to the simulated time when a file is uploaded), `npm` (no-op), and the `uses:` steps (checkout,
 // setup-node, the mail action), which are skipped.
 //
@@ -23,6 +23,13 @@ const { spawnSync } = require("node:child_process");
 const root = path.join(__dirname, "..", "..", "..");
 
 const FAKE_AWS = path.join(__dirname, "fake-aws.sh");
+const FAKE_DATE = `#!/usr/bin/env bash
+t="\${FAKE_CLOCK:-\${SIM_NOW:-}}"
+for a in "$@"; do case "$a" in +*) ;; *) exec /bin/date "$@" ;; esac; done
+[ -n "$t" ] || exec /bin/date "$@"
+e=$(/bin/date -u -d "$t" +%s 2>/dev/null) || e=$(/bin/date -u -j -f "%Y-%m-%dT%H:%M:%S" "\${t:0:19}" +%s)
+/bin/date -d "@$e" "$@" 2>/dev/null || /bin/date -r "$e" "$@"
+`;
 
 function makeSandbox() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "export-sim-"));
@@ -30,6 +37,10 @@ function makeSandbox() {
   fs.mkdirSync(bin);
   fs.writeFileSync(path.join(bin, "aws"), `#!/usr/bin/env bash\nexec bash "${FAKE_AWS}" "$@"\n`, { mode: 0o755 });
   fs.writeFileSync(path.join(bin, "npm"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
+  // `date +FORMAT` (no other option) answers the simulated time of the step, like the export scripts'
+  // clock: the workflow's "taken" time would otherwise be the real day the test runs. Any other use of
+  // date (date -d, date -r, date -u ...) is the real command, untouched.
+  fs.writeFileSync(path.join(bin, "date"), FAKE_DATE, { mode: 0o755 });
   fs.writeFileSync(path.join(bin, "node"), `#!/usr/bin/env bash\nexec "${process.execPath}" -r "${path.join(__dirname, "exportSimPreload.js")}" "$@"\n`, { mode: 0o755 });
   return { dir, bin, aws: path.join(bin, "aws") };
 }
