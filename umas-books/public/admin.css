@@ -441,7 +441,7 @@ html.is-admin-nav-open, html.is-admin-nav-open body { overflow: hidden; }
 .inv-search-main .btn { min-height: 44px; }
 .inv-matched { margin-top: 2px; color: var(--ink); overflow-wrap: anywhere; }
 /* "Describe what you are looking for" (sentence search) and its "Understood as" box above the results. */
-.admin-main form.inv-ask { max-width: 920px; gap: 8px; }
+.admin-main form.inv-ask { max-width: none; gap: 8px; } /* the sentence box takes the whole card width, minus the Find button */
 .inv-ask-row { display: flex; gap: 8px; align-items: stretch; }
 .inv-ask-row textarea { flex: 1; min-width: 0; font-size: 16px; min-height: 44px; box-sizing: border-box; resize: vertical; }
 .inv-ask-row .btn { min-height: 44px; align-self: flex-end; }
