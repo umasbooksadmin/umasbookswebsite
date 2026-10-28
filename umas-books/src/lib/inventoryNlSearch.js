@@ -57,7 +57,8 @@ const TOOL = {
     type: "object",
     properties: {
       copies: { type: "string", enum: COPIES, description: "which copies count: in_stock (default), sold, or all (any status)" },
-      where: { anyOf: [LEAF, group({ anyOf: [LEAF, group(LEAF)] })] },
+      // Nested members are described, not repeated (the schema is sent with every call; the server checks every level).
+      where: { anyOf: [LEAF, group({ type: "object", description: "a condition (same form as a single condition) or a group {and: [...]} / {or: [...]} of conditions" })] },
       sort: {
         type: "object",
         properties: { field: { type: "string", enum: SORTABLE }, dir: { type: "string", enum: ["asc", "desc"] } },
