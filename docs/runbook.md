@@ -3399,7 +3399,7 @@ check. Several limits keep a mistake, a loop or an abuser from running up the bi
 
 | Variable | Default | What it does |
 |---|---|---|
-| `AI_DAILY_MAX_CALLS` | `600` | The most Anthropic calls **per Paris calendar day for ALL features together** (descriptions, translations, genres, cover photos, price checks). `0` switches every AI feature off. |
+| `AI_DAILY_MAX_CALLS` | `600` | The most Anthropic calls **per Paris calendar day for ALL features together** (descriptions, translations, genres, cover photos, price checks, inventory searches by sentence). `0` switches every AI feature off. |
 | `PRICING_AI_DAILY_MAX` | `150` | The most **price checks** per day (a part of the 600 above, so the price check can never use more than its own share). |
 
 **What happens when the daily cap is reached.** The AI calls are skipped, nothing else stops:

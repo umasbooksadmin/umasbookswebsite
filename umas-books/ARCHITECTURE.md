@@ -1682,6 +1682,31 @@ answers `{ text, reason }` (used by the descriptions, the collection helpers).
   existed (`scripts/ai-golden.js`, harness `test/helpers/aiMatrix.js`); refresh the
   golden file only when a request is meant to change.
 
+### Inventory search by sentence (`src/lib/inventoryQuerySpec.js`, `src/lib/inventoryNlSearch.js`)
+
+- `POST /admin/inventory/ask` (admin, CSRF, `aiAdminLimiter` 10 a minute per admin, sentence <= 300 characters):
+  ONE `request()` (feature `search`, `MODELS.text`, 15 s, forced tool call `inventory_query`) turns the sentence into
+  a query **spec**; the model never writes SQL. The sentence goes in `<request>` tags as data. The answer is
+  validated (`validateSpec`), the outcome audited (`inventory.ai_search`), and the browser redirected (303) to
+  `/admin/inventory?nl=<validated spec JSON>`; the sentence itself only travels in a one-time flash. Any failure
+  (no key, cap, credit, timeout, refused spec, "cannot") redirects to the normal page with a message.
+- The spec language: a whitelist of book fields (`title author isbn publisher description published_year genre
+  binding`) and copy fields (`price publisher_price acquisition_cost suggested_price condition location status source
+  acquired_at added_at sold_at clearance notes`); operators by type (`= != < <= > >= contains not_contains in not_in
+  between is_empty is_not_empty`); field-vs-field comparisons of the same type; `and`/`or` groups (3 levels, 12
+  children, 20 conditions); `copies` in_stock (default) / sold / all; an optional sort. No personal-data column
+  (reservation names, emails, phones) is in the whitelist.
+- Semantics: the whole condition is checked on a (book, copy) pair inside ONE `EXISTS`, so every copy-level part is
+  true of the same copy (same rule as the filters). A blank value never satisfies a comparison (`price !=
+  publisher_price` = both set and different) unless the leaf has `or_missing: true`.
+- `GET /admin/inventory?nl=` and `GET /admin/inventory/results.csv?nl=` validate the spec AGAIN on every request
+  (a tampered link gets a message / a 400, never a 500) and build parameterised SQL themselves (`buildSpecWhere`,
+  `specCopyCondition`, `specOrderBy`); "Understood as" is `explainSpec(spec)`, the server's wording. A sentence
+  search replaces the text search and filters of that page view.
+- Tests: `test/unit/inventoryQuerySpec.test.js` (validation, SQL, wording) and
+  `test/integration/adminInventoryNlSearch.test.js` (real routes and database, Anthropic faked at `fetch`).
+  To add a field: one entry in `FIELDS` (column, type, label); the tool schema and the prompt are built from it.
+
 ### ISBNdb price suggestion
 
 - `GET /admin/inventory/isbndb-price?isbn=...&condition=new`

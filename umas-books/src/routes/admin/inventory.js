@@ -29,6 +29,9 @@ const { COVER_ERRORS, COVER_NOTICES } = require("../../lib/coverEdit");
 const { isStoredImageUrl } = require("../../lib/imageStore");
 const { variantUrl } = require("../../lib/imageVariants");
 const { parseIntParam } = require("../../lib/parseParams");
+const anthropic = require("../../lib/anthropic");
+const { validateSpec, buildSpecWhere, specCopyCondition, specOrderBy, specMatchingCopies, explainSpec, specParam } = require("../../lib/inventoryQuerySpec");
+const { sentenceToSpec, MAX_SENTENCE } = require("../../lib/inventoryNlSearch");
 const { parseInventoryFilters, hasAnyFilter, buildSearchWhere, copyMatchCondition, matchingCopies, filterLocations, filterQueryString, NO_LOCATION, NO_BINDING, NO_GENRE } = require("../../lib/inventorySearch");
 
 const router = express.Router();
@@ -96,11 +99,26 @@ const wantsJson = (req) => req.accepts(["html", "json"]) === "json";
 const ISBN_NOT_VALID = "That ISBN is not valid: check the digits.";
 
 const LIST_LIMIT = 200;
+const NL_FLASH = "inventory-nl";
+
+// ?nl=<spec JSON> (a "Describe what you are looking for" search, see lib/inventoryQuerySpec.js): validated again on
+// every request, whoever built the link. -> { spec } | { error } | null (no ?nl).
+function nlFromQuery(req) {
+  if (typeof req.query.nl !== "string" || !req.query.nl) return null;
+  const v = validateSpec(req.query.nl);
+  return v.ok ? { spec: v.spec } : { error: `This sentence-search link cannot be used: ${v.error}` };
+}
+
 router.get("/admin/inventory", requireAdmin, async (req, res) => {
   await expireStaleReservations(pool);
-  const filters = parseInventoryFilters(req.query);
+  const nlParsed = nlFromQuery(req);
+  const nlFlash = takeFlash(req, NL_FLASH) || {};
+  // A sentence search replaces the text search and the filters (the form above it starts empty again).
+  const nlSpec = nlParsed && nlParsed.spec ? nlParsed.spec : null;
+  const filters = parseInventoryFilters(nlSpec ? {} : req.query);
   const { q } = filters;
-  const { conditions, params } = buildSearchWhere(filters);
+  const { conditions, params } = nlSpec ? buildSpecWhere(nlSpec) : buildSearchWhere(filters);
+  const orderBy = nlSpec ? specOrderBy(nlSpec, params) : "b.title_sort, b.title, b.id";
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const { rows: books } = await pool.query(
     `SELECT b.*, COUNT(c.id)::int AS copy_count,
@@ -110,13 +128,13 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
             COUNT(*) OVER()::int AS total_matches
      FROM books b LEFT JOIN book_copies c ON c.book_id = b.id
      ${where}
-     GROUP BY b.id ORDER BY b.title_sort, b.title, b.id LIMIT ${LIST_LIMIT}`,
+     GROUP BY b.id ORDER BY ${orderBy} LIMIT ${LIST_LIMIT}`,
     params
   );
   // One entry per place, whatever its capitals ("Store" and "STORE" are one).
   for (const b of books) b.locations = b.location_list ? uniqueLocations(b.location_list).join(", ") : null;
   // With a location/condition/price/date-received filter on, show the copies that matched.
-  const matched = await matchingCopies(pool, filters, books.map((b) => b.id));
+  const matched = nlSpec ? await specMatchingCopies(pool, nlSpec, books.map((b) => b.id)) : await matchingCopies(pool, filters, books.map((b) => b.id));
   for (const b of books) b.matched_copies = matched.get(b.id) || [];
   const locations = (await filterLocations(pool)).slice();
   if (filters.location && filters.location !== NO_LOCATION && !locations.some((l) => locationKey(l) === locationKey(filters.location))) locations.push(filters.location);
@@ -124,11 +142,45 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
   const { managed: genres, other: otherGenres } = await genreFilterOptions(pool, filters.genre && filters.genre !== NO_GENRE ? filters.genre : "");
   res.render("admin/inventory/index", {
     active: "inventory", books, q, notice: hasOrdersNotice(req),
-    filters, filterErrors: filters.errors, filterActive: hasAnyFilter(filters), resultsQuery: filterQueryString(filters),
+    filters, filterErrors: filters.errors, filterActive: hasAnyFilter(filters),
+    resultsQuery: nlSpec ? new URLSearchParams({ nl: specParam(nlSpec) }).toString() : filterQueryString(filters),
+    nl: {
+      active: !!nlSpec,
+      understood: nlSpec ? explainSpec(nlSpec) : null,
+      sentence: typeof nlFlash.sentence === "string" ? nlFlash.sentence : "",
+      error: (nlParsed && nlParsed.error) || (typeof nlFlash.error === "string" ? nlFlash.error : null),
+      enabled: anthropic.hasApiKey(),
+      maxLength: MAX_SENTENCE,
+    },
     showReceived: !!(filters.receivedFrom || filters.receivedTo || filters.receivedNone),
     totalMatches: books.length ? books[0].total_matches : 0, listLimit: LIST_LIMIT,
     locations, genres, otherGenres, NO_LOCATION, NO_BINDING, NO_GENRE, CONDITIONS, BINDINGS, conditionLabel,
   });
+});
+
+// "Describe what you are looking for": the sentence goes to the AI ONCE (lib/inventoryNlSearch.js), which answers a
+// query spec; the validated spec goes in the URL of the results page (Post/Redirect/Get), so a reload, a link or the
+// CSV download never calls the AI again. 10 a minute per admin (like the other AI buttons) plus the shared daily cap.
+// Any failure goes back to the normal page with a message: the search box and the filters keep working.
+const nlSearchLimiter = aiAdminLimiter({
+  handler: async (req, res) => {
+    await setFlash(req, NL_FLASH, { error: AI_LIMIT_MESSAGE, sentence: clean(req.body && req.body.ask, MAX_SENTENCE) });
+    res.redirect(303, "/admin/inventory");
+  },
+});
+router.post("/admin/inventory/ask", requireAdmin, nlSearchLimiter, async (req, res) => {
+  const raw = typeof (req.body && req.body.ask) === "string" ? req.body.ask : "";
+  const sentence = clean(raw, MAX_SENTENCE + 1);
+  const [{ managed, other }, locations] = await Promise.all([genreFilterOptions(pool, ""), filterLocations(pool)]);
+  const r = await sentenceToSpec(sentence, { genres: [...managed, ...other], locations });
+  const shown = sentence.slice(0, MAX_SENTENCE);
+  await audit(req, { action: "inventory.ai_search", targetType: "inventory", detail: `${r.ok ? "ok" : r.reason}: ${shown.slice(0, 200)}` });
+  if (!r.ok) {
+    await setFlash(req, NL_FLASH, { error: r.message, sentence: shown });
+    return res.redirect(303, "/admin/inventory");
+  }
+  await setFlash(req, NL_FLASH, { sentence: shown });
+  res.redirect(303, `/admin/inventory?${new URLSearchParams({ nl: specParam(r.spec) })}`);
 });
 
 // "Download all inventory (CSV)": the same files the nightly job emails and
@@ -155,10 +207,14 @@ router.get("/admin/inventory/export.csv", requireAdmin, async (req, res) => {
 const RESULTS_EXPORT_MAX_ROWS = 50000;
 router.get("/admin/inventory/results.csv", requireAdmin, async (req, res) => {
   const { writeCopiesCsv, writeBooksCsv, countRows } = require("../../lib/inventoryExport");
-  const filters = parseInventoryFilters(req.query);
   const perBook = req.query.books === "1";
-  const filter = { ...buildSearchWhere(filters) };
-  if (!perBook) filter.copyCondition = (p, alias) => copyMatchCondition(filters, p, alias);
+  // A sentence search (?nl=, validated again here: the AI is never called for a download) or the filters.
+  const nlParsed = nlFromQuery(req);
+  if (nlParsed && nlParsed.error) return res.status(400).type("text/plain; charset=utf-8").send(nlParsed.error);
+  const nlSpec = nlParsed ? nlParsed.spec : null;
+  const filters = parseInventoryFilters(nlSpec ? {} : req.query);
+  const filter = { ...(nlSpec ? buildSpecWhere(nlSpec) : buildSearchWhere(filters)) };
+  if (!perBook) filter.copyCondition = nlSpec ? (p, alias) => specCopyCondition(nlSpec, p, alias) : (p, alias) => copyMatchCondition(filters, p, alias);
   const total = await countRows(pool, perBook, filter);
   if (total > RESULTS_EXPORT_MAX_ROWS) {
     return res.status(413).type("text/plain; charset=utf-8").send(
@@ -172,7 +228,7 @@ router.get("/admin/inventory/results.csv", requireAdmin, async (req, res) => {
   });
   const sink = (text) => (res.write(text) ? undefined : new Promise((resolve) => res.once("drain", resolve)));
   const result = await (perBook ? writeBooksCsv : writeCopiesCsv)(pool, sink, { filter });
-  await audit(req, { action: "inventory.csv", targetType: "inventory", detail: `filtered ${perBook ? "per book" : "per copy"}: ${result.rows} rows (French Excel)${filterQueryString(filters) ? ", search " + filterQueryString(filters).slice(0, 200) : ""}` });
+  await audit(req, { action: "inventory.csv", targetType: "inventory", detail: `filtered ${perBook ? "per book" : "per copy"}: ${result.rows} rows (French Excel)${nlSpec ? ", sentence search " + specParam(nlSpec).slice(0, 200) : filterQueryString(filters) ? ", search " + filterQueryString(filters).slice(0, 200) : ""}` });
   res.end();
 });
 
