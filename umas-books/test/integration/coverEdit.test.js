@@ -422,7 +422,7 @@ test("remove puts the book back to No cover, keeps the picture for the cleanup j
   await fillBookGaps(pool, id, { title: "x", coverUrl: "https://covers.openlibrary.org/b/id/2-L.jpg" }, {
     findCoverUrl: async () => { calls.push("find"); return "https://covers.openlibrary.org/b/id/3-L.jpg"; },
     prepareCover: async (u) => { calls.push(`prepare ${u}`); return { cover: null, source: u }; },
-    generateBookDescription: async () => null, translateDescriptionToFrench: async () => null,
+    generateBookDescription: async () => null,
   });
   assert.deepEqual(calls, [], "fillBookGaps does not look for a cover");
   await pool.query("UPDATE books SET cover_source_url = 'https://covers.openlibrary.org/b/id/4-L.jpg' WHERE id = $1", [id]);

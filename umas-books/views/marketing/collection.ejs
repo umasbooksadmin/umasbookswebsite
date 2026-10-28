@@ -57,7 +57,7 @@
         <%# Each book is the shared Browse card (partials/book_card.ejs, untouched) in a .col-item with, under it, its genre and the
             AI's reason (no label: just the sentence) (lib/collections.js bookExtras; no reason for a book added by hand, and on /fr/ only a French one).
             public/page-collection.js itemHtml draws the same markup for the books "Show more" adds. %>
-        <div class="bk-grid" id="bk-results-grid"><% books.forEach(function (b) { const x = b.extras || {}; %><div class="col-item"><%- include('partials/book_card', { b }) %><% if (x.genre || x.why) { %><div class="col-more"><% if (x.genre) { %><p class="col-genre"><%= x.genre %></p><% } %><% if (x.why) { %><p class="col-why"><%= x.why %></p><% } %></div><% } %></div><% }) %></div>
+        <div class="bk-grid" id="bk-results-grid"><% books.forEach(function (b) { const x = b.extras || {}; %><div class="col-item"><%- include('partials/book_card', { b }) %><% if (x.genre || x.why) { %><div class="col-more"><% if (x.genre) { %><p class="col-genre"<%- lang === 'fr' ? ' lang="en"' : '' %>><%= x.genre %></p><% } %><% if (x.why) { %><p class="col-why"><%= x.why %></p><% } %></div><% } %></div><% }) %></div>
         <div class="bk-more-row"><button type="button" class="btn btn-outline" id="bk-more" data-i18n="bk.more" hidden>Show more</button></div>
         <p class="bk-covernote"><%= tr('Cover images come from an online book library and may not show the actual condition of the copy in our shop.', 'Les couvertures proviennent d’une bibliothèque de livres en ligne et peuvent ne pas refléter l’état réel de l’exemplaire en boutique.') %></p>
       <% } %>

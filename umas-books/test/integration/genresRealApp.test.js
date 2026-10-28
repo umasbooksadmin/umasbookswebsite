@@ -97,7 +97,7 @@ test("preview -> confirm -> result -> undo, with real redirects and the audit lo
   const hash = preview.text.match(/name="expectedHash" value="([0-9a-f]{64})"/)[1];
   const done = await follow(adminJar, await post(adminJar, "/admin/genres/apply", { expectedCount: count, expectedHash: hash }));
   assert.match(done.text, /2 books changed/);
-  assert.deepEqual((await q("SELECT categories, categories_fr FROM books WHERE title IN ('K1','K2') ORDER BY title")).map((r) => [r.categories, r.categories_fr]), [["Children, Fiction", "Jeunesse, Fiction"], ["Children", "Jeunesse"]]);
+  assert.deepEqual((await q("SELECT categories, categories_fr FROM books WHERE title IN ('K1','K2') ORDER BY title")).map((r) => [r.categories, r.categories_fr]), [["Children, Fiction", null], ["Children", null]], "English only: no French genre is written");
   assert.equal((await q("SELECT categories FROM books WHERE title = 'K3'"))[0].categories, "Zoology");
   const runId = (await q("SELECT id FROM genre_runs"))[0].id;
   const uc = done.text.match(/name="expectedCount" value="(\d+)"/)[1];

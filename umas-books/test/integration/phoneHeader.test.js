@@ -120,12 +120,13 @@ test("books.html without JavaScript: the script-filled sections are hidden by a 
   assert.ok(html.includes('id="bk-genre-list"') && html.includes("Loading books"), "the sections the CSS hides do exist in the page (they are built by the script)");
 });
 
-test("French browse page: the genre chips are translated (Jeune adulte, Documentaires)", async () => {
+test("French browse page: the genre chips keep the English genre names (books have English genres only); All Genres is French", async () => {
   const html = await get("/books.html", "fr");
   const dict = JSON.parse(html.match(/<script type="application\/json" id="page-i18n-data">(.*?)<\/script>/s)[1]).fr;
-  assert.equal(dict["g.ya"], "Jeune adulte");
-  assert.equal(dict["g.nonfiction"], "Documentaires");
-  assert.equal(dict["g.children"], "Jeunesse");
+  assert.equal(dict["g.ya"], "Young Adult");
+  assert.equal(dict["g.nonfiction"], "Non-Fiction");
+  assert.equal(dict["g.children"], "Children's Books");
+  assert.equal(dict["g.all"], "Tous les genres");
 });
 
 test("French book page: the favorite button's aria-label uses the curly apostrophe", async () => {

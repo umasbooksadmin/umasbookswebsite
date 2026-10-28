@@ -69,7 +69,7 @@ async function main() {
       const b = j.book || {};
       const form = new URLSearchParams({
         isbn, title: b.title || `Unknown ${isbn}`, author: b.author || "", publisher: b.publisher || "", publishedYear: b.publishedYear || "",
-        description: b.description || "", coverUrl: b.coverUrl || "", genre: b.genre || "", genreFr: b.genreFr || "",
+        description: b.description || "", coverUrl: b.coverUrl || "", genre: b.genre || "",
         binding: "trade", condition: "very_good", price: String(j.suggestion && j.suggestion.price != null ? j.suggestion.price : 5),
         location: "Store", source: "donation", fast: "1", acquisitionCost: "0",
       });

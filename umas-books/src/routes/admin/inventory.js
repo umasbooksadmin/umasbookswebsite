@@ -5,11 +5,11 @@ const { reencodeForVision } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
-const { normalizeIsbn, isValidIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
+const { normalizeIsbn, isValidIsbn, lookupByIsbn, searchByTitleAuthor } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { applyRulesToBook } = require("../../lib/genreRules");
 const { genreFilterOptions } = require("../../lib/genreAdmin");
-const { generateBookDescription, translateDescriptionToFrench, translateDescriptionToFrenchWhy } = require("../../lib/bookDescription");
+const { generateBookDescription } = require("../../lib/bookDescription");
 const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeBinding, conditionLabel, resolveCopyPricing, normalizeGenres, normalizeLocation, uniqueLocations, locationKey, parseScan, isbnVariants } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
 const { matchRequestsForBook } = require("../../lib/bookRequests");
@@ -421,7 +421,7 @@ router.post("/admin/inventory/lookup", requireAdmin, photoLookupLimiter, async (
       book = candidates[0] || null;
     }
     if (!book) {
-      book = { isbn: info.isbn && isValidIsbn(normalizeIsbn(info.isbn)) ? normalizeIsbn(info.isbn) : null, title: info.title, author: info.author, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null };
+      book = { isbn: info.isbn && isValidIsbn(normalizeIsbn(info.isbn)) ? normalizeIsbn(info.isbn) : null, title: info.title, author: info.author, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null };
       error = "Found some details from the photo, but no catalog match — check everything below before saving.";
     }
   } else {
@@ -434,7 +434,7 @@ router.post("/admin/inventory/lookup", requireAdmin, photoLookupLimiter, async (
     if (!isValidIsbn(normalizeIsbn(isbn))) return lookupDone(req, res, { location, source, error: ISBN_NOT_VALID });
     book = await lookupByIsbn(isbn);
     if (!book) {
-      book = { isbn: normalizeIsbn(isbn), title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null };
+      book = { isbn: normalizeIsbn(isbn), title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null };
       error = "No catalog match for that ISBN — enter the details manually below.";
     }
   }
@@ -452,7 +452,7 @@ router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
   const saved = await fastScan.savedCopy(pool, req.query.saved);
   res.render("admin/inventory/new", {
     active: "inventory",
-    book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null, binding: d.binding },
+    book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, binding: d.binding },
     error: null,
     fromScan: false,
     conditions: CONDITIONS, bindings: BINDINGS,
@@ -485,32 +485,8 @@ router.post("/admin/inventory/generate-description", requireAdmin, descriptionLi
     if (cap.reached) return res.status(429).json({ error: `${cap.message} Write the description by hand.`, aiLimit: true });
     return res.status(502).json({ error: "Couldn't generate a description — try again, or write one manually." });
   }
-  const descriptionFr = await translateDescriptionToFrench(description);
-  res.json({ description, descriptionFr });
-});
-
-// "Update the French from the English" (public/book-french.js) on the book edit and Add Book forms. Nothing is saved:
-// the page puts the answer into the French boxes and the admin presses Save. The genres come from the built-in word
-// list at once (no AI); the description is ONE AI call (shared daily cap), none when the English description is empty.
-// A failed AI call is still a 200 with the genres and a plain sentence (aiMessage), so the genre part always works.
-const FRENCH_GENRE_MAX = 300;
-const FRENCH_DESCRIPTION_MAX = 5000;
-const AI_WHY = {
-  no_key: "the AI service is not set up",
-  credit: "the AI service has no credit left",
-  rate: "the AI service is busy",
-  timeout: "the AI service took too long",
-  error: "the AI service did not answer",
-};
-router.post("/admin/inventory/translate-french", requireAdmin, descriptionLimiter, async (req, res) => {
-  const genre = normalizeGenres(clampText(req.body.genre, FRENCH_GENRE_MAX));
-  const description = clampText(req.body.description, FRENCH_DESCRIPTION_MAX);
-  const genreFr = genre ? translateGenresToFrench(genre) : "";
-  if (!description) return res.json({ genreFr, descriptionFr: null, aiMessage: null });
-  const r = await translateDescriptionToFrenchWhy(description);
-  if (r.text) return res.json({ genreFr, descriptionFr: r.text, aiMessage: null });
-  const why = r.reason === "cap" ? (r.message || "the daily AI limit is reached") : AI_WHY[r.reason] || AI_WHY.error;
-  res.json({ genreFr, descriptionFr: null, aiMessage: `The translation could not be made right now (${why.replace(/\.$/, "")}). The French genres were still updated.` });
+  // English only: books have no French description (Sharon, 2026-10-28).
+  res.json({ description });
 });
 
 // Idempotent: the form carries a one-time token (lib/intakeToken.js). The same token again returns the
@@ -611,7 +587,7 @@ router.get("/admin/inventory/:id", requireAdmin, async (req, res) => {
   return renderBook(res, id, f && f.error ? String(f.error) : null, hasOrdersNotice(req), (f && f.overlay) || {});
 });
 
-// Saving a book with an EMPTY description makes the server write one with the paid AI (and translate it); that is
+// Saving a book with an EMPTY description makes the server write one with the paid AI (English only); that is
 // counted against the same per-admin 10-a-minute limit as the other AI buttons. A normal save, with a description
 // typed, never calls the AI to write one and is never limited. A refusal brings the admin back to the book with
 // what was typed and the same sentence as the other AI buttons.
@@ -620,7 +596,7 @@ const bookEditLimiter = aiAdminLimiter({
   handler: (req, res) => {
     const b = req.body || {};
     return bookBack(req, res, Number(req.params.id), { error: AI_LIMIT_MESSAGE, overlay: {
-      book: { isbn: clean(b.isbn, 40) || null, title: clean(b.title, 500), authors: clean(b.author, 500) || null, publisher: clean(b.publisher, 500) || null, published_year: clean(b.publishedYear, 10), description: "", description_fr: clean(b.descriptionFr, 5000) || null, cover_url: clean(b.coverUrl, 1000) || null },
+      book: { isbn: clean(b.isbn, 40) || null, title: clean(b.title, 500), authors: clean(b.author, 500) || null, publisher: clean(b.publisher, 500) || null, published_year: clean(b.publishedYear, 10), description: "", cover_url: clean(b.coverUrl, 1000) || null },
     } });
   },
 });
@@ -634,15 +610,14 @@ router.post("/admin/inventory/:id", requireAdmin, bookEditLimiter, async (req, r
   const yearCheck = parsePublishedYear(req.body.publishedYear);
   const publishedYear = yearCheck.value ?? null;
   let genre = normalizeGenres(req.body.genre);
-  let genreFr = (req.body.genreFr || "").trim() || (genre ? translateGenresToFrench(genre) : null);
-  ({ genre, genreFr } = await applyRulesToBook(pool, genre, genreFr)); // the genre rules of Admin > Genres (none saved: unchanged)
+  ({ genre } = await applyRulesToBook(pool, genre)); // the genre rules of Admin > Genres (none saved: unchanged)
+  // Books have no French genre or description (Sharon, 2026-10-28): a posted genreFr / descriptionFr is ignored.
   let description = (req.body.description || "").trim() || null;
-  let descriptionFr = (req.body.descriptionFr || "").trim() || null;
   let coverUrl = (req.body.coverUrl || "").trim() || null;
 
   if (yearCheck.error) {
     return bookBack(req, res, id, { error: yearCheck.error, overlay: {
-      book: { isbn, title, authors: author, publisher, published_year: asTyped(req.body.publishedYear), description, description_fr: descriptionFr, cover_url: coverUrl },
+      book: { isbn, title, authors: author, publisher, published_year: asTyped(req.body.publishedYear), description, cover_url: coverUrl },
     } });
   }
 
@@ -657,17 +632,16 @@ router.post("/admin/inventory/:id", requireAdmin, bookEditLimiter, async (req, r
       description || generateBookDescription({ title, author, publisher, publishedYear }),
       coverUrl || (coverRemoved ? null : findCoverUrl({ isbn, title, author })),
     ]);
-    descriptionFr = descriptionFr || (description ? await translateDescriptionToFrench(description) : null);
     const cover = await prepareCover(coverUrl);
     try {
       await pool.query(
         `UPDATE books SET isbn=$1, title=$2, authors=$3, publisher=$4, published_year=$5,
-                description=$6, description_fr=$7, cover_url=$8, categories=$9, categories_fr=$10, binding=$11,
-                cover_removed_at = CASE WHEN $8::text IS NULL AND $13::text IS NULL THEN cover_removed_at ELSE NULL END,
-                cover_source_url = COALESCE($13, cover_source_url),
-                cover_fetch_failures = CASE WHEN $13::text IS NULL THEN cover_fetch_failures ELSE 0 END, updated_at=now()
-         WHERE id = $12`,
-        [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, cover.cover, genre, genreFr, normalizeBinding(req.body.binding), id, cover.source]
+                description=$6, cover_url=$7, categories=$8, binding=$9,
+                cover_removed_at = CASE WHEN $7::text IS NULL AND $11::text IS NULL THEN cover_removed_at ELSE NULL END,
+                cover_source_url = COALESCE($11, cover_source_url),
+                cover_fetch_failures = CASE WHEN $11::text IS NULL THEN cover_fetch_failures ELSE 0 END, updated_at=now()
+         WHERE id = $10`,
+        [isbn || null, title, author, publisher, publishedYear, description, cover.cover, genre, normalizeBinding(req.body.binding), id, cover.source]
       );
     } catch (err) {
       if (err.code !== "23505") throw err;

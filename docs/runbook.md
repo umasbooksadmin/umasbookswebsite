@@ -40,7 +40,7 @@ alphabetical order on the page, so use this list. The letter `j` is deliberately
 
 - [k) Reservations, collecting and paying in the shop, refunds](#k-reservations-collecting-and-paying-in-the-shop-refunds); [n) A member paid with another email](#n-a-member-paid-with-another-email); [p) The till](#p-the-till)
 - [h) Price suggestions and the AI market check](#h-price-suggestions-and-the-ai-market-check); [i) Awards and best-seller lists on books](#i-awards-and-best-seller-lists-on-books); [aa) Fast scanning of books (adding stock)](#aa-fast-scanning-of-books-adding-stock); [ah) Curated collections (Browse by Collection on Browse Books)](#ah-curated-collections-browse-by-collection-on-browse-books); [ab) Admin sessions: how long they last](#ab-admin-sessions-how-long-they-last); [ae) AI limits (daily cap, per-minute limits, lookup and webhook protections)](#ae-ai-limits-daily-cap-per-minute-limits-lookup-and-webhook-protections)
-- [o) The VAT line ("TVA non applicable") and the footer social links](#o-the-vat-line-tva-non-applicable-and-the-footer-social-links); [ac) Reviewing the French (and what to do when a French text is wrong)](#ac-reviewing-the-french-and-what-to-do-when-a-french-text-is-wrong); [am) Managing genres: cleaning up genre names, Undo](#am-managing-genres-cleaning-up-genre-names-undo); [ak) Alphabetical order ignores a leading "The"](#ak-alphabetical-order-ignores-a-leading-the)
+- [o) The VAT line ("TVA non applicable") and the footer social links](#o-the-vat-line-tva-non-applicable-and-the-footer-social-links); [ac) Reviewing the French (and what to do when a French text is wrong)](#ac-reviewing-the-french-and-what-to-do-when-a-french-text-is-wrong); [aq) French book descriptions and genres (removed): the backup table and how to restore](#aq-french-book-descriptions-and-genres-removed-the-backup-table-and-how-to-restore); [am) Managing genres: cleaning up genre names, Undo](#am-managing-genres-cleaning-up-genre-names-undo); [ak) Alphabetical order ignores a leading "The"](#ak-alphabetical-order-ignores-a-leading-the)
 
 **Regular routines, setup and reference**
 
@@ -606,7 +606,7 @@ To launch:
    `https://<your site>/robots.txt` no longer says `Disallow: /`. The red
    "PREVIEW MODE is ON" strip is gone from the admin screens.
 
-**How to refresh a book's French after changing its English.** Saving a book only translates a French box that is empty, so after you change the English Genres or Description the French stays as it was (a small grey line under the French box says "English changed"). On the book's edit page (and on Add manually) press **Update the French from the English** under Description (French): the two French boxes are filled from what is in the English boxes now, after a question if they already have text. Nothing is saved until you press **Save changes**. The genres come from the built-in word list (a genre that is not in it stays in English); the description uses one AI call of the daily limit. If the AI has no credit or the limit is reached you read why, and the French genres are still updated.
+**Books have no French text.** A book's description and genres are English only, on the French site too (section aq). There is nothing French to fill in or refresh on the book forms.
 
 **How to write a blog post, with a French version.** In **Admin > Blog** fill the English title and content (the excerpt is the short text on the list and in Google; add one), pick a picture, set the date and **Status** (Draft keeps it hidden, Scheduled/Published make it public from the date). Under **French version**: press **Translate to French** for a first draft (it uses one AI call of the daily limit; nothing is saved by it), then read and correct the French title, content and excerpt and press **Save**. The label next to "French version" says **ready** once the French title and content (and excerpt, if the English post has one) are there; until then French readers see the English text marked as English, so a post can always be published in English alone. The post's address is `/blog/<name>` (English) and `/fr/blog/<name>` (French); the name comes from the English title. New posts appear in `/sitemap-blog.xml` within an hour (saving from the editor refreshes it at once). The three starter posts already have French texts (migration 096): read them once and correct them if needed.
 
@@ -2404,7 +2404,7 @@ so scanning the same book again, or saving a book just looked up, asks nobody. T
 fetched in parallel and each is given a short wait (1.2 s and 3 s): a slower one is left out of that answer
 (the preview has no cover; the price then comes from the shop's rules alone) and finishes in the background.
 **Saving**: the copy is written and the page answers at once; the cover download, the search for a cover, the
-description (AI) and its French translation, and the awards check all happen **after** the answer
+description (AI, English only), and the awards check all happen **after** the answer
 (`src/lib/bookFill.js`). Nothing already stored is overwritten; a cover that could not be fetched keeps its source
 address for the 5-minute cover job. Before this change the save waited for all of it (3 to 20 seconds per book).
 
@@ -2535,8 +2535,8 @@ column keeps the count. Nothing needs restarting.
 | Feature | One call each time... | Notes |
 |---|---|---|
 | Description | a book is added or saved with no description, or **Generate** is pressed on the book's page | the biggest everyday user: every book saved without a description |
-| French translation | a description is translated to French (right after a description is generated, when a book is saved with an English description only, and by the French back-fill script) | one call per description |
-| Genre suggestion | genres are suggested for a book that has none, and by the French back-fill script | small calls |
+| French translation | the **Translate to French** button of a blog post, a collection, an event, a class, an announcement or a charity (book descriptions are no longer translated: section aq) | one call per press |
+| Genre suggestion | **Suggest slots with AI** on Admin > Genres | small calls |
 | Cover photo reading | an admin uploads a photo of a cover or barcode (the camera "photo" path of Scan a book) | the most tokens per call: the photo counts as input |
 | Price check (web search) | a price suggestion needs an online check (only when `PRICING_AI` is on); capped by `PRICING_AI_DAILY_MAX` (150 a day), cached 30 days per ISBN | the most expensive per call: long input, web searches billed on top |
 
@@ -3365,7 +3365,8 @@ English text slips into the French version.
   boutique, régler sur place, mot de passe, e-mail (with the hyphen, as on the legal pages),
   Se connecter, Créer un compte, Espace membres. Prices `12,50 €`; 0 and 1 are singular (`0 vote`).
 * **What is deliberately not translated**: the shop's name "Uma's Books and Adventures", legal
-  entity names, book titles, authors and publishers, award names, and anything people or admins
+  entity names, book titles, authors and publishers, book descriptions and book genres (English only
+  since 2026-10-28, section aq: shown marked as English), award names, and anything people or admins
   write themselves. Forum posts are stored in one language. Blog posts, events, sessions,
   announcements and charities have an OPTIONAL French version that the shop writes (see the next
   paragraph); until it is written, French readers see the English text marked as English. The list
@@ -3452,7 +3453,7 @@ ISBN or person is ever stored in it; rows older than 40 days are deleted by the 
 
 Both dated files are attached to the email (subject `[umas-books] Inventory export YYYY-MM-DD (N copies)`; the body says when the snapshot was taken, Paris time, and gives the counts). Above 15 MB only the per-book file is attached and the email says where the full one is. The CSV is **not** kept in GitHub (no Actions artifact; the job log shows counts only).
 
-**Columns (per copy):** ISBN-13, ISBN-10, Title, Author(s), Publisher, Year, Binding (Mass Market / Trade / Hardback / Other), Condition (New / Like New / Very Good / Good / Acceptable), Price (EUR), Location, Source, Status (In Store / Reserved / Sold / Donated / Damaged / withdrawn), Date added, Copy ID, Till code (`UB-<copy id>`), Book ID, Genres, Clearance (Yes/No), Publisher price (EUR), Notes, Date sold (when known), Date received, Cost (EUR), Suggested price (EUR), Genres (French). The app stores one ISBN per book: the other form is computed from it (an ISBN-10 exists only for 978- numbers). There is no subtitle or language column because the database does not hold them. **No customer data**: no buyer or reservation-holder name, email or phone, only the status. (The *Notes* column is the free-text note an admin typed on the copy: do not type personal data there.)
+**Columns (per copy):** ISBN-13, ISBN-10, Title, Author(s), Publisher, Year, Binding (Mass Market / Trade / Hardback / Other), Condition (New / Like New / Very Good / Good / Acceptable), Price (EUR), Location, Source, Status (In Store / Reserved / Sold / Donated / Damaged / withdrawn), Date added, Copy ID, Till code (`UB-<copy id>`), Book ID, Genres, Clearance (Yes/No), Publisher price (EUR), Notes, Date sold (when known), Date received, Cost (EUR), Suggested price (EUR). The app stores one ISBN per book: the other form is computed from it (an ISBN-10 exists only for 978- numbers). There is no subtitle or language column because the database does not hold them. **No customer data**: no buyer or reservation-holder name, email or phone, only the status. (The *Notes* column is the free-text note an admin typed on the copy: do not type personal data there.)
 
 **Format (one dialect, for French Excel; the same as the accounting export):** UTF-8 with a byte-order mark, **semicolon** separator, **decimal comma** (`4,50`), text in quotes, CRLF line ends, dates as `YYYY-MM-DD` (Paris days). A cell starting with `=`, `+`, `-` or `@` gets a leading apostrophe so Excel cannot run it as a formula.
 
@@ -3498,14 +3499,14 @@ Fixed in `src/db.js`: wait at most **10 s** for a free connection (then the requ
 
 ## am) Managing genres: cleaning up genre names, Undo
 
-Books carry free-text genres (`books.categories`, French in `categories_fr`) that come from catalogue lookups and hand typing,
+Books carry free-text English genres (`books.categories`; books have no French genre since 2026-10-28, section aq) that come from catalogue lookups and hand typing,
 so the same idea appears as "Children's Books", "Children's Fiction", "Juvenile Fiction"... **Admin > Site content > Genres**
 (`/admin/genres`) is where you decide what they should be. Nothing on a book changes until you press **Update all books** and
 confirm.
 
 **The three parts**
 
-1. **Managed genres**: the names you want, in English and French. They were seeded from the genres the shop already used. A
+1. **Managed genres**: the names you want (English only: the French site shows the same names). They were seeded from the genres the shop already used. A
    managed genre can be a button on the public Browse page (**Show on Browse**, colour, icon, Browse position). Renaming one
    leaves a rule from the old name to the new one, and the rename form offers to open the Update-all preview straight away.
    Deleting one asks first: the rules that pointed at it go with it (those genres become Unmapped); books keep their text.
@@ -3523,15 +3524,14 @@ confirm.
 2. Add word rules for the big families (Children, Juvenile...), then slot the rest from **Unmapped only**, or press **Suggest
    slots with AI**: it proposes, you tick, nothing is saved until **Save ticked rules** (it uses the shared daily AI cap, section
    ae; with no key or credit it says so and nothing happens).
-3. Press **Preview: update all books**. Read the counts and the 10 before/after examples (the French follows: a mapped genre
-   gets the managed French name, the others the fixed word list).
+3. Press **Preview: update all books**. Read the counts and the 10 before/after examples.
 4. Press **Confirm**. It runs in batches of 500 books, one run at a time. A book saved while it runs is skipped, never overwritten.
    If the books or rules changed since the preview, nothing is applied and you see a new preview. Every run is in **Admin
    activity** (`genre.apply`) and on its result page.
 5. After that, books you add or edit go through the same rules automatically (with no rule saved, nothing changes).
 
 **Undo.** The result page of a run has **Undo this run** (only the newest run that is not undone). It shows how many books go
-back; a book you edited since is left alone. Confirm and the previous genres (English and French) come back (`genre.undo`).
+back; a book you edited since is left alone. Confirm and the previous genres come back (`genre.undo`; only the English genres: runs from before 2026-10-28 also recorded French ones, which are not put back).
 Undo only restores books; it does not delete the rules, so pressing Update all books again redoes the change.
 
 **If something looks wrong.** Rules and managed genres are plain tables (`genre_rules`, `managed_genres`): delete a wrong rule
@@ -3728,3 +3728,46 @@ The old version keeps serving, nothing was changed.
    stuck session with `pg_terminate_backend(pid)` only if it is clearly stuck.
 3. For a one-off busy period you can raise `MIGRATE_LOCK_TIMEOUT_MS` or `MIGRATE_LOCK_RETRIES` in Render > Environment,
    deploy, then remove the variable again.
+
+## aq) French book descriptions and genres (removed): the backup table and how to restore
+
+**What was decided (Sharon, 2026-10-28).** Books have **no French description and no French genre**. The French site
+(`/fr/...`) shows a book's **English** description and **English** genres (the page around them stays French, and the
+English text is marked as English for screen readers). The Browse genre buttons on `/fr/books.html` show the English genre
+names too (the "Tous les genres" button stays French). Admin > Inventory has only the English Genres and Description boxes;
+Admin > Genres has only the English name of a managed genre. Saving, scanning or editing a book never writes French, and the
+AI never translates a book description (it still writes the English one). Collections, blog posts, events and classes keep
+their French: only books changed.
+
+**What the deploy did (migration 107).** It first **copied** every French book description and French genre into the table
+`book_french_backup` (one row per book: `book_id`, `description_fr`, `categories_fr`, `saved_at`), and only then emptied
+`books.description_fr` and `books.categories_fr` (the columns are still there, unused). **Admin > Admin activity** has one
+line (action `books.french_removed`, by "migration 107"): *French book descriptions and genres removed: N books. A copy is
+kept in table book_french_backup.* N is the number of books that had French text. Running the migration again changes nothing
+and writes no second line.
+
+**Restore (only if the French is wanted back).** The site no longer shows or edits these values, so restoring only puts the
+data back in the database (for a later change of mind, or to read the old French). Render dashboard > `umas-books` >
+**Shell**, run `psql "$DATABASE_URL"`, then paste (it fills only French boxes that are empty now, never overwrites, and is
+safe to run twice):
+
+<!-- restore-french-books:start -->
+```sql
+UPDATE books b
+   SET description_fr = COALESCE(b.description_fr, k.description_fr),
+       categories_fr  = COALESCE(b.categories_fr, k.categories_fr)
+  FROM book_french_backup k
+ WHERE b.id = k.book_id
+   AND (b.description_fr IS NULL AND k.description_fr IS NOT NULL
+        OR b.categories_fr IS NULL AND k.categories_fr IS NOT NULL);
+```
+<!-- restore-french-books:end -->
+
+It answers `UPDATE <n>`: the number of books that got French back. To look without changing anything:
+`SELECT count(*) FROM book_french_backup;` or `SELECT * FROM book_french_backup WHERE book_id = 123;`.
+
+**Dropping the backup later.** The table holds only book texts (no personal data), costs little, and follows the books (a
+deleted book loses its row; clearing the test data clears it with the books). Once you are sure the French is not wanted
+back, a developer can drop it with a new migration (`DROP TABLE IF EXISTS book_french_backup;`), and later, the same way,
+the two unused columns `books.description_fr` and `books.categories_fr` (and `managed_genres.name_fr` /
+`browse_label_fr`, also unused now). The nightly database backups keep a copy of the table until they age out.

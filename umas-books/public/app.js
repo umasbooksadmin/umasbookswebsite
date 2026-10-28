@@ -204,8 +204,6 @@ document.addEventListener("click", function (e) {
   e.preventDefault();
   var form = btn.closest("form");
   var descField = document.getElementById(btn.getAttribute("data-generate-description"));
-  var descFrAttr = btn.getAttribute("data-generate-description-fr");
-  var descFrField = descFrAttr ? document.getElementById(descFrAttr) : null;
   if (!form || !descField) return;
 
   var titleInput = form.querySelector("[name=title]");
@@ -241,7 +239,6 @@ document.addEventListener("click", function (e) {
     .then(function (result) {
       if (result.ok) {
         descField.value = result.data.description;
-        if (descFrField && result.data.descriptionFr) descFrField.value = result.data.descriptionFr;
       } else {
         alert(result.data.error || "Couldn't generate a description.");
       }

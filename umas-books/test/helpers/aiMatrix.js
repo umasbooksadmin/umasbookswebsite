@@ -80,7 +80,6 @@ async function runMatrix(root) {
   // feature id -> async (fetchOverride) -> value
   const FEATURES = {
     description: { text: "description", run: () => description.generateBookDescription({ title: "The Lighthouse", author: "A. Writer", publisher: "Pub", publishedYear: 1999 }) },
-    translation: { text: "translation", run: () => description.translateDescriptionToFrench("A quiet story about a lighthouse keeper.") },
     genre: { text: "genre", run: () => generateBookGenres({ title: "The Hobbit", author: "Tolkien", description: "A hobbit goes out.", existingGenres: "Fiction" }) },
     cover: { text: "cover", run: () => extractBookInfoFromPhoto(photo, "image/jpeg") },
     price: { text: "price", run: () => market.fetchMarketData(query, { env: { ANTHROPIC_API_KEY: KEY, ...(process.env.ANTHROPIC_WORKSPACE_ID ? { ANTHROPIC_WORKSPACE_ID: process.env.ANTHROPIC_WORKSPACE_ID } : {}) }, fetchImpl: (u, i) => globalThis.fetch(u, i) }) },

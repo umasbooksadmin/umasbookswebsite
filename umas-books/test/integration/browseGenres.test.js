@@ -1,7 +1,8 @@
 // The Browse Books genre buttons are drawn by the server from the managed genres (Admin > Genres, table managed_genres;
 // src/lib/browseGenres.js); public/page-books.js only reads them back. The seeded data must give the page exactly what it
 // had when the buttons were a fixed list: test/fixtures/browseGenres.golden.json is that list (14 buttons, order, slug,
-// topic, colours, icon, English and French label). Adding, hiding and renaming a managed genre changes the page.
+// topic, colours, icon, English and French label). Book genres are English on both sites since 2026-10-28: on /fr/ the
+// genre buttons show the English label (marked lang="en"); only the All Genres button is French. Adding, hiding and renaming a managed genre changes the page.
 //
 // Port 6491 is reserved for this file.
 
@@ -30,7 +31,7 @@ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 // The button exactly as the page drew it when the list was fixed.
 const expectedButton = (g, i, label) =>
   `<button type="button" class="bk-genre" data-index="${i}" data-slug="${g.slug}" data-topic="${esc(g.topic)}"><span class="chip" style="background:${g.bg};color:${g.fg}"><svg ${golden.iconAttrs} aria-hidden="true">${g.svg}</svg></span><span data-i18n="g.${g.slug}">${esc(label)}</span></button>`;
-const labelsOf = (html) => [...listOf(html).matchAll(/<span data-i18n="g\.[a-z0-9-]+">([^<]*)<\/span>/g)].map((m) => m[1].replace(/&amp;/g, "&").replace(/&#39;/g, "'"));
+const labelsOf = (html) => [...listOf(html).matchAll(/<span data-i18n="g\.[a-z0-9-]+"(?: lang="en")?>([^<]*)<\/span>/g)].map((m) => m[1].replace(/&amp;/g, "&").replace(/&#39;/g, "'"));
 
 test("the seeded genre buttons are identical to the fixed list the page had before (English)", async () => {
   const buttons = buttonsOf(await page("en"));
@@ -40,10 +41,15 @@ test("the seeded genre buttons are identical to the fixed list the page had befo
   assert.equal(golden.genres[golden.genres.length - 1].topic, "", "All Genres runs the empty topic: every book");
 });
 
-test("French: the same buttons, the labels from the managed French names (page and /fr/ path)", async () => {
+test("French: the same buttons with the ENGLISH genre labels marked lang=en; All Genres stays French (page and /fr/ path)", async () => {
   for (const path of ["/books.html", "/fr/books.html"]) {
     const html = await page("fr", path);
-    assert.deepEqual(labelsOf(html), golden.genres.map((g) => g.fr), path);
+    // (the French page's typography makes the apostrophe the curly one, in English text too)
+    assert.deepEqual(labelsOf(html).map((l) => l.replace(/\u2019/g, "'")), golden.genres.map((g) => (g.slug === "all" ? g.fr : g.en)), path);
+    for (const g of golden.genres) {
+      const span = listOf(html).match(new RegExp(`<span data-i18n="g\\.${g.slug}"[^>]*>`))[0];
+      assert.equal(span.includes(' lang="en"'), g.slug !== "all", `${path} ${g.slug}: lang mark`);
+    }
     buttonsOf(html).forEach((b, i) => assert.ok(b.startsWith(`<button type="button" class="bk-genre" data-index="${i}" data-slug="${golden.genres[i].slug}"`)));
   }
 });
@@ -61,7 +67,7 @@ test("the old ?genre= links still select the right genre: every old slug is a bu
   assert.ok(js.includes("SLUGS.indexOf(state.genre)"), "the page script selects the button by slug");
 });
 
-test("a new managed genre shows as a button with the generic icon, its name as label and as search word; French from its French name", async () => {
+test("a new managed genre shows as a button with the generic icon, its name as label and as search word; the same English name on /fr/", async () => {
   await q("INSERT INTO managed_genres (name_en, name_fr, sort_order, browse_slug, browse_order, colour, icon) VALUES ('Gardening', 'Jardinage', 40, 'gardening', 40, 'moss', 'book')");
   const en = buttonsOf(await page("en"));
   assert.equal(en.length, golden.genres.length + 1);
@@ -71,7 +77,7 @@ test("a new managed genre shows as a button with the generic icon, its name as l
   assert.ok(added.includes("background:#e0ebdc;color:#43523a"), "colour moss");
   assert.ok(added.includes("M6 4.5h11"), "the generic book icon");
   assert.ok(en[en.length - 1].includes('data-slug="all"'), "All Genres stays last");
-  assert.ok(buttonsOf(await page("fr")).find((b) => b.includes('data-slug="gardening"')).includes(">Jardinage</span>"));
+  assert.ok(buttonsOf(await page("fr")).find((b) => b.includes('data-slug="gardening"')).includes(' lang="en">Gardening</span>'), "a stored French name is not used");
   // the page's data-index is the position in the list, so the script's SLUGS array lines up
   en.forEach((b, i) => assert.ok(b.includes(`data-index="${i}"`)));
 });

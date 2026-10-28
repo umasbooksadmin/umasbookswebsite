@@ -2,6 +2,9 @@
 // books.categories with how many books use it), the managed genres, and the mapping rules. The rewriting of books is in
 // lib/genreRun.js, the matching in lib/genreRules.js, the AI help in lib/genreSuggest.js.
 //
+// Managed genres have an English name only (Sharon, 2026-10-28: books have English genres, the French site shows them):
+// managed_genres.name_fr / browse_label_fr are left in the table but never written or read any more.
+//
 // Nothing here changes a book. Every edit of a managed genre or a rule clears the caches (rules, found genres, Browse
 // buttons), so the next page and the next save see it.
 
@@ -9,7 +12,6 @@ const { genreKey, readRules, matchRule, containsWord, clearRulesCache } = requir
 const { PALETTE_KEYS, ICON_KEYS, DEFAULT_ICON, slugify, nextColour, clearBrowseGenreCache } = require("./browseGenres");
 const { clearBrowseCaches } = require("./latestArrivals");
 const config = require("./config");
-const { translateGenresToFrench } = require("./bookLookup");
 
 const NAME_MAX = 60;
 const PATTERN_MAX = 80;
@@ -125,11 +127,10 @@ function cleanName(v, max = NAME_MAX) {
 const isUnique = (err) => err && err.code === "23505";
 
 // -> { ok: true, id } | { ok: false, error }
-async function addManaged(pool, { nameEn, nameFr }) {
+async function addManaged(pool, { nameEn }) {
   if (String(nameEn == null ? "" : nameEn).includes(",")) return { ok: false, error: "A genre name cannot contain a comma (genres are separated by commas)." };
   const en = cleanName(nameEn);
-  if (!en) return { ok: false, error: "Type the genre's English name." };
-  const fr = cleanName(nameFr) || translateGenresToFrench(en) || en;
+  if (!en) return { ok: false, error: "Type the genre's name." };
   try {
     const { rows: last } = await pool.query("SELECT colour FROM managed_genres ORDER BY id DESC LIMIT 1");
     const colour = nextColour(last[0] && last[0].colour);
@@ -141,10 +142,10 @@ async function addManaged(pool, { nameEn, nameFr }) {
       slug = `${base}-${i}`;
     }
     const { rows } = await pool.query(
-      `INSERT INTO managed_genres (name_en, name_fr, sort_order, show_on_browse, browse_slug, browse_order, colour, icon)
-       VALUES ($1, $2, COALESCE((SELECT max(sort_order) FROM managed_genres), 0) + 1, true, $3,
-               COALESCE((SELECT max(browse_order) FROM managed_genres), 0) + 1, $4, $5) RETURNING id`,
-      [en, fr, slug, colour, DEFAULT_ICON]
+      `INSERT INTO managed_genres (name_en, sort_order, show_on_browse, browse_slug, browse_order, colour, icon)
+       VALUES ($1, COALESCE((SELECT max(sort_order) FROM managed_genres), 0) + 1, true, $2,
+               COALESCE((SELECT max(browse_order) FROM managed_genres), 0) + 1, $3, $4) RETURNING id`,
+      [en, slug, colour, DEFAULT_ICON]
     );
     clearAll(pool);
     return { ok: true, id: rows[0].id };
@@ -161,19 +162,17 @@ async function updateManaged(pool, id, input) {
   if (!cur) return { ok: false, error: "That genre no longer exists." };
   if (String(input.nameEn == null ? "" : input.nameEn).includes(",")) return { ok: false, error: "A genre name cannot contain a comma (genres are separated by commas)." };
   const en = cleanName(input.nameEn) || cur.name_en;
-  const fr = cleanName(input.nameFr) || translateGenresToFrench(en) || en;
   const colour = PALETTE_KEYS.includes(input.colour) ? input.colour : cur.colour;
   const icon = ICON_KEYS.includes(input.icon) ? input.icon : cur.icon;
   const show = input.showOnBrowse === true;
   const labelEn = cleanName(input.labelEn) || null;
-  const labelFr = cleanName(input.labelFr) || null;
   const topic = cleanName(input.topic, 300) || null;
   const order = Number.isInteger(input.browseOrder) ? Math.min(Math.max(input.browseOrder, 0), 1000) : cur.browse_order;
   try {
     await pool.query(
-      `UPDATE managed_genres SET name_en = $2, name_fr = $3, show_on_browse = $4, colour = $5, icon = $6,
-              browse_label_en = $7, browse_label_fr = $8, browse_topic = $9, browse_order = $10, updated_at = now() WHERE id = $1`,
-      [id, en, fr, show, colour, icon, labelEn, labelFr, topic, order]
+      `UPDATE managed_genres SET name_en = $2, show_on_browse = $3, colour = $4, icon = $5,
+              browse_label_en = $6, browse_topic = $7, browse_order = $8, updated_at = now() WHERE id = $1`,
+      [id, en, show, colour, icon, labelEn, topic, order]
     );
   } catch (err) {
     if (isUnique(err)) return { ok: false, error: `"${en}" is already a managed genre.` };

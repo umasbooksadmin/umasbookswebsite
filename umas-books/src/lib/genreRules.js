@@ -3,14 +3,14 @@
 // (no database): the bulk "Update all books" run (lib/genreRun.js) and the save paths (add / edit / scan intake)
 // use the very same applyGenreRules(), so a new book never brings back a name the admin cleaned up.
 //
-// A rule is { kind, pattern, action, target, targetFr }:
+// A rule is { kind, pattern, action, target }:
 //   kind 'exact'          the whole raw genre equals the pattern (case-insensitive, trimmed, spaces collapsed,
 //                         the curly apostrophe is the straight one)
 //   kind 'contains-word'  the raw genre contains the pattern as a WHOLE WORD (or whole words, in order). Plural and
 //                         possessive endings are tolerated: the word Children matches Children, Childrens,
 //                         Children's and Children’s; Comic matches Comics. NOT "Childhood" for Children, and nothing
 //                         is matched by meaning: only the words you specify.
-//   action 'map'          replace the raw genre by `target` (the managed English name; `targetFr` its French name)
+//   action 'map'          replace the raw genre by `target` (the managed English name)
 //          'remove'       drop the raw genre from the book
 //          'keep'         leave this raw genre as it is (an exact "Leave as is" stops a word rule from touching it)
 //   kind 'managed'        (made by loadRules, never stored) every managed name is an exact rule to itself, the LAST
@@ -22,9 +22,10 @@
 // First match wins: stored exact rules (by priority), then word rules (by priority), then managed names.
 // A genre no rule matches is LEFT AS IT IS. Duplicates collapse (case-insensitive), the order is kept, and a book
 // with nothing left gets NULL.
+//
+// Books have English genres only (Sharon, 2026-10-28): no French genre is computed, kept or written here.
 
 const config = require("./config");
-const { translateGenresToFrench } = require("./bookLookup");
 
 const APOSTROPHES = /[‘’‛ʼ′`´]/g;
 
@@ -68,14 +69,14 @@ function containsWord(pattern, raw) {
 const KIND_ORDER = { exact: 0, "contains-word": 1, managed: 2 };
 
 // Rules in matching order, with their comparison form worked out once. Accepts stored rules, managed rules and
-// hand-made ones (tests): { kind, pattern, action?, target?, targetFr?, id?, sort? }. A rule with a target maps; one
+// hand-made ones (tests): { kind, pattern, action?, target?, id?, sort? }. A rule with a target maps; one
 // without a target and no action removes.
 function compile(rules) {
   const list = (rules || []).map((r, i) => {
     const action = r.action || (r.target != null ? "map" : "remove");
     return {
       id: r.id == null ? null : r.id, kind: r.kind, pattern: String(r.pattern), key: genreKey(r.pattern), action,
-      target: r.target == null ? null : String(r.target), targetFr: r.targetFr == null ? null : String(r.targetFr),
+      target: r.target == null ? null : String(r.target),
       targetId: r.targetId == null ? null : r.targetId, sort: Number.isFinite(r.sort) ? r.sort : i, _i: i,
     };
   }).filter((r) => r.key && KIND_ORDER[r.kind] !== undefined && (r.action !== "map" || r.target));
@@ -112,17 +113,14 @@ function slot(rules, raw) {
 
 // The whole rewrite of one book's genres, with everything the preview and the run need.
 //   en        the new English string (NULL when nothing is left)
-//   fr        the new French string, one entry per English genre: the managed French name for a mapped genre,
-//             translateGenresToFrench (the fixed word list; the genre itself when it has no entry) for the rest
 //   changed   the list of genres differs from the stored one (spacing alone does not count)
-//   touched   at least one genre matched a rule (or a managed name): only then is the French recomputed
+//   touched   at least one genre matched a rule (or a managed name)
 //   removed, renamed, collapsed   how many genres were dropped / replaced by a different text / merged as duplicates
 function rewriteGenres(csv, rules) {
   const compiled = ensureCompiled(rules);
   const before = splitGenres(csv);
   const seen = new Set();
   const outEn = [];
-  const outFr = [];
   let removed = 0, renamed = 0, collapsed = 0, touched = false;
   for (const raw of before) {
     const { out, rule } = slot(compiled, raw);
@@ -133,11 +131,9 @@ function rewriteGenres(csv, rules) {
     seen.add(k);
     if (out !== raw) renamed++;
     outEn.push(out);
-    outFr.push(rule && rule.action === "map" && rule.targetFr ? rule.targetFr : translateGenresToFrench(out) || out);
   }
   return {
     en: outEn.length ? outEn.join(", ") : null,
-    fr: outFr.length ? outFr.join(", ") : null,
     changed: outEn.join("\u0000") !== before.join("\u0000"),
     touched, removed, renamed, collapsed, rule: null,
   };
@@ -148,14 +144,12 @@ function applyGenreRules(csv, rules) {
   return rewriteGenres(csv, rules).en;
 }
 
-// A stored French string compared with a new one: spacing around the commas does not count.
+// Two genre strings compared: spacing around the commas does not count.
 const sameList = (a, b) => splitGenres(a).join("\u0000") === splitGenres(b).join("\u0000");
 
-// For the rows of Update all books: { en, fr, changed } for one stored book (categories, categories_fr).
-function planBook(categories, categoriesFr, rules) {
-  const r = rewriteGenres(categories, rules);
-  const frChanged = r.touched && !sameList(r.fr, categoriesFr);
-  return { ...r, changed: r.changed || frChanged, enChanged: r.changed, frChanged, fr: r.touched || r.changed ? r.fr : categoriesFr == null ? null : categoriesFr };
+// For the rows of Update all books: { en, changed, ... } for one stored book (categories).
+function planBook(categories, rules) {
+  return rewriteGenres(categories, rules);
 }
 
 // ---------- rules as the database stores them ----------
@@ -166,17 +160,16 @@ const caches = new WeakMap(); // pool -> { at, value }
 
 // managed_genres + genre_rules -> { managed: [...], stored: [...], rules (compiled, with the managed-name rules), hasRules }.
 async function readRules(db) {
-  const { rows: managed } = await db.query("SELECT id, name_en, name_fr FROM managed_genres ORDER BY sort_order, id");
+  const { rows: managed } = await db.query("SELECT id, name_en FROM managed_genres ORDER BY sort_order, id");
   const { rows: stored } = await db.query(
-    `SELECT r.id, r.kind, r.pattern, r.action, r.sort_order, r.target_managed_genre_id, g.name_en, g.name_fr
+    `SELECT r.id, r.kind, r.pattern, r.action, r.sort_order, r.target_managed_genre_id, g.name_en
      FROM genre_rules r LEFT JOIN managed_genres g ON g.id = r.target_managed_genre_id ORDER BY r.sort_order, r.id`
   );
-  const frOf = (g) => (g.name_fr && g.name_fr.trim()) || translateGenresToFrench(g.name_en) || g.name_en;
   const fromStored = stored.map((r) => ({
     id: r.id, kind: r.kind, pattern: r.pattern, action: r.action, sort: r.sort_order,
-    target: r.name_en || null, targetFr: r.name_en ? frOf(r) : null, targetId: r.target_managed_genre_id,
+    target: r.name_en || null, targetId: r.target_managed_genre_id,
   }));
-  const fromManaged = managed.map((g, i) => ({ kind: "managed", pattern: g.name_en, action: "map", target: g.name_en, targetFr: frOf(g), targetId: g.id, sort: i }));
+  const fromManaged = managed.map((g, i) => ({ kind: "managed", pattern: g.name_en, action: "map", target: g.name_en, targetId: g.id, sort: i }));
   return { managed, stored: fromStored, rules: ensureCompiled([...fromStored, ...fromManaged]), hasRules: fromStored.length > 0 };
 }
 
@@ -193,20 +186,19 @@ function clearRulesCache(pool) {
   if (pool) caches.delete(pool);
 }
 
-// The save paths: a book saved with `genre` / `genreFr` as typed. With NO stored rule nothing changes (the managed list
-// alone never rewrites a book on its own). Otherwise the genres go through the rules and the French follows what
-// the rules decided; a rules problem never stops a save.
-async function applyRulesToBook(pool, genre, genreFr) {
+// The save paths: a book saved with `genre` (English) as typed. With NO stored rule nothing changes (the managed list
+// alone never rewrites a book on its own). Otherwise the genres go through the rules; a rules problem never stops a
+// save. -> { genre }
+async function applyRulesToBook(pool, genre) {
   try {
     const { rules, hasRules } = await loadRules(pool);
-    if (!hasRules || !genre) return { genre, genreFr };
+    if (!hasRules || !genre) return { genre };
     const r = rewriteGenres(genre, rules);
-    if (!r.changed && !r.touched) return { genre, genreFr };
-    if (!r.changed) return { genre, genreFr }; // same genres: keep the French exactly as the person typed it
-    return { genre: r.en, genreFr: r.fr };
+    if (!r.changed) return { genre };
+    return { genre: r.en };
   } catch (err) {
     console.error("Genre rules not applied:", err.message);
-    return { genre, genreFr };
+    return { genre };
   }
 }
 

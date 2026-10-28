@@ -61,12 +61,13 @@ test("the French home page and a legal page really are French text at /fr/", asy
   assert.doesNotMatch(legal.replace(/<script[\s\S]*?<\/script>/g, ""), /\b(We never sell|Your rights|This page explains)\b/);
 });
 
-test("book page at /fr/books/:id: French chrome, labels and description; its JSON-LD names the French address", async () => {
+test("book page at /fr/books/:id: French chrome and labels, the English description (books have no French one); its JSON-LD names the French address", async () => {
   const html = await text(`/fr/books/${bookId}`);
   assert.match(html, /<html lang="fr"/);
   assert.ok(html.includes(conditionLabel("very_good", "fr")), "French condition label");
   assert.ok(!html.includes(conditionLabel("very_good", "en")) || conditionLabel("very_good", "en") === conditionLabel("very_good", "fr"));
-  assert.ok(html.includes("Un résumé en français."), "French description");
+  assert.ok(html.includes('<span lang="en">An English blurb.</span>'), "the English description, marked as English");
+  assert.ok(!html.includes("Un résumé en français."), "a leftover French description is never shown");
   assert.match(html, /Ajouter au panier|Ajouter/, "French add-to-cart");
   const ld = JSON.parse(html.match(/<script type="application\/ld\+json">([^]*?)<\/script>/)[1]);
   assert.equal(ld.url, `${SITE}/fr/books/${bookId}`);

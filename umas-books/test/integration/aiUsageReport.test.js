@@ -110,7 +110,8 @@ test("empty: every feature is listed with zeros, no banner, no NaN", async () =>
 });
 
 test("after simulated calls the report shows calls, outcomes, tokens, searches, cost estimate and no text", async () => {
-  const { generateBookDescription, translateDescriptionToFrench } = require("../../src/lib/bookDescription");
+  const { generateBookDescription } = require("../../src/lib/bookDescription");
+  const { translateEmptyFrench } = require("../../src/lib/collectionTranslate");
   const { generateBookGenres } = require("../../src/lib/bookGenre");
   const { extractBookInfoFromPhoto } = require("../../src/lib/coverVision");
   const { fetchMarketData } = require("../../src/lib/pricing/market");
@@ -118,7 +119,7 @@ test("after simulated calls the report shows calls, outcomes, tokens, searches, 
   await viaFetch(async () => answer("Quiet Secret Words", { input_tokens: 1000, output_tokens: 100 }), async () => {
     await generateBookDescription({ title: "Secret Title Alpha" });
     await generateBookDescription({ title: "Secret Title Alpha" });
-    await translateDescriptionToFrench("Quiet Secret Words");
+    await translateEmptyFrench({ title_en: "Quiet Secret Words" });
   });
   await viaFetch(async () => new Response("{}", { status: 429 }), () => generateBookDescription({ title: "T" }));
   await viaFetch(async () => new Response("oops", { status: 500 }), () => generateBookGenres({ title: "T" }));

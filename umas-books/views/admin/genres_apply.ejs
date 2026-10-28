@@ -16,7 +16,7 @@
       <p class="muted">Every book that has genres already follows your rules. Nothing to do.</p>
     <% } else { %>
       <ul class="gn-stats">
-        <li><strong><%= preview.count %></strong> of <%= preview.stats.booksWithGenres %> books with genres change<% if (preview.stats.frenchOnly) { %> (<%= preview.stats.frenchOnly %> of them only in French)<% } %></li>
+        <li><strong><%= preview.count %></strong> of <%= preview.stats.booksWithGenres %> books with genres change</li>
         <li><strong><%= preview.stats.genresRenamed %></strong> genre<%= preview.stats.genresRenamed === 1 ? '' : 's' %> renamed to a managed name</li>
         <li><strong><%= preview.stats.genresRemoved %></strong> genre<%= preview.stats.genresRemoved === 1 ? '' : 's' %> removed</li>
         <li><strong><%= preview.stats.duplicatesCollapsed %></strong> duplicate<%= preview.stats.duplicatesCollapsed === 1 ? '' : 's' %> merged</li>
@@ -28,8 +28,8 @@
         <% preview.examples.forEach(function (e) { %>
           <tr>
             <td><a href="/admin/inventory/<%= e.id %>"><%= e.title %></a></td>
-            <td><span class="gn-before"><%= e.old %></span><br><span class="muted small">French: <%= e.oldFr || 'none' %></span></td>
-            <td><span class="gn-after"><%= e.en == null ? '(no genre)' : e.en %></span><br><span class="muted small">French: <%= e.fr || 'none' %></span></td>
+            <td><span class="gn-before"><%= e.old %></span></td>
+            <td><span class="gn-after"><%= e.en == null ? '(no genre)' : e.en %></span></td>
           </tr>
         <% }) %>
         </tbody>

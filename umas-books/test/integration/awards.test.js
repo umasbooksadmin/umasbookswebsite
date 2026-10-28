@@ -412,9 +412,10 @@ test("migration 080 removes stored Wikidata awards and queues every book for a r
 
 test("layout: description and awards sit in the top block beside the cover, before price and copies, in EN and FR, with or without them", async () => {
   const book = await seedBook();
-  await pool.query("UPDATE books SET description = 'Plain English blurb.', description_fr = 'Résumé en français.' WHERE id = $1", [book.id]);
+  // Books have an English description only (2026-10-28): the French page shows it too.
+  await pool.query("UPDATE books SET description = 'Plain English blurb.' WHERE id = $1", [book.id]);
   await addAward(book.id, "Layout Prize", { year: 2020 });
-  for (const [lang, blurb, head] of [["en", "Plain English blurb.", "About this book"], ["fr", "Résumé en français.", "À propos de ce livre"]]) {
+  for (const [lang, blurb, head] of [["en", "Plain English blurb.", "About this book"], ["fr", "Plain English blurb.", "À propos de ce livre"]]) {
     const html = (await http(`/books/${book.id}`, { user: null, cookie: `umasbooks_lang=${lang}` })).text;
     const col = html.indexOf('<h1 style="margin-bottom:4px;"');
     const at = (s) => html.indexOf(s, col); // the meta description in <head> repeats the blurb

@@ -116,6 +116,8 @@ async function plant() {
   await db.query("INSERT INTO copy_intake_tokens (token, copy_id, book_id) VALUES ('tok-clear-test-0123456789', $1, $2)", [copy1, book]);
   const collection = await one("INSERT INTO curated_collections (slug, title_en) VALUES ('test-shelf', 'Test shelf') RETURNING id");
   await db.query("INSERT INTO curated_collection_books (collection_id, book_id, status) VALUES ($1, $2, 'approved')", [collection, book]);
+  // migration 107's copy of a removed French book text follows the book
+  await db.query("INSERT INTO book_french_backup (book_id, description_fr) VALUES ($1, 'Un texte')", [book]);
 
   // content
   const event = await one("INSERT INTO events (title, starts_at, created_by) VALUES ('Event', now() + interval '2 days', $1) RETURNING id", [admin]);

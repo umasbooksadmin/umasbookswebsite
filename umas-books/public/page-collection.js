@@ -35,9 +35,11 @@
   }
 
   // One book: the Browse card in a .col-item, with its genre and "why it's here" line under it when the API gives them
-  // (lib/collections.js bookExtras, already in the page's language). The same markup as views/marketing/collection.ejs.
+  // (lib/collections.js bookExtras: the why line in the page's language, the genre always English, so marked lang="en"
+  // on a French page). The same markup as views/marketing/collection.ejs.
   function itemHtml(b) {
-    var more = (b.genre ? '<p class="col-genre">' + esc(b.genre) + '</p>' : '') +
+    var genreLang = document.documentElement.lang === 'fr' ? ' lang="en"' : '';
+    var more = (b.genre ? '<p class="col-genre"' + genreLang + '>' + esc(b.genre) + '</p>' : '') +
       (b.why ? '<p class="col-why">' + esc(b.why) + '</p>' : '');
     return '<div class="col-item">' + UI.bookCardHtml(b, true) + (more ? '<div class="col-more">' + more + '</div>' : '') + '</div>';
   }

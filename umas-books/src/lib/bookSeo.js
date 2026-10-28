@@ -25,8 +25,9 @@ function clip(text, max) {
   return cut.slice(0, Math.max(cut.lastIndexOf(" "), 40)).replace(/[\s,;:.-]+$/, "") + "…";
 }
 
+// Books have an English description only (Sharon, 2026-10-28): the French page's meta description is the same text.
 function bookDescription(book, lang, tr) {
-  const own = lang === "fr" ? (book.description_fr || book.description) : book.description;
+  const own = book.description;
   if (own && String(own).trim()) return clip(own, 200);
   const by = book.authors ? tr(" by {a}", " de {a}", { a: book.authors }) : "";
   return tr(
