@@ -90,6 +90,7 @@ async function plant() {
   const copy2 = await one("INSERT INTO book_copies (book_id) VALUES ($1) RETURNING id", [book]);
   const order = await one("INSERT INTO orders (buyer_name, buyer_email, total_amount, status) VALUES ('Buyer', 'buyer@example.test', 9, 'paid') RETURNING id");
   await db.query("INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, 'Test Book', 9)", [order, copy1]);
+  await db.query("INSERT INTO guest_order_tokens (order_id, purpose, token_hash, expires_at) VALUES ($1, 'manage', 'guest-tok', now() + interval '1 day')", [order]);
   const cls = await one("INSERT INTO classes (title, starts_at) VALUES ('Class', now() + interval '3 days') RETURNING id");
   const seat = await one("INSERT INTO class_dropin_seats (class_id, order_id) VALUES ($1, $2) RETURNING id", [cls, order]);
   await db.query("INSERT INTO order_items (order_id, class_dropin_seat_id, item_title, price) VALUES ($1, $2, 'Seat', 5)", [order, seat]);

@@ -53,6 +53,7 @@ const TABLES = {
   book_copies: "shop",
   orders: "shop",
   order_items: "shop",
+  guest_order_tokens: "shop", // the confirm / manage links of guest reservations (they follow the orders)
   class_dropin_seats: "shop",
   shop_sales: "shop",
   till_sales: "shop",
@@ -293,6 +294,7 @@ function buildPlan({ includeContent = false, keepMembers = false } = {}, have = 
 
   // Shop data: always.
   del("order_items");
+  del("guest_order_tokens");
   del("till_sale_items");
   del("shop_sales");
   del("till_sales");

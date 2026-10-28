@@ -96,15 +96,18 @@ function buildOrderConfirmationText(order, items, base, { manageUrl = null } = {
         `Places « drop-in » : vous réglez sur place, à la séance. Une place peut être annulée en ligne jusqu’à ${legal.SEAT_CANCEL_HOURS} heures avant la séance ; nous la libérons une fois la séance passée.\n`
       )
     : "";
-  const cancelEn = manageUrl
-    ? `To see or cancel your reservation (no account needed), open this private link: ${manageUrl}\nKeep it to yourself: anyone with the link can cancel the reservation.`
-    : `Log in and open your account page, then press “Cancel reservation”: ${accountUrl}`;
-  const cancelFr = manageUrl
-    ? `Pour consulter ou annuler votre réservation (sans compte), ouvrez ce lien personnel : ${manageUrl}\nNe le partagez pas : toute personne qui a ce lien peut annuler la réservation.`
-    : `Connectez-vous, ouvrez votre page de compte puis appuyez sur « Annuler la réservation » : ${accountUrl}`;
+  const cancelText = manageUrl
+    ? tr(
+        `To see or cancel your reservation (no account needed), open this private link: ${manageUrl}\nKeep it to yourself: anyone with the link can cancel the reservation.`,
+        `Pour consulter ou annuler votre réservation (sans compte), ouvrez ce lien personnel : ${manageUrl}\nNe le partagez pas : toute personne qui a ce lien peut annuler la réservation.`
+      )
+    : tr(
+        `Log in and open your account page, then press “Cancel reservation”: ${accountUrl}`,
+        `Connectez-vous, ouvrez votre page de compte puis appuyez sur « Annuler la réservation » : ${accountUrl}`
+      );
   const head = tr(
-    `Hi ${name},\n\nThanks for your reservation. Nothing has been paid online: you pay at the shop when you collect.\n\nReservation #${order.id} — ${orderDate}\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPAY AT THE SHOP WHEN YOU COLLECT\n${deadline}${seatNote}${SHOP_LINES.en} Please quote reservation #${order.id}. You pay in cash or by card, after checking the book: you are free to decline it.\n\nTO CANCEL\n${cancelEn}\n\n`,
-    `Bonjour ${name},\n\nMerci pour votre réservation. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait.\n\nRéservation n° ${order.id} — ${orderDate}\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nÀ RÉGLER À LA BOUTIQUE AU RETRAIT\n${deadline}${seatNote}${SHOP_LINES.fr} Merci d’indiquer la réservation n° ${order.id}. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser.\n\nPOUR ANNULER\n${cancelFr}\n\n`
+    `Hi ${name},\n\nThanks for your reservation. Nothing has been paid online: you pay at the shop when you collect.\n\nReservation #${order.id} — ${orderDate}\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPAY AT THE SHOP WHEN YOU COLLECT\n${deadline}${seatNote}${SHOP_LINES.en} Please quote reservation #${order.id}. You pay in cash or by card, after checking the book: you are free to decline it.\n\nTO CANCEL\n${cancelText}\n\n`,
+    `Bonjour ${name},\n\nMerci pour votre réservation. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait.\n\nRéservation n° ${order.id} — ${orderDate}\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nÀ RÉGLER À LA BOUTIQUE AU RETRAIT\n${deadline}${seatNote}${SHOP_LINES.fr} Merci d’indiquer la réservation n° ${order.id}. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser.\n\nPOUR ANNULER\n${cancelText}\n\n`
   );
   const text = `${head}${termsLine}${cgvLine}${lang === "fr" ? LEGAL_RIGHTS_FRENCH_ONLY : LEGAL_RIGHTS}\n\n${sellerLines(lang)}`;
   // The fixed legal blocks are not written through tr(): give the French mail the same no-break spaces.

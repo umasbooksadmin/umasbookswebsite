@@ -1,7 +1,7 @@
 // Script 1 of docs/testing/manual-test-scripts.md: the guest (anyone not logged in).
-// A guest browses, fills a cart and can use the forms, but cannot reserve:
-// "Reserve (free, no commitment)" asks them to log in or create an account first (G50,
-// G51). Books and drop-in seats are reserved online and paid in the shop; only
+// A guest browses, fills a cart and can use the forms, and can reserve without an account
+// ("Continue as a guest": name, email, optional phone, then the emailed confirm link), or log
+// in / create an account from the cart (G50, G51). Books and drop-in seats are reserved online and paid in the shop; only
 // the membership is paid online.
 // Every test is named with its manual step id. Read-only except the contact
 // and book-request forms, which send email and so need E2E_ALLOW_WRITES=1.
@@ -146,14 +146,15 @@ s.test("G-FR5 FR check of G5, G7, G8: banner, cart notice and membership notice 
   await ctx.page.waitForFunction(() => /L.adhésion ouvrira au lancement/i.test(document.body.innerText));
 });
 
-s.test("G10 with preview off the banner is gone and the cart shows the prompt to log in or create an account (preview off only)", async (ctx) => {
+s.test("G10 with preview off the banner is gone and the cart offers to continue as a guest or to log in / create an account (preview off only)", async (ctx) => {
   if (ctx.preview) ctx.skip("the site is in preview mode");
   await ctx.goto("/");
   assert.equal(await ctx.page.$(".preview-banner"), null);
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
-  // A guest cannot reserve (G50): the cart offers to log in or create an account, never a reserve form.
-  assert.equal(await ctx.page.$("form[action='/cart/reserve']"), null, "a guest is not shown the reserve form");
+  // G50: the cart offers "Continue as a guest" and log in / create an account, never the account's reserve form.
+  assert.equal(await ctx.page.$("form[action='/cart/reserve']"), null, "a guest is not shown the account reserve form");
+  assert.ok(await ctx.page.$("#continue-as-guest a[href='/cart/guest']"), "continue as a guest");
   has(await ctx.text(), /log in|sign up|create an account/);
 });
 
@@ -950,16 +951,24 @@ async function reserveAsGuest(ctx) {
   return res;
 }
 
-s.test("G50 (must) reserving asks a guest to log in or create an account", async (ctx) => {
+s.test("G50 (must) a guest can continue as a guest (name, email, optional phone, no password) or log in / create an account", async (ctx) => {
   if (ctx.preview) ctx.skip("preview mode: reservations are switched off for everyone");
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
-  // The cart offers a way to log in or sign up (a link or button) instead of a guest reserve form...
+  // The cart offers both ways: continue as a guest, or log in / sign up...
   const text = await ctx.text();
-  assert.equal(await ctx.page.$("form[action='/cart/reserve'] input[name='acceptCgv']"), null, "a guest must not be shown the reserve form");
+  assert.equal(await ctx.page.$("form[action='/cart/reserve'] input[name='acceptCgv']"), null, "a guest is not shown the account's reserve form");
   assert.ok(await ctx.page.$("a[href^='/login'], a[href^='/signup']"), "a way to log in or create an account");
   has(text, /log in|sign up|create an account/);
-  // ...and a request sent anyway is turned away to the login page, never started.
+  has(text, /Continue as a guest/);
+  // ...the guest form asks a name and an email, an optional phone, and no password (nothing is submitted here)...
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("#continue-as-guest a[href='/cart/guest']")]);
+  assert.equal(new URL(ctx.page.url()).pathname, "/cart/guest");
+  assert.ok(await ctx.page.$("form[action='/cart/guest/reserve'] input#name[required]"), "name");
+  assert.ok(await ctx.page.$("form[action='/cart/guest/reserve'] input#email[type='email'][required]"), "email");
+  assert.ok(await ctx.page.$("form[action='/cart/guest/reserve'] input#phone:not([required])"), "optional phone");
+  assert.equal(await ctx.page.$("form[action='/cart/guest/reserve'] input[type='password']"), null, "no password");
+  // ...and the ACCOUNT reserve route sent anyway by a guest is turned away to the login page, never started.
   const sent = await reserveAsGuest(ctx);
   assert.equal(sent.type, "opaqueredirect", `reserve answered ${sent.status} to a guest, expected a redirect to log in`);
   assert.deepEqual(ctx.blocked, [], "no payment page was reached");

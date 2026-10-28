@@ -8,7 +8,7 @@ you can read.
 
 | # | Kind of user | Who that is | Step ids |
 |---|---|---|---|
-| 1 | **Guest** | Anyone who is not logged in. Browses everything public, can fill a cart and use the contact and book-request forms. **Cannot reserve**: "Reserve (free, no commitment)" asks them to log in or create an account first. | `G` |
+| 1 | **Guest** | Anyone who is not logged in. Browses everything public, can fill a cart and use the contact and book-request forms. **Can reserve as a guest** (name, email, optional phone, then the confirm link in the email within 2 hours), or log in / create an account from the cart. | `G` |
 | 2 | **Account holder** | Logged in, email confirmed, **not** a paying member (`is_member` false, not a volunteer). Creating an account never needs membership. This is who **reserves** books and drop-in seats (nothing is paid online: they pay at the shop or at the session). | `AC` |
 | 3 | **Member** | An account holder who also paid the membership fee (`is_member` true): a HelloAsso payment matched by email (lasts one calendar year) or an admin pressing **Mark as Member** (no end date). A member has an account but has not necessarily reserved anything. | `M` |
 | 4 | **Volunteer** | Marked as volunteer by an admin. Also passes every member check. | `VO` |
@@ -210,7 +210,7 @@ another).
 
 ## Script 1. Guest (not logged in)
 
-Use a private window. Time: 35 to 45 minutes. A guest browses, searches, fills a cart, and can use the forms; to reserve, they must log in or create an account (see 1I and script 2).
+Use a private window. Time: 35 to 45 minutes. A guest browses, searches, fills a cart, and can use the forms; to reserve, they continue as a guest or log in / create an account (see 1I and script 2).
 
 ### 1A. Home, menu, footer
 
@@ -227,7 +227,7 @@ Use a private window. Time: 35 to 45 minutes. A guest browses, searches, fills a
 - [ ] **G8 (must).** Open the membership page `/membership.html`. **You should see:** "Membership opens at launch" and **no** payment form.
 - [ ] **G9.** Open `/robots.txt`. **You should see:** a line `Disallow: /` (search engines told to stay away). After launch (preview off) this line must be gone: re-check at launch.
 - [ ] **FR check.** Switch to FR on steps G5, G7, G8. **You should see:** the banner, the cart notice and the membership notice in French ("Aperçu — Uma's Books ouvre bientôt...", "Les réservations en ligne ouvriront au lancement...", "L'adhésion ouvrira au lancement").
-- [ ] **G10.** (Preview **off** only.) None of the above appears; the cart no longer shows the preview notice. A guest then sees the prompt to log in or create an account (G50), not a reserve form.
+- [ ] **G10.** (Preview **off** only.) None of the above appears; the cart no longer shows the preview notice. A guest then sees "Continue as a guest" and the links to log in or create an account (G50), not the account's reserve form.
 
 ### 1C. Books: search, filters, book page
 
@@ -332,7 +332,7 @@ Reserving needs an account: a guest can fill a cart, but "Reserve (free, no comm
 - [ ] **G47 (must).** On a book page press **Add to Cart** for one copy. **You should see:** the cart page with that book (cover or "No cover", title, author, condition label, `€price`, **Remove**) and **Total**. **Known:** adding to the cart does **not** reserve the copy; it is only held once an account holder presses **Reserve (free, no commitment)** (AC24).
 - [ ] **G48.** Add a second book, then press **Remove** on it. **You should see:** it disappears and the total updates. (A cart holds at most 20 lines.)
 - [ ] **G49.** Open the cart header icon from another page. **You should see:** the number on the cart icon matches the lines in the cart.
-- [ ] **G50 (must).** In a cart with a book in it, as a guest, look for the reserve button. **You should see:** a prompt to **log in or create an account**, with a link to each, and **no** reserve form for a guest; nothing is held and no reservation is made.
+- [ ] **G50 (must).** In a cart with a book in it, as a guest, look for the reserve button. **You should see:** **Continue as a guest**, and below it **Log in** / **Create an account**. Press **Continue as a guest**: a form with Name, Email (both required) and Phone (optional), no password. Reserve with your test address: the page says to check your email; the email has a **confirm** link (within 2 hours) and a link to see or cancel the reservation. Open the confirm link and press **Confirm my reservation**: the reservation page shows the 14-day deadline and a **Cancel reservation** button; the second email arrives. In admin > Reservations the reservation is marked **Guest** with your name, email and phone. Cancel it from the link (or as admin) when done.
 - [ ] **G51 (must).** Choose **Log in** from the cart, log in as an account holder (script 2). **You should see:** you land back on the cart with your items still in it. (Create an account instead: after the confirmation email and choosing a password, log in and the cart is still there, AC1 to AC7.)
 - [ ] **G52.** Log out and open `/forum`. **You should see:** the Log in page (member pages need a login) with the note "Log in to open the members' area. You will come back to this page afterwards."; after you log in as a member you land back on the forum (a non-member lands on the page of AC46). What a logged-in account holder who is **not** a member sees instead is in script 2J (AC46).
 

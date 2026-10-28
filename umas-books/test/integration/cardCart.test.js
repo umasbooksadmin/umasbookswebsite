@@ -4,11 +4,11 @@
 //   - what the icon does, per book: one copy (or identical copies) -> adds that copy; different copies -> opens the book page;
 //     nothing buyable online (unpriced, reserved, sold) -> no icon at all; in the cart -> "in your cart", a link to the cart
 //   - signed in: adding from a card (the JSON the script uses, and the plain form without JavaScript)
-//   - signed out: the book goes into the session's cart and the answer is the sign-in page with returnTo = this page; after
-//     signing in they land back there with the book in their cart
+//   - signed out (guest checkout, 2026-10-28): the book goes into the session's cart and they stay on the page, exactly as
+//     when signed in (no detour through the sign-in page); signing in later keeps the cart
 //   - CSRF: a post without the token, or with a wrong one, is refused and adds nothing
 //   - English and French names
-//   - in headless Chrome (skipped when there is none): pressing the icon as a guest and as a signed-in person, the cart read
+//   - in headless Chrome (skipped when there is none): pressing the icon signed out and signed in, the cart read
 //     back from the session row in the database
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
@@ -136,7 +136,7 @@ test("the public lists say what each book's icon does: one copy or identical cop
   assert.deepEqual(favs.find((b) => b.id === id["Card Twin Copies"]).buy, { copyId: Math.min(...copy["Card Twin Copies"]) });
 });
 
-test("a guest's collection page: a GET form to the sign-in page (returnTo = this page), a link to the book page for a choice, no icon when nothing can be bought, no session made", async () => {
+test("a signed-out visitor's collection page: a GET form to the book page (the script adds it to the cart), a link to the book page for a choice, no icon when nothing can be bought, no session made", async () => {
   const v = visitor();
   const r = await v.get("/collections/card-shelf");
   assert.equal(r.status, 200);
@@ -144,7 +144,8 @@ test("a guest's collection page: a GET form to the sign-in page (returnTo = this
   const html = await r.text();
   const one = iconOf(html, id["Card One Copy"]);
   assert.ok(one, "the one-copy book has an icon");
-  assert.match(one, new RegExp(`<form class="bk-cart-add" method="get" action="/login" data-copy-id="${copy["Card One Copy"][0]}"><input type="hidden" name="returnTo" value="/collections/card-shelf">`));
+  assert.match(one, new RegExp(`<form class="bk-cart-add" method="get" action="/books/${id["Card One Copy"]}" data-copy-id="${copy["Card One Copy"][0]}"><button`));
+  assert.doesNotMatch(one, /\/login|returnTo/, "no detour through the sign-in page");
   assert.match(one, /aria-label="Add Card One Copy to cart"/);
   assert.match(one, /<a class="bk-cart-btn bk-cart-in" href="\/cart" aria-label="Card One Copy is in your cart \(view cart\)" hidden>/);
   const choice = iconOf(html, id["Card Choice"]);
@@ -194,22 +195,19 @@ test("signed in: the icon adds the copy (JSON for the script, a redirect back fo
   assert.equal((await v.session()).cartCount, 2);
 });
 
-test("signed out: the icon puts the book in the cart and sends them to sign in; after signing in they are back on the page with it in their cart", async () => {
+test("signed out: the icon puts the book in the cart and they stay on the page; signing in later keeps it in their cart", async () => {
   const v = visitor();
   const token = await v.token();
   const r = await v.post("/cart/add", { copyId: copy["Card L'Apostrophe"][0], backTo: "/collections/card-shelf", via: "card", _csrf: token }, JSON_ACCEPT);
-  const body = await r.json();
-  assert.deepEqual(body, { ok: true, inCart: true, cartCount: 1, bookId: id["Card L'Apostrophe"], login: "/login?returnTo=%2Fcollections%2Fcard-shelf" });
-  // the sign-in page carries the existing returnTo
-  const login = await (await v.get(body.login)).text();
-  assert.match(login, /name="returnTo" value="\/collections\/card-shelf"/);
+  assert.deepEqual(await r.json(), { ok: true, inCart: true, cartCount: 1, bookId: id["Card L'Apostrophe"] }, "the same answer as signed in: no login field");
+  assert.deepEqual((await v.session()).cartBookIds, [id["Card L'Apostrophe"]], "in the signed-out cart");
   const landing = await signIn(v, await newAccount(), "/collections/card-shelf");
-  assert.equal(landing, "/collections/card-shelf", "back where they were");
-  assert.deepEqual((await v.session()).cartBookIds, [id["Card L'Apostrophe"]], "the book is in their cart after signing in");
+  assert.equal(landing, "/collections/card-shelf");
+  assert.deepEqual((await v.session()).cartBookIds, [id["Card L'Apostrophe"]], "the book is still in their cart after signing in");
   assert.match(iconOf(await (await v.get(landing)).text(), id["Card L'Apostrophe"]), /bk-cart-in" href="\/cart" aria-label="Card L&#39;Apostrophe is in your cart \(view cart\)">/);
 });
 
-test("signed out, no JavaScript, on a book page (which prints a token anyway): the More-by card's form adds and redirects to sign in with returnTo", async () => {
+test("signed out, no JavaScript, on a book page (which prints a token anyway): the More-by card's form adds and comes back to the page", async () => {
   const v = visitor();
   const page = await v.get(`/books/${id["Card Choice"]}`);
   const html = await page.text();
@@ -219,9 +217,9 @@ test("signed out, no JavaScript, on a book page (which prints a token anyway): t
   assert.match(icon, new RegExp(`name="backTo" value="/books/${id["Card Choice"]}"><input type="hidden" name="via" value="card">`));
   const r = await v.post("/cart/add", { copyId: copy["Card One Copy"][0], backTo: `/books/${id["Card Choice"]}`, via: "card", _csrf: token });
   assert.equal(r.status, 302);
-  assert.equal(r.headers.get("location"), `/login?returnTo=${encodeURIComponent(`/books/${id["Card Choice"]}`)}`);
+  assert.equal(r.headers.get("location"), `/books/${id["Card Choice"]}`, "back on the page, no sign-in detour");
   assert.equal((await v.session()).cartCount, 1);
-  // the book page's own Add to Cart buttons are unchanged (no via=card: back to the cart, no sign-in detour)
+  // the book page's own Add to Cart buttons are unchanged (no via=card: back to the cart)
   const own = await v.post("/cart/add", { copyId: copy["Card Choice"][0], backTo: "/cart", _csrf: token });
   assert.equal(own.headers.get("location"), "/cart");
 });
@@ -244,14 +242,15 @@ test("CSRF: a card add without the token, or with a wrong one, is refused and ad
   assert.equal(r.status, 403);
   assert.equal((await guest.session()).cartCount, 0);
   const guestOk = await guest.post("/cart/add", { copyId: copy["Card One Copy"][0], via: "card", backTo: "/books.html", _csrf: await guest.token() }, JSON_ACCEPT);
-  assert.equal((await guestOk.json()).login, "/login?returnTo=%2Fbooks.html");
+  assert.deepEqual(await guestOk.json(), { ok: true, inCart: true, cartCount: 1, bookId: id["Card One Copy"] }, "signed out, with the token: added");
 });
 
 test("French pages: the names are French, with the English title marked lang=\"en\"", async () => {
   const v = visitor();
   const html = await (await v.get("/fr/collections/card-shelf")).text();
   const one = iconOf(html, id["Card One Copy"]);
-  assert.match(one, /<input type="hidden" name="returnTo" value="\/fr\/collections\/card-shelf">/);
+  // without JavaScript: the book page (a form, so not prefixed by lib/frUrls.js prefixLinks; it follows the language cookie the /fr/ visit set)
+  assert.match(one, new RegExp(`<form class="bk-cart-add" method="get" action="/books/${id["Card One Copy"]}" `));
   assert.doesNotMatch(one, /aria-label/);
   assert.match(one, /<span class="bk-cart-name">Ajouter <span lang="en">Card One Copy<\/span> au panier<\/span>/);
   assert.match(one, /<span class="bk-cart-name"><span lang="en">Card One Copy<\/span> est dans votre panier \(voir le panier\)<\/span>/);
@@ -270,7 +269,7 @@ async function sessionCart(page) {
   return rows[0] ? rows[0].sess.cart || [] : [];
 }
 
-test("in Chrome: a guest presses the icon, signs in, and is back with the book in the cart; signed in, the next press adds without a reload", async (t) => {
+test("in Chrome: signed out, pressing the icon adds without leaving the page; after signing in the book is still in the cart and the next press adds without a reload", async (t) => {
   if (skipReason) { t.skip(skipReason); return; }
   const account = await newAccount();
   const ctx = await browser.createBrowserContext();
@@ -280,10 +279,14 @@ test("in Chrome: a guest presses the icon, signs in, and is back with the book i
   try {
     await page.goto(`${app.base}/collections/card-shelf`, { waitUntil: "networkidle0" });
     const add = (bookId) => `.bk-cart[data-book-id="${bookId}"] .bk-cart-add button`;
+    await page.evaluate(() => { window.__sameDocument = true; });
     await page.focus(add(id["Card One Copy"]));
-    await Promise.all([page.waitForNavigation({ waitUntil: "networkidle0" }), page.keyboard.press("Enter")]);
-    assert.equal(new URL(page.url()).pathname + new URL(page.url()).search, "/login?returnTo=%2Fcollections%2Fcard-shelf");
-    assert.deepEqual((await sessionCart(page)).map((l) => l.copyId), [copy["Card One Copy"][0]], "the guest's session row holds the book");
+    await page.keyboard.press("Enter");
+    await page.waitForFunction((bid) => !document.querySelector(`.bk-cart[data-book-id="${bid}"] .bk-cart-in`).hidden, { timeout: 8000 }, id["Card One Copy"]);
+    assert.equal(await page.evaluate(() => window.__sameDocument), true, "signed out: no navigation, no sign-in page");
+    assert.equal(new URL(page.url()).pathname, "/collections/card-shelf");
+    assert.deepEqual((await sessionCart(page)).map((l) => l.copyId), [copy["Card One Copy"][0]], "the signed-out session row holds the book");
+    await page.goto(`${app.base}/login?returnTo=%2Fcollections%2Fcard-shelf`, { waitUntil: "networkidle0" });
     await page.type("input[name=email]", account.email);
     await page.type("input[name=password]", account.password);
     await Promise.all([page.waitForNavigation({ waitUntil: "networkidle0" }), page.$eval("input[name=password]", (i) => i.form.requestSubmit())]);
