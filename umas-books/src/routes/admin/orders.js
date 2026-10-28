@@ -8,7 +8,7 @@ const { validDay } = require("../../lib/reports");
 const { SITE_TIME_ZONE } = require("../../lib/tz");
 const {
   markOrderCollected, collectReservation, cancelReservationByAdmin, markReservationNoShow, extendReservation,
-  markOrderRefunded, cancelUnpaidOrder, NOTE_MAX, ORDER_VIEWS, OVERDUE_DAYS, PAYMENT_METHODS, REFUND_METHODS,
+  markOrderRefunded, cancelUnpaidOrder, collectionFloorCents, NOTE_MAX, ORDER_VIEWS, OVERDUE_DAYS, PAYMENT_METHODS, REFUND_METHODS,
 } = require("../../lib/orderActions");
 const { expireStaleReservations, RESERVATION_EXTENSION_DAYS } = require("../../lib/reservations");
 const { reservationLastDay } = require("../../lib/orderItems");
@@ -143,9 +143,11 @@ async function renderOrder(req, res, { error = null, status = 200, formValues = 
   const [{ rows: items }, { rows: history }, { rows: related }] = await Promise.all([
     pool.query(
       `SELECT i.id, i.item_title, i.price, i.book_copy_id, i.class_dropin_seat_id,
-              bc.status AS copy_status, bc.cart_order_id AS copy_order_id, bc.location AS copy_location, bc.book_id, ds.status AS seat_status
+              bc.status AS copy_status, bc.cart_order_id AS copy_order_id, bc.location AS copy_location, bc.book_id, ds.status AS seat_status,
+              bc.condition, bc.publisher_price, b.published_year
        FROM order_items i
        LEFT JOIN book_copies bc ON bc.id = i.book_copy_id
+       LEFT JOIN books b ON b.id = bc.book_id
        LEFT JOIN class_dropin_seats ds ON ds.id = i.class_dropin_seat_id
        WHERE i.order_id = $1 ORDER BY i.id`,
       [id]
@@ -160,6 +162,8 @@ async function renderOrder(req, res, { error = null, status = 200, formValues = 
   // Held right now for THIS order (what "Mark collected and paid" can still collect).
   for (const i of items) {
     i.active = i.book_copy_id != null ? i.copy_status === "reserved" && i.copy_order_id === order.id : i.seat_status === "reserved";
+    // The least "Amount received" may be for this item (fixed book price law, seats): the same rule the server enforces.
+    i.floorCents = collectionFloorCents(i);
   }
   // Cash taken with "Mark collected and paid" counts in today's drawer, so it needs today's till day not to be closed.
   const { rows: closedDay } = await pool.query(
@@ -237,6 +241,17 @@ const COLLECT_ERRORS = {
   note_required: "When the amount received is lower than the total, please write a note saying why (for example a discount you gave).",
 };
 
+const euro = (n) => `€${Number(n).toFixed(2)}`;
+// "below_minimum": name each item that limits the discount, and the least that can be received.
+function belowMinimumMessage(result) {
+  const books = result.limits.filter((l) => l.kind === "book");
+  const parts = [`The amount received (${euro(result.received)}) is below the minimum for these items: ${euro(result.minimum)}. Nothing was changed.`];
+  if (books.length) {
+    parts.push(`New books are sold at the fixed book price (French law): at most 5% below the publisher's price. ${books.map((b) => `"${b.title}": at least ${euro(b.minimum)}`).join("; ")}.`);
+  }
+  return parts.join(" ");
+}
+
 // "Mark collected and paid": all the items still held, or (collect-selected) only
 // the ticked ones. See lib/orderActions.js collectReservation.
 async function collect(req, res, { selected }) {
@@ -256,6 +271,7 @@ async function collect(req, res, { selected }) {
   }
   if (result.outcome !== "collected") {
     let message = COLLECT_ERRORS[result.outcome] || "Could not record the payment.";
+    if (result.outcome === "below_minimum") message = belowMinimumMessage(result);
     if (result.outcome === "nothing_to_collect" && result.notHeld && result.notHeld.length) {
       message = `None of the ticked items is still reserved, so nothing was collected and nothing was changed (${result.notHeld.join("; ")}). Reload the page.`;
     }

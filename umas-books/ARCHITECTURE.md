@@ -324,7 +324,8 @@ rather than by a numbered migration), grouped by what they belong to:
   transaction sets `refunded` + `refunded_at` + `refund_note`, puts the order's
   sold copies back `in_stock` (not a copy sold again since) and marks its
   drop-in seats `released`; it also records `orders.refund_method` (cash from the
-  till drawer, card, transfer, other; NULL for refunds made before migration 095)
+  till drawer, card, transfer, other; NULL for refunds made before migration 095;
+  the accounting export's refund row uses it as its payment method)
   and, for a cash refund made while today's till day is not closed,
   `orders.refund_till_day`: `till.daySummary` subtracts those from the day's expected
   cash, and a cash refund on a closed day is refused). Cash taken with the admin
