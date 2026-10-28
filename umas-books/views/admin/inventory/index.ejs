@@ -7,7 +7,7 @@
     <%- include('../../partials/csrf_field') %>
     <label for="nl-ask">Describe what you are looking for</label>
     <div class="inv-ask-row">
-      <textarea id="nl-ask" name="ask" rows="2" maxlength="<%= nl.maxLength %>" placeholder="e.g. books with a customer price different from the publisher's price" aria-describedby="nl-ask-help"><%= nl.sentence %></textarea>
+      <textarea id="nl-ask" name="ask" rows="2" maxlength="<%= nl.maxLength %>" placeholder="e.g. books with a custom price different from the publisher's price" aria-describedby="nl-ask-help"><%= nl.sentence %></textarea>
       <button class="btn" type="submit">Find</button>
     </div>
     <p class="muted small" id="nl-ask-help" style="margin:0;">In your own words, in English. The AI turns it into a search and the page says how it understood it ("Understood as"): check that before trusting the list. Read-only: it never changes anything.<%= nl.enabled ? '' : ' (Off on this site: the AI service is not set up. The search box and filters below work.)' %></p>

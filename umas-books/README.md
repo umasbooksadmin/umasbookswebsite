@@ -351,7 +351,7 @@ it sits on.
   one. Like location, condition and price, one copy has to match them all.
 - **Finding books by describing them:** at the top of the Inventory page, type
   what you want in **Describe what you are looking for** and press **Find**, for
-  example "books with a customer price different from the publisher's price",
+  example "books with a custom price different from the publisher's price",
   "fantasy books under 6 euros, cheapest first", "copies received this month
   with no location", "hardbacks published before 1950", or "sold copies that had
   a publisher's price". The AI (one Anthropic call, counted under "Inventory
@@ -367,7 +367,7 @@ it sits on.
   read-only and English only. If the AI is off or out of credit the page says so
   and the search box and filters keep working. What it can search: title,
   author, ISBN, publisher, description, year published, genre, binding; and per
-  copy customer price, publisher's price, cost, suggested price, condition,
+  copy custom price, publisher's price, cost, suggested price, condition,
   location, status, source, date received, date added, date sold, clearance and
   notes. It never sees or searches customer data (reservations, emails).
 - **Changing one copy:** open the book and edit **Location** on the copy.

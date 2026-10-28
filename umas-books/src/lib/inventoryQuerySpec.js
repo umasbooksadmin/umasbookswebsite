@@ -56,7 +56,7 @@ const FIELDS = {
   published_year: { level: "book", type: "integer", col: "published_year", label: "year published", doc: "year of publication" },
   genre: { level: "book", type: "genre", col: "categories", label: "genre", doc: "the book's genres (a book can have several)" },
   binding: { level: "book", type: "enum", col: "binding", label: "binding", nullable: true, values: enumOf(BINDINGS), doc: "the format" },
-  price: { level: "copy", type: "money", col: "price", label: "customer price", doc: "the price the shop sells THIS copy for (euros)" },
+  price: { level: "copy", type: "money", col: "price", label: "custom price", aliases: ["customer price", "selling price", "sale price"], doc: "the price the shop sells THIS copy for (euros); the \"Custom price\" box on the copy form; also called the customer price, selling price or sale price" },
   publisher_price: { level: "copy", type: "money", col: "publisher_price", label: "publisher's price", doc: "the publisher's list price recorded for this copy (euros); often blank" },
   acquisition_cost: { level: "copy", type: "money", col: "acquisition_cost", label: "cost (what we paid)", doc: "what the shop paid for this copy (euros); 0 for donations" },
   suggested_price: { level: "copy", type: "money", col: "suggested_price", label: "suggested price", doc: "the price the pricing helper suggested (euros)" },
@@ -469,7 +469,7 @@ function explainSort(spec) {
   return `Sorted by ${def.label} of the matching copies, ${ends[dir === "desc" ? 1 : 0]}.`;
 }
 
-// The validated spec in plain English, e.g. "Books with one copy in the store where: customer price is different
+// The validated spec in plain English, e.g. "Books with one copy in the store where: custom price is different
 // from publisher's price (both must be set). Sorted by title."
 function explainSpec(spec) {
   const scope = { in_stock: "in the store", sold: "that was sold", all: "of any status (in the store, reserved, sold, donated or withdrawn)" }[spec.copies];
