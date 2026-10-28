@@ -53,8 +53,19 @@
         <label for="f-pmax">Max price (&euro;)</label>
         <input id="f-pmax" name="priceMax" type="text" inputmode="decimal" autocomplete="off" value="<%= filters.priceMaxText %>" placeholder="e.g. 5,50">
       </div>
+      <div>
+        <label for="f-rfrom">Received from</label>
+        <input id="f-rfrom" name="receivedFrom" type="date" value="<%= filters.receivedFromText %>">
+      </div>
+      <div>
+        <label for="f-rto">Received to</label>
+        <input id="f-rto" name="receivedTo" type="date" value="<%= filters.receivedToText %>">
+      </div>
+      <div class="inv-filter-check">
+        <label for="f-rnone"><input id="f-rnone" name="receivedNone" type="checkbox" value="1" <%= filters.receivedNone ? 'checked' : '' %>> No date received set</label>
+      </div>
     </div>
-    <p class="muted small" style="margin:0;">Location, condition and price look at copies in the store: a book is listed when one copy matches all three.</p>
+    <p class="muted small" style="margin:0;">Location, condition, price and date received look at copies in the store: a book is listed when one copy matches all of them. The date received is the copy's Acquisition Date; both dates are included.</p>
     <% if (filterErrors.length) { %><div class="error-box" role="alert" style="margin:0;"><% filterErrors.forEach(e => { %><div><%= e %></div><% }) %></div><% } %>
     <% if (filterActive) { %><p style="margin:0;"><a href="/admin/inventory<%= q ? '?q=' + encodeURIComponent(q) : '' %>">Clear filters</a><%= q ? ' (keeps the search text)' : '' %> &middot; <a href="/admin/inventory">Clear everything</a></p><% } %>
   </form>
@@ -70,7 +81,7 @@
     <a class="btn btn-outline" href="/admin/inventory/results.csv<%= resultsQuery ? '?' + resultsQuery : '' %>">Download these results (CSV)</a>
   </div>
   <p class="muted small" style="margin-top:8px;">
-    <strong>All inventory</strong> is everything in the system, whatever you searched. <strong>These results</strong> is exactly what the search and filters above show (all of it, not just the first <%= listLimit %>)<%= filterActive || q ? '' : ': with nothing searched, that is everything too' %>; with a location, condition or price filter on, only the copies that match are listed.
+    <strong>All inventory</strong> is everything in the system, whatever you searched. <strong>These results</strong> is exactly what the search and filters above show (all of it, not just the first <%= listLimit %>)<%= filterActive || q ? '' : ': with nothing searched, that is everything too' %>; with a location, condition, price or date received filter on, only the copies that match are listed.
     Both: one row per copy, for French Excel (semicolons, decimal commas), no customer data.
     Per book instead of per copy: <a href="/admin/inventory/export.csv?books=1">all inventory</a>, <a href="/admin/inventory/results.csv?<%= resultsQuery ? resultsQuery + '&' : '' %>books=1">these results</a>.
     The full file is also emailed every evening at 21:00.
@@ -99,7 +110,7 @@
             </div>
             <% if (b.matched_copies.length) { %>
               <div class="small inv-matched">Matching <%= b.matched_copies.length === 1 ? 'copy' : 'copies' %>:
-                <% b.matched_copies.forEach((m, i) => { %><%= i ? '; ' : '' %><strong><%= m.location || 'No location' %></strong> &middot; <%= conditionLabel(m.condition) %> &middot; <%= m.price == null ? 'no price' : '€' + m.price.toFixed(2) %><% }) %>
+                <% b.matched_copies.forEach((m, i) => { %><%= i ? '; ' : '' %><strong><%= m.location || 'No location' %></strong> &middot; <%= conditionLabel(m.condition) %> &middot; <%= m.price == null ? 'no price' : '€' + m.price.toFixed(2) %><% if (showReceived) { %> &middot; <%= m.received ? 'received ' + m.received : 'no date received' %><% } %><% }) %>
               </div>
             <% } %>
           </div>

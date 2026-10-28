@@ -32,7 +32,8 @@ before(async () => {
 after(async () => { await h.stop(); });
 
 const FILTERS = ["", "q=RX", "q=split", "location=storage", "condition=new", "binding=hardcover", "genre=fiction", "priceMin=5", "priceMax=5", "priceMin=5&priceMax=10",
-  "location=Storage&condition=good", "q=RX&location=Shelf%20A&binding=trade&genre=Fiction&priceMin=1&priceMax=10", "location=__none__", "binding=__none__", "genre=__none__", "q=zzzz-nothing"];
+  "location=Storage&condition=good", "q=RX&location=Shelf%20A&binding=trade&genre=Fiction&priceMin=1&priceMax=10", "location=__none__", "binding=__none__", "genre=__none__", "q=zzzz-nothing",
+  "receivedNone=1", "receivedFrom=2000-01-01", "receivedTo=2000-01-01", "location=Storage&receivedNone=1"];
 
 test("each filter alone and combined: the download holds the same books as the screen", async () => {
   for (const f of FILTERS) {

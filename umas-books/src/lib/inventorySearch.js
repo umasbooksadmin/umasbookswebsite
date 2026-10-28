@@ -1,15 +1,20 @@
 // Filters for the admin Inventory book search (/admin/inventory): location,
-// condition, price (copy-level) and binding (book-level), AND-ed with the text
-// search and with each other. State lives in the query string, so a link or a
-// reload keeps it:  ?q=..&location=..&condition=..&binding=..&priceMin=..&priceMax=..
+// condition, price, date received (copy-level) and binding, genre (book-level),
+// AND-ed with the text search and with each other. State lives in the query
+// string, so a link or a reload keeps it:  ?q=..&location=..&condition=..&binding=..
+// &priceMin=..&priceMax=..&receivedFrom=YYYY-MM-DD&receivedTo=YYYY-MM-DD&receivedNone=1
 //
-// Copy-level filters (location, condition, price) are ONE EXISTS over
+// The date received is book_copies.acquired_at ("Acquisition Date" on the intake
+// and copy forms), a plain DATE: compared as calendar days, both ends inclusive,
+// no time zone involved. receivedNone=1 finds copies with no date set.
+//
+// Copy-level filters (location, condition, price, date received) are ONE EXISTS over
 // book_copies: a book matches when a single in-stock copy satisfies all of
 // them together. Binding is stored on books (books.binding), so it is a plain
 // predicate on the book. Every user value goes in as a bound parameter.
 
 const { CONDITIONS, BINDINGS, normalizeBinding, normalizeLocation, uniqueLocations } = require("./inventory");
-const { parseMoney, clean } = require("./validation");
+const { parseMoney, parseDay, clean } = require("./validation");
 const { COMMON_GENRES } = require("./bookLookup");
 const { likeContains } = require("./parseParams");
 
@@ -20,10 +25,11 @@ const NO_BINDING = "__none__";
 const NO_GENRE = "__none__";
 
 const CONDITION_VALUES = new Set(CONDITIONS.map((c) => c.value));
-const FILTER_KEYS = ["location", "condition", "binding", "genre", "priceMin", "priceMax"];
+const FILTER_KEYS = ["location", "condition", "binding", "genre", "priceMin", "priceMax", "receivedFrom", "receivedTo", "receivedNone"];
 
 // query -> { q, location, condition, binding, priceMin, priceMax, priceMinText,
-//            priceMaxText, errors: [..] }. Never throws. A bad value is ignored
+//            priceMaxText, receivedFrom, receivedTo ("YYYY-MM-DD" or null),
+//            receivedFromText, receivedToText, receivedNone, errors: [..] }. Never throws. A bad value is ignored
 // (that filter is off) and explained in `errors`.
 function parseInventoryFilters(query) {
   const src = query && typeof query === "object" ? query : {};
@@ -53,10 +59,26 @@ function parseInventoryFilters(query) {
   if (out.priceMin != null && out.priceMax != null && out.priceMin > out.priceMax) {
     errors.push("Min price is higher than Max price, so no copy can match.");
   }
+
+  // Date received: two <input type="date"> ("YYYY-MM-DD"), each optional, plus a "No date set" checkbox.
+  for (const [key, label] of [["receivedFrom", "Received from"], ["receivedTo", "Received to"]]) {
+    const text = clean(src[key], 20);
+    out[`${key}Text`] = text;
+    const r = parseDay(text, { allowBlank: true, label });
+    if (r.error) { errors.push(`${r.error} It was ignored.`); out[key] = null; } else out[key] = r.value;
+  }
+  out.receivedNone = clean(src.receivedNone, 5) === "1";
+  if (out.receivedNone && (out.receivedFrom || out.receivedTo)) {
+    errors.push("\"No date set\" cannot be combined with Received from / Received to, so the dates were ignored.");
+    out.receivedFrom = null;
+    out.receivedTo = null;
+  } else if (out.receivedFrom && out.receivedTo && out.receivedFrom > out.receivedTo) {
+    errors.push("Received from is later than Received to, so no copy can match.");
+  }
   return out;
 }
 
-const hasCopyFilter = (f) => !!(f.location || f.condition || f.priceMin != null || f.priceMax != null);
+const hasCopyFilter = (f) => !!(f.location || f.condition || f.priceMin != null || f.priceMax != null || f.receivedFrom || f.receivedTo || f.receivedNone);
 const hasAnyFilter = (f) => hasCopyFilter(f) || !!f.binding || !!f.genre;
 
 // The copy-level predicates, as SQL over alias `alias`, pushing values into
@@ -68,6 +90,10 @@ function copyPredicates(f, params, alias) {
   if (f.condition) { params.push(f.condition); preds.push(`${alias}.condition = $${params.length}`); }
   if (f.priceMin != null) { params.push(f.priceMin); preds.push(`${alias}.price >= $${params.length}`); }
   if (f.priceMax != null) { params.push(f.priceMax); preds.push(`${alias}.price <= $${params.length}`); }
+  // acquired_at is a DATE and the bounds are bound as ::date, so this is a calendar-day comparison (inclusive).
+  if (f.receivedNone) preds.push(`${alias}.acquired_at IS NULL`);
+  if (f.receivedFrom) { params.push(f.receivedFrom); preds.push(`${alias}.acquired_at >= $${params.length}::date`); }
+  if (f.receivedTo) { params.push(f.receivedTo); preds.push(`${alias}.acquired_at <= $${params.length}::date`); }
   return preds;
 }
 
@@ -114,14 +140,14 @@ async function matchingCopies(pool, f, bookIds) {
   const params = [bookIds];
   const preds = copyPredicates(f, params, "c");
   const { rows } = await pool.query(
-    `SELECT c.id, c.book_id, c.location, c.condition, c.price FROM book_copies c
+    `SELECT c.id, c.book_id, c.location, c.condition, c.price, to_char(c.acquired_at, 'YYYY-MM-DD') AS received FROM book_copies c
      WHERE c.book_id = ANY($1::int[]) AND ${preds.join(" AND ")} ORDER BY c.book_id, c.id`,
     params
   );
   const byBook = new Map();
   for (const r of rows) {
     if (!byBook.has(r.book_id)) byBook.set(r.book_id, []);
-    byBook.get(r.book_id).push({ id: r.id, location: r.location, condition: r.condition, price: r.price == null ? null : Number(r.price) });
+    byBook.get(r.book_id).push({ id: r.id, location: r.location, condition: r.condition, price: r.price == null ? null : Number(r.price), received: r.received });
   }
   return byBook;
 }
@@ -145,6 +171,9 @@ function filterQueryString(f) {
   if (f.genre) p.set("genre", f.genre);
   if (f.priceMinText) p.set("priceMin", f.priceMinText);
   if (f.priceMaxText) p.set("priceMax", f.priceMaxText);
+  if (f.receivedFromText) p.set("receivedFrom", f.receivedFromText);
+  if (f.receivedToText) p.set("receivedTo", f.receivedToText);
+  if (f.receivedNone) p.set("receivedNone", "1");
   return p.toString();
 }
 

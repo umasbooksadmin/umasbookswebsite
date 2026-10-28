@@ -115,7 +115,7 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
   );
   // One entry per place, whatever its capitals ("Store" and "STORE" are one).
   for (const b of books) b.locations = b.location_list ? uniqueLocations(b.location_list).join(", ") : null;
-  // With a location/condition/price filter on, show the copies that matched.
+  // With a location/condition/price/date-received filter on, show the copies that matched.
   const matched = await matchingCopies(pool, filters, books.map((b) => b.id));
   for (const b of books) b.matched_copies = matched.get(b.id) || [];
   const locations = (await filterLocations(pool)).slice();
@@ -125,6 +125,7 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
   res.render("admin/inventory/index", {
     active: "inventory", books, q, notice: hasOrdersNotice(req),
     filters, filterErrors: filters.errors, filterActive: hasAnyFilter(filters), resultsQuery: filterQueryString(filters),
+    showReceived: !!(filters.receivedFrom || filters.receivedTo || filters.receivedNone),
     totalMatches: books.length ? books[0].total_matches : 0, listLimit: LIST_LIMIT,
     locations, genres, otherGenres, NO_LOCATION, NO_BINDING, NO_GENRE, CONDITIONS, BINDINGS, conditionLabel,
   });
@@ -150,7 +151,7 @@ router.get("/admin/inventory/export.csv", requireAdmin, async (req, res) => {
 
 // "Download these results (CSV)": the same file format, but only what the search above shows: the same text search and
 // filters (lib/inventorySearch.js buildSearchWhere, the list's own code), with no 200-book cap. One row per copy (only the
-// copies that matched when a location/condition/price filter is on), or ?books=1 one row per matching book.
+// copies that matched when a location/condition/price/date-received filter is on), or ?books=1 one row per matching book.
 const RESULTS_EXPORT_MAX_ROWS = 50000;
 router.get("/admin/inventory/results.csv", requireAdmin, async (req, res) => {
   const { writeCopiesCsv, writeBooksCsv, countRows } = require("../../lib/inventoryExport");
