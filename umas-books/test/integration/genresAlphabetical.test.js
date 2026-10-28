@@ -104,7 +104,7 @@ test("Admin > Genres: the managed list, the add-rule dropdown, a saved rule's dr
   assert.doesNotMatch(html, /\/admin\/genres\/managed\/\d+\/move/);
   assert.equal([...html.matchAll(/name="browseOrder" type="number"/g)].length, MANAGED.length);
   assert.match(html, /listed A to Z/);
-  assert.match(html, /follows the <strong>Browse position<\/strong> numbers/);
+  assert.match(html, /are not A to Z: they follow the <strong>Browse position<\/strong> numbers/);
 });
 
 test("Admin > Genres: Found genres are A to Z by default; the other sorts still work", async () => {
