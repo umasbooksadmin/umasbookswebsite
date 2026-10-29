@@ -54,13 +54,19 @@ async function foundGenres(pool) {
   return value;
 }
 
+// Every genre list of the admin (Genres page, its dropdowns, the Inventory Genre filter) is A to Z by name, ignoring
+// capitals and accents (Sharon, 2026-10-28). The public Browse buttons keep their own order (browse_order, lib/browseGenres.js).
+const compareNames = (a, b) => String(a).localeCompare(String(b), "en", { sensitivity: "base" });
+const byName = (a, b) => compareNames(a.name, b.name);
+
 const SORTS = {
-  books: (a, b) => b.books - a.books || a.name.localeCompare(b.name, "en"),
-  "books-asc": (a, b) => a.books - b.books || a.name.localeCompare(b.name, "en"),
-  name: (a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }),
-  "name-desc": (a, b) => b.name.localeCompare(a.name, "en", { sensitivity: "base" }),
-  target: (a, b) => (a.targetLabel || "￿").localeCompare(b.targetLabel || "￿", "en") || b.books - a.books,
+  books: (a, b) => b.books - a.books || byName(a, b),
+  "books-asc": (a, b) => a.books - b.books || byName(a, b),
+  name: (a, b) => byName(a, b) || b.books - a.books,
+  "name-desc": (a, b) => byName(b, a),
+  target: (a, b) => compareNames(a.targetLabel || "￿", b.targetLabel || "￿") || byName(a, b),
 };
+const DEFAULT_SORT = "name";
 
 // What a found genre is slotted into by the current rules. targetLabel: the managed genre's name, "Remove", "Leave as is"
 // or "" (unmapped); `rule` is the stored rule that matched, or "managed" for the genre's own name.
@@ -75,7 +81,7 @@ function describeMatch(rules, name) {
 
 // The Found genres table: filtered, sorted and paged in memory (a few thousand rows at most).
 //   filter: "all" | "unmapped" | "mapped"   q: part of the name   sort: a key of SORTS   page: 1-based
-function queryFound(found, rules, { filter = "all", q = "", sort = "books", page = 1, pageSize = 100 } = {}) {
+function queryFound(found, rules, { filter = "all", q = "", sort = DEFAULT_SORT, page = 1, pageSize = 100 } = {}) {
   const needle = genreKey(q);
   let rows = found.map((f) => ({ ...f, ...describeMatch(rules, f.name) }));
   const counts = { all: rows.length, unmapped: rows.filter((r) => r.status === "unmapped").length };
@@ -83,7 +89,7 @@ function queryFound(found, rules, { filter = "all", q = "", sort = "books", page
   if (needle) rows = rows.filter((r) => r.key.includes(needle));
   if (filter === "unmapped") rows = rows.filter((r) => r.status === "unmapped");
   else if (filter === "mapped") rows = rows.filter((r) => r.status !== "unmapped");
-  rows.sort(SORTS[sort] || SORTS.books);
+  rows.sort(SORTS[sort] || SORTS[DEFAULT_SORT]);
   const total = rows.length;
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const p = Math.min(Math.max(1, page), pages);
@@ -105,16 +111,17 @@ function previewRule(found, rules, { kind, pattern }) {
     if (kind === "exact" || m.status === "unmapped" || m.status === "managed") takes.push({ name: f.name, books: f.books, was: m.status === "unmapped" ? "" : m.status === "managed" ? "its own name" : m.targetLabel });
     else handled.push({ name: f.name, books: f.books, by: m.via, target: m.targetLabel });
   }
-  takes.sort((a, b) => b.books - a.books);
-  handled.sort((a, b) => b.books - a.books);
+  takes.sort(byName);
+  handled.sort(byName);
   return { takes, handled, books: takes.reduce((n, t) => n + t.books, 0) };
 }
 
 // ---------- Managed genres ----------
 
-// The managed list with how many books carry each genre as one of their genres.
+// The managed list (A to Z) with how many books carry each genre as one of their genres.
 async function listManaged(pool) {
-  const { rows } = await pool.query("SELECT * FROM managed_genres ORDER BY sort_order, id");
+  const { rows } = await pool.query("SELECT * FROM managed_genres ORDER BY id");
+  rows.sort((a, b) => compareNames(a.name_en, b.name_en) || a.id - b.id);
   const found = await foundGenres(pool);
   const byKey = new Map(found.map((f) => [f.key, f.books]));
   return rows.map((g) => ({ ...g, books: byKey.get(genreKey(g.name_en)) || 0 }));
@@ -192,21 +199,6 @@ async function updateManaged(pool, id, input) {
   return { ok: true, renamedFrom };
 }
 
-async function moveManaged(pool, id, direction) {
-  const { rows } = await pool.query("SELECT id FROM managed_genres ORDER BY sort_order, id");
-  const ids = rows.map((r) => r.id);
-  const i = ids.indexOf(id);
-  const j = direction === "up" ? i - 1 : i + 1;
-  if (i < 0 || j < 0 || j >= ids.length) return false;
-  [ids[i], ids[j]] = [ids[j], ids[i]];
-  await pool.query(
-    "UPDATE managed_genres g SET sort_order = t.n FROM (SELECT x AS id, ordinality::int AS n FROM unnest($1::int[]) WITH ORDINALITY AS u(x, ordinality)) t WHERE g.id = t.id",
-    [ids]
-  );
-  clearAll(pool);
-  return true;
-}
-
 // What deleting a genre does: its rules (they go with it, those genres become unmapped) and the books that carry its name.
 async function deleteImpact(pool, id) {
   const { rows: [g] } = await pool.query("SELECT * FROM managed_genres WHERE id = $1", [id]);
@@ -223,17 +215,19 @@ async function deleteManaged(pool, id) {
   return rowCount > 0;
 }
 
-// The Genre filter of the admin Inventory: the managed genres first, then the raw genres in use that are not managed
-// (grouped under "Other": the 200 most used, A to Z). A genre typed in the address stays selectable.
+// The Genre filter of the admin Inventory: the managed genres first (A to Z), then the raw genres in use that are not
+// managed (grouped under "Other": the 200 most used, A to Z). A genre typed in the address stays selectable (at its place
+// in the A to Z).
 const OTHER_MAX = 200;
 async function genreFilterOptions(pool, selected = "") {
-  const [{ rows }, found] = await Promise.all([pool.query("SELECT name_en FROM managed_genres ORDER BY sort_order, id"), foundGenres(pool)]);
-  const managed = rows.map((r) => r.name_en);
+  const [{ rows }, found] = await Promise.all([pool.query("SELECT name_en FROM managed_genres ORDER BY id"), foundGenres(pool)]);
+  const managed = rows.map((r) => r.name_en).sort(compareNames);
   const managedKeys = new Set(managed.map(genreKey));
   const other = found.filter((f) => !managedKeys.has(f.key)).sort((a, b) => b.books - a.books).slice(0, OTHER_MAX).map((f) => f.name)
-    .sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+    .sort(compareNames);
   const key = genreKey(selected);
   if (key && !managedKeys.has(key) && !other.some((n) => genreKey(n) === key)) other.push(String(selected));
+  other.sort(compareNames);
   return { managed, other };
 }
 
@@ -350,6 +344,6 @@ async function listRules(pool, found) {
 }
 
 module.exports = {
-  genreFilterOptions, OTHER_MAX, NAME_MAX, PATTERN_MAX, clearAll, foundGenres, queryFound, describeMatch, previewRule, listManaged, addManaged, updateManaged, moveManaged,
+  genreFilterOptions, OTHER_MAX, NAME_MAX, PATTERN_MAX, clearAll, foundGenres, queryFound, describeMatch, previewRule, listManaged, addManaged, updateManaged, compareNames, DEFAULT_SORT,
   deleteImpact, deleteManaged, parseTarget, saveRule, updateRule, deleteRule, moveRule, listRules, cleanName,
 };

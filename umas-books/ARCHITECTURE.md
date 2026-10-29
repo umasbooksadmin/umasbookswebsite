@@ -1301,7 +1301,10 @@ only (`genre_run_changes.old/new_categories_fr` stay NULL for new runs; an older
 **Save paths** (`inventoryIntake.createBookAndCopy` for a new book, the book edit route) call
 `applyRulesToBook(pool, genre)` -> `{ genre }`: with NO stored rule nothing changes; otherwise the genres go through the same rules (cached in-process
 60 s, cleared on every rule change). The admin Inventory Genre filter lists the managed genres, then up to 200 other genres
-in use under "Other". The repeated checkbox field `accept` of the AI proposals is on the allow-list in `lib/multiValueFields.js` (guard test
+in use under "Other". **Every admin genre list is A to Z** (`genreAdmin.compareNames`: `localeCompare("en", { sensitivity: "base" })`,
+capitals and accents ignored; maintainer, 2026-10-28): the managed list, the rule / Slot into dropdowns, Found genres by default, Show
+matches, the AI proposals and both parts of the Inventory filter. `managed_genres.sort_order` is no longer shown or edited (the up/down
+arrows were removed; new genres still get max + 1); the customer Browse order is `browse_order` (the Browse position box), untouched. The repeated checkbox field `accept` of the AI proposals is on the allow-list in `lib/multiValueFields.js` (guard test
 `test/unit/multiValueFields.test.js`).
 
 **Browse buttons are managed genres** (`lib/browseGenres.js`): `loadBrowseGenres(pool)` reads the rows with `show_on_browse` ordered by

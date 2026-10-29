@@ -3506,11 +3506,16 @@ confirm.
 
 **The three parts**
 
-1. **Managed genres**: the names you want (English only: the French site shows the same names). They were seeded from the genres the shop already used. A
-   managed genre can be a button on the public Browse page (**Show on Browse**, colour, icon, Browse position). Renaming one
+1. **Managed genres**: the names you want (English only: the French site shows the same names). They were seeded from the genres the shop already used. The list
+   is always A to Z (capitals and accents ignored), and so is every genre dropdown in the admin (the rule and **Slot into...**
+   dropdowns, the Genre filter of Books & Reservations). A
+   managed genre can be a button on the public Browse page (**Show on Browse**, colour, icon, Browse position). The Browse
+   page does NOT follow the A to Z: its buttons are in **Browse position** order (smaller numbers first); type a new number and
+   press **Save** on that row to move a button. Renaming one
    leaves a rule from the old name to the new one, and the rename form offers to open the Update-all preview straight away.
    Deleting one asks first: the rules that pointed at it go with it (those genres become Unmapped); books keep their text.
-2. **Found genres**: every spelling in use, with the number of books (capitals and apostrophes do not make a new row).
+2. **Found genres**: every spelling in use, with the number of books (capitals and apostrophes do not make a new row),
+   A to Z by default (**Sort** can switch to Most books, Fewest books, Z to A or Managed genre).
    **Slot into...** on a row saves a rule for exactly that genre. **Unmapped only** shows what still has no slot.
 3. **Mapping rules**: "any genre containing the word X becomes Y" (the word is matched whole, ignoring capitals; plurals and
    's are tolerated; **Childhood is not Children**), or one exact genre, which can also be **Remove from books** or **Leave as
