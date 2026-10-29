@@ -44,7 +44,8 @@ test("/fr/books/N answers 200: English genres and description, marked lang=en, i
   assert.equal(res.status, 200);
   const html = await res.text();
   assert.match(html, /<html[^>]* lang="fr"/);
-  assert.match(html, /À propos de ce livre/, "the page around the book is French");
+  assert.match(html, /<p class="muted" style="margin-top:0;">de /, "the page around the book is French (the 'de' byline)");
+  assert.doesNotMatch(html, /À propos de ce livre/, "no 'About this book' heading");
   assert.match(html, /class="book-detail-kicker"><span lang="en">Mystery, Science Fiction, Zymurgy<\/span>/);
   assert.equal(about(html), '<span lang="en">A quiet lighthouse mystery with zymurgy.</span>');
   // meta description and JSON-LD: the English text

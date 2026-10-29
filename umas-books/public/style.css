@@ -255,7 +255,6 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink); font-size:
 .book-awards-list li { background: var(--panel); border: 1px solid var(--gold); border-radius: 999px; padding: 3px 12px; font-size: 14px; line-height: 1.4; }
 .book-awards-more { margin-top: 8px; }
 .book-awards-more summary { cursor: pointer; color: var(--maroon); }
-.book-about-title { margin: 18px 0 6px; font-size: 1.17em; } /* an h2 (no skipped heading level) drawn at the old h3 size */
 .as-h3 { font-size: 1.17em; }
 .book-about { margin: 0; overflow-wrap: anywhere; }
 .book-detail-price { font-family: var(--font-montserrat); font-size: 24px; font-weight: 700; color: var(--maroon-dark); margin: 14px 0; }

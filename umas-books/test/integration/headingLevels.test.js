@@ -89,12 +89,13 @@ for (const lang of ["en", "fr"]) {
   });
 }
 
-test("the book page's 'About this book' is an h2 drawn at the old h3 size", () => {
+test("the book page has no 'About this book' heading (Sharon, 2026-10-28) and no h3", () => {
   const view = fs.readFileSync(path.join(__dirname, "..", "..", "views", "book_detail.ejs"), "utf8");
-  assert.match(view, /<h2 class="book-about-title">/);
+  assert.doesNotMatch(view, /book-about-title|About this book|À propos de ce livre/);
+  assert.match(view, /<p class="book-about">/, "the description itself stays");
   assert.doesNotMatch(view, /<h3\b/);
   const css = fs.readFileSync(path.join(__dirname, "..", "..", "public", "style.css"), "utf8");
-  assert.match(css, /\.book-about-title \{[^}]*font-size: 1\.17em/);
+  assert.doesNotMatch(css, /\.book-about-title/);
   assert.match(css, /\.as-h3 \{ font-size: 1\.17em; \}/);
 });
 
