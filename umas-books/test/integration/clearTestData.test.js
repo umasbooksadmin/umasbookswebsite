@@ -119,6 +119,8 @@ async function plant() {
   // migration 107's copy of an old French book text follows the book
   await db.query("INSERT INTO book_french_backup (book_id, description_fr) VALUES ($1, 'Un texte')", [book]);
   await db.query("INSERT INTO book_genre_cleanup_backup (book_id, categories_before) VALUES ($1, 'Children''s Fiction§')", [book]);
+  // migration 110's copy of a cleared AI description follows the book
+  await db.query("INSERT INTO cleared_book_descriptions (book_id, description, reason) VALUES ($1, 'Old text', 'test')", [book]);
 
   // content
   const event = await one("INSERT INTO events (title, starts_at, created_by) VALUES ('Event', now() + interval '2 days', $1) RETURNING id", [admin]);

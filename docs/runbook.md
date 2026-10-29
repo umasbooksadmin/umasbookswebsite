@@ -3823,3 +3823,36 @@ It answers `UPDATE <n>`. (It restores every book of the table, including one who
 spare those, restore single books with `AND b.id = 123` after looking at the query above.) The backup table is small, holds
 no personal data and follows the books (a deleted book loses its row). Once Sharon is happy, a developer can drop it with a
 new migration (`DROP TABLE IF EXISTS book_genre_cleanup_backup;`).
+
+## as) Cleared AI-guessed book descriptions (migration 110): the backup table and how to restore
+
+**What the deploy did.** Migration 110 emptied the English description of 26 books whose text the AI had written from the title
+alone (book 597 was an AI apology; the others are the Wind in the Willows chapter books and the Just William books). Sharon
+reviewed the list on 2026-10-28. A book is only cleared while its description still starts with the text that was reviewed
+(compared on its first 30 letters and digits, ignoring capitals, spaces and punctuation), so a description edited or regenerated
+since was left alone. Only `books.description` of those books was written: titles, authors, copies, prices and every other
+column are untouched and no book was deleted.
+
+**Where to see it.** Each old text was first copied into the table `cleared_book_descriptions` (`book_id`, `description`,
+`reason`, `saved_at`). **Admin > Admin activity** has one line (action `books.descriptions_cleared`, by "migration 110"):
+*Description text cleared on N books (of 26 reviewed). The books themselves are untouched; the old texts are kept in table
+cleared_book_descriptions.* To list them, Render dashboard > `umas-books` > **Shell**, `psql "$DATABASE_URL"`:
+`SELECT b.id, b.title, left(c.description, 80) FROM cleared_book_descriptions c JOIN books b ON b.id = c.book_id ORDER BY b.id;`
+
+**Restore (only if a clearing was wrong).** Paste in the same `psql`. It puts the old text back only on books whose description
+is still empty, so a description written since is never overwritten; safe to run twice. To restore one book only, add
+`AND books.id = 573`:
+
+<!-- restore-cleared-descriptions:start -->
+```sql
+UPDATE books
+   SET description = c.description
+  FROM cleared_book_descriptions c
+ WHERE books.id = c.book_id
+   AND books.description IS NULL;
+```
+<!-- restore-cleared-descriptions:end -->
+
+It answers `UPDATE <n>`. The backup table is small, holds no personal data and follows the books (a deleted book loses its row).
+The descriptions can be written again from the book page (**Generate description**, or by hand). Once Sharon is happy, a
+developer can drop the table with a new migration (`DROP TABLE IF EXISTS cleared_book_descriptions;`).
