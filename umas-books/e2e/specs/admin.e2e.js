@@ -871,7 +871,8 @@ s.write("A11 the tagged copy keeps the price chosen at intake and records the su
 s.test("A116 (must) books have no French fields: the edit form shows only the English Genres and Description, and the French book page shows the English genres", { as: "admin" }, async (ctx) => {
   if (!tagged.id) ctx.skip("needs A10b");
   await admin(ctx, `/admin/inventory/${tagged.id}`);
-  for (const sel of ["#genreFr", "#descriptionFr", "[data-fr-sync]", "[data-fr-stale]"]) assert.equal(await ctx.page.$(sel), null, `no ${sel} on the book edit form`);
+  // No French field of any name (the old French Genres / Description boxes and their sync buttons are gone).
+  for (const sel of ["form [id$='Fr']", "form [name$='Fr']", "form [name$='_fr']", "form [lang='fr']", "[data-fr-sync]", "[data-fr-stale]"]) assert.equal(await ctx.page.$(sel), null, `no ${sel} on the book edit form`);
   assert.ok(await ctx.page.$("#genre") && await ctx.page.$("#description"), "the English Genres and Description are there");
   const genre = (await ctx.page.$eval("#genre", (i) => i.value)).trim();
   const res = await ctx.goto(`/fr/books/${tagged.id}`);

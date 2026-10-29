@@ -355,7 +355,7 @@ test("saving a new book returns at once while the awards check runs in the backg
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("the save waited for the awards lookup")), 15000).unref());
     const res = await Promise.race([http("/admin/inventory", {
       method: "POST",
-      form: { title, author: "Intake Author", isbn, condition: "very_good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
+      form: { title, author: "Intake Author", isbn, condition: "very_good", price: "5", status: "in_stock", description: "d", coverUrl: "https://example.org/c.jpg" },
     }), timeout]);
     assert.equal(res.status, 302);
     assert.match(res.location, /^\/admin\/inventory\/\d+$/);
@@ -378,7 +378,7 @@ test("a failing awards lookup never fails or loses the save", async () => {
   net.wikidata = "error";
   const res = await http("/admin/inventory", {
     method: "POST",
-    form: { title, author: "A", isbn: isbn13(), condition: "very_good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
+    form: { title, author: "A", isbn: isbn13(), condition: "very_good", price: "5", status: "in_stock", description: "d", coverUrl: "https://example.org/c.jpg" },
   });
   assert.equal(res.status, 302);
   const bookId = Number(res.location.split("?")[0].split("/").pop());

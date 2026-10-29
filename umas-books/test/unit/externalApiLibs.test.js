@@ -263,7 +263,7 @@ test("bookLookup: lookupByIsbn handles sparse records (by_statement author, stri
 
   handler = () => volumeReply({});
   const bare = await lookupByIsbn("0140328726");
-  assert.deepEqual([bare.title, bare.author, bare.description, bare.coverUrl, bare.genre, bare.genreFr], [null, null, null, null, null, undefined]);
+  assert.deepEqual([bare.title, bare.author, bare.description, bare.coverUrl, bare.genre], [null, null, null, null, null]);
 });
 
 test("bookLookup: not-found shapes return null", async (t) => {

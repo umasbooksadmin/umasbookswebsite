@@ -54,8 +54,8 @@ function parseIntakeInput(body, files) {
   const yearCheck = parsePublishedYear(body.publishedYear);
   const publishedYear = yearCheck.error ? null : yearCheck.value;
   const genre = normalizeGenres(body.genre);
-  // Books have no French genre or description (Sharon, 2026-10-28): a posted genreFr / descriptionFr (an old form or
-  // script) is ignored, never stored.
+  // Books have no French genre or description (Sharon, 2026-10-28): a posted French genre or description field (an
+  // old form or script) is ignored, never stored.
   const description = (body.description || "").trim() || null;
   const coverUrl = (body.coverUrl || "").trim() || null;
   const binding = normalizeBinding(body.binding);

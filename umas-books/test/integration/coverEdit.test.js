@@ -412,7 +412,7 @@ test("remove puts the book back to No cover, keeps the picture for the cleanup j
   assert.equal(search.find((b) => b.id === id).coverUrl, null);
 
   // saving the book's details (title only, no cover typed) does not look a cover up again
-  const save = await post(jar, `/admin/inventory/${id}`, { title: "Removed Cover Book", description: "Has a description", descriptionFr: "Une description" });
+  const save = await post(jar, `/admin/inventory/${id}`, { title: "Removed Cover Book", description: "Has a description" });
   assert.equal(save.status, 302);
   assert.equal((await coverOf(id)).cover_url, null);
 

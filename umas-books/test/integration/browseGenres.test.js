@@ -68,7 +68,7 @@ test("the old ?genre= links still select the right genre: every old slug is a bu
 });
 
 test("a new managed genre shows as a button with the generic icon, its name as label and as search word; the same English name on /fr/", async () => {
-  await q("INSERT INTO managed_genres (name_en, name_fr, sort_order, browse_slug, browse_order, colour, icon) VALUES ('Gardening', 'Jardinage', 40, 'gardening', 40, 'moss', 'book')");
+  await q("INSERT INTO managed_genres (name_en, sort_order, browse_slug, browse_order, colour, icon) VALUES ('Gardening', 40, 'gardening', 40, 'moss', 'book')");
   const en = buttonsOf(await page("en"));
   assert.equal(en.length, golden.genres.length + 1);
   const added = en.find((b) => b.includes('data-slug="gardening"'));
@@ -111,7 +111,7 @@ test("the sitemap and the language alternates do not depend on the genres", asyn
   const before = await (await fetch(`${app.base}/sitemap-pages.xml`)).text();
   const head = (html) => html.match(/<link rel="alternate"[^>]*>/g);
   const headBefore = head(await page("en"));
-  await q("INSERT INTO managed_genres (name_en, name_fr, sort_order, browse_slug, browse_order) VALUES ('Sitemap test', 'Test', 41, 'sitemap-test', 41)");
+  await q("INSERT INTO managed_genres (name_en, sort_order, browse_slug, browse_order) VALUES ('Sitemap test', 41, 'sitemap-test', 41)");
   const after1 = await (await fetch(`${app.base}/sitemap-pages.xml`)).text();
   assert.equal(after1, before);
   assert.ok(!after1.includes("genre="));

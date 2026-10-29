@@ -40,8 +40,8 @@ async function seed(app) {
   try {
     const out = {};
     const [b] = await q(
-      "INSERT INTO books (title, authors, description, description_fr, categories, categories_fr, binding, isbn, publisher, published_year) VALUES ('Crawl Book', 'Crawl Author', 'Crawl plain English description.', 'Une description en français.', 'Fiction', 'Roman', 'trade', '9780141036144', 'Crawl Press', 1949) RETURNING id"
-    ).catch(() => q("INSERT INTO books (title, authors, description, description_fr, categories, categories_fr, binding) VALUES ('Crawl Book', 'Crawl Author', 'Crawl plain English description.', 'Une description en français.', 'Fiction', 'Roman', 'trade') RETURNING id"));
+      "INSERT INTO books (title, authors, description, categories, binding, isbn, publisher, published_year) VALUES ('Crawl Book', 'Crawl Author', 'Crawl plain English description.', 'Fiction', 'trade', '9780141036144', 'Crawl Press', 1949) RETURNING id"
+    ).catch(() => q("INSERT INTO books (title, authors, description, categories, binding) VALUES ('Crawl Book', 'Crawl Author', 'Crawl plain English description.', 'Fiction', 'trade') RETURNING id"));
     out.bookId = b.id;
     const [b2] = await q("INSERT INTO books (title, authors, description, binding) VALUES ('Crawl Second Book', 'Crawl Author', 'Crawl another description.', 'paperback') RETURNING id").catch(() => q("INSERT INTO books (title, authors) VALUES ('Crawl Second Book', 'Crawl Author') RETURNING id"));
     out.book2Id = b2.id;

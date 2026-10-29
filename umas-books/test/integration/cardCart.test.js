@@ -28,7 +28,7 @@ const newIp = () => `10.97.${Math.floor(ipSeq / 250)}.${(ipSeq++ % 250) + 1}`;
 
 async function addBook(title, copies) {
   const { rows } = await pool.query(
-    "INSERT INTO books (title, authors, categories, categories_fr, binding, description, description_fr) VALUES ($1, 'Card Author', 'Fiction', 'Fiction', 'trade', 'x', 'x') RETURNING id",
+    "INSERT INTO books (title, authors, categories, binding, description) VALUES ($1, 'Card Author', 'Fiction', 'trade', 'x') RETURNING id",
     [title]
   );
   id[title] = rows[0].id;

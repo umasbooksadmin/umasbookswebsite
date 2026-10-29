@@ -29,7 +29,7 @@ after(async () => { global.fetch = realFetch; await settled(); await h.stop(); }
 
 const q = h.q;
 const audits = (action) => q("SELECT * FROM admin_audit_log WHERE action = $1 ORDER BY id", [action]);
-const cats = async (id) => (await q("SELECT categories, categories_fr, updated_at FROM books WHERE id = $1", [id]))[0];
+const cats = async (id) => (await q("SELECT categories, updated_at FROM books WHERE id = $1", [id]))[0];
 
 const NOISY = [
   "Children's Books, Fiction", "Children's Fiction", "Juvenile Fiction", "Fiction, General", "Childrens", "Children’s Books",
@@ -53,7 +53,7 @@ async function seedBooks(n = 200) {
   const ids = [];
   for (let i = 0; i < n; i++) {
     const c = NOISY[i % NOISY.length];
-    const [b] = await q("INSERT INTO books (title, categories, categories_fr) VALUES ($1, $2, $3) RETURNING id", [`Noisy ${i}`, c, c ? "x" : null]);
+    const [b] = await q("INSERT INTO books (title, categories) VALUES ($1, $2) RETURNING id", [`Noisy ${i}`, c]);
     ids.push(b.id);
   }
   return ids;
@@ -61,7 +61,7 @@ async function seedBooks(n = 200) {
 
 // The managed genre "Children" and the three rules the maintainer asked for.
 async function childrenRules() {
-  const added = await admin.addManaged(h.pool, { nameEn: "Children", nameFr: "Jeunesse" });
+  const added = await admin.addManaged(h.pool, { nameEn: "Children" });
   assert.equal(added.ok, true);
   childrenId = added.id;
   assert.equal((await admin.saveRule(h.pool, { kind: "contains-word", pattern: "Children", target: `m:${childrenId}` })).ok, true);
@@ -148,10 +148,9 @@ test("the found-genres page answers fast at 30,000 books", { timeout: 60000 }, a
 // ---------------------------------------------------------------- managed genres and rules (CRUD, audit)
 
 test("managed genres: add, rename (leaves an exact rule for the old name), reorder, delete", async () => {
-  const add = await h.post("/admin/genres/managed", { nameEn: "Kids", nameFr: "Enfants" });
+  const add = await h.post("/admin/genres/managed", { nameEn: "Kids" });
   assert.equal(add.res.status, 200);
   const [kids] = await q("SELECT * FROM managed_genres WHERE name_en = 'Kids'");
-  assert.equal(kids.name_fr, "", "a posted French name is ignored: managed genres have an English name only");
   assert.equal(kids.browse_slug, "kids");
   assert.equal(kids.show_on_browse, true);
   assert.equal(kids.icon, "book");
@@ -159,9 +158,9 @@ test("managed genres: add, rename (leaves an exact rule for the old name), reord
   assert.equal((await admin.addManaged(h.pool, { nameEn: "A, B" })).ok, false, "no comma in a genre name");
   assert.equal((await admin.addManaged(h.pool, { nameEn: "  " })).ok, false);
 
-  await h.post(`/admin/genres/managed/${kids.id}`, { nameEn: "Little ones", nameFr: "Petits", showOnBrowse: "1", colour: "sky", icon: "heart", browseOrder: "3" });
+  await h.post(`/admin/genres/managed/${kids.id}`, { nameEn: "Little ones", showOnBrowse: "1", colour: "sky", icon: "heart", browseOrder: "3" });
   const [renamed] = await q("SELECT * FROM managed_genres WHERE id = $1", [kids.id]);
-  assert.deepEqual([renamed.name_en, renamed.name_fr, renamed.colour, renamed.icon, renamed.browse_slug, renamed.browse_order], ["Little ones", "", "sky", "heart", "kids", 3], "the Browse link code never changes; no French name is written");
+  assert.deepEqual([renamed.name_en, renamed.colour, renamed.icon, renamed.browse_slug, renamed.browse_order], ["Little ones", "sky", "heart", "kids", 3], "the Browse link code never changes");
   const rule = (await q("SELECT * FROM genre_rules WHERE kind = 'exact'"))[0];
   assert.equal(rule.pattern, "Kids");
   assert.equal(rule.target_managed_genre_id, kids.id, "books named Kids can be carried over by Update all books");
@@ -260,9 +259,8 @@ test("preview numbers equal apply numbers; apply changes exactly the expected bo
   for (const id of ids) {
     const b = before.get(id);
     const now = await cats(id);
-    if (b.categories == null) { assert.equal(now.categories, null); assert.equal(now.categories_fr, null); continue; }
+    if (b.categories == null) { assert.equal(now.categories, null); continue; }
     assert.equal(now.categories, expectedEn[b.categories], `book ${id}: ${b.categories}`);
-    assert.equal(now.categories_fr, b.categories_fr, `book ${id}: the run never writes a French genre`);
     if (now.categories !== b.categories) changed += 1;
     else assert.equal(now.updated_at.getTime(), b.updated_at.getTime(), "an unchanged book is not touched");
   }
@@ -329,7 +327,7 @@ test("the routes: preview (POST) -> confirm (POST) -> result page with Undo; aud
   assert.equal((await run.planRun(h.pool)).count > 0, true, "after the undo the rules would change the books again");
 });
 
-test("undo restores exactly the changed books (English genres; the French column is never touched), and skips books edited since", async () => {
+test("undo restores exactly the changed books (English genres), and skips books edited since", async () => {
   const ids = await seedBooks(60);
   await childrenRules();
   const original = new Map();
@@ -351,7 +349,6 @@ test("undo restores exactly the changed books (English genres; the French column
     const now = await cats(id);
     if (id === touched[0]) { assert.equal(now.categories, "Hand edited"); continue; }
     assert.equal(now.categories, o.categories, `book ${id}`);
-    assert.equal(now.categories_fr, o.categories_fr, `French of book ${id} untouched`);
   }
   assert.ok((await run.getRun(h.pool, applied.runId)).undone_at);
   assert.equal((await run.undoRun(h.pool, applied.runId)).notLast, true, "an undone run cannot be undone again");
@@ -435,7 +432,7 @@ test("save paths: a new book (scan intake) and an edited book go through the sam
   const stored = `/img/${"f".repeat(64)}.jpg`;
   let n = 0;
   const save = async (genre) => {
-    const body = { isbn: isbn13From(`978${String(9100000 + (++n)).padStart(9, "0")}`), title: `Saved ${n}`, author: "A", description: "d", descriptionFr: "d", coverUrl: stored, binding: "trade", condition: "very_good", price: "5", location: "Store", source: "donation", genre, intakeToken: `genre-save-token-${String(n).padStart(4, "0")}-abcdef` };
+    const body = { isbn: isbn13From(`978${String(9100000 + (++n)).padStart(9, "0")}`), title: `Saved ${n}`, author: "A", description: "d", coverUrl: stored, binding: "trade", condition: "very_good", price: "5", location: "Store", source: "donation", genre, intakeToken: `genre-save-token-${String(n).padStart(4, "0")}-abcdef` };
     const parsed = intake.parseIntakeInput(body);
     const p = await intake.prepareIntake(h.pool, parsed.value);
     assert.equal(p.ok, true, JSON.stringify(p));
@@ -447,15 +444,13 @@ test("save paths: a new book (scan intake) and an edited book go through the sam
   await childrenRules();
   const created = await save("Children's Books, Fiction, Fiction");
   assert.equal(created.categories, "Children, Fiction");
-  assert.equal(created.categories_fr, null, "no French genre is stored");
   assert.equal((await save("Zoology")).categories, "Zoology", "an unmapped genre is left alone");
 
   // the edit route
   const [b] = await q("INSERT INTO books (title, categories) VALUES ('Edit me', 'Zoology') RETURNING id");
-  await h.post(`/admin/inventory/${b.id}`, { title: "Edit me", genre: "Childrens, Mystery", genreFr: "Enfants", description: "d", descriptionFr: "d", coverUrl: stored });
+  await h.post(`/admin/inventory/${b.id}`, { title: "Edit me", genre: "Childrens, Mystery", description: "d", coverUrl: stored });
   const edited = await cats(b.id);
   assert.equal(edited.categories, "Children, Mystery");
-  assert.equal(edited.categories_fr, null, "a posted genreFr is ignored and none is made");
   await settled();
 });
 
@@ -531,8 +526,8 @@ test("the admin Inventory Genre filter lists the managed genres first, then the 
 
 // What a crash after one batch leaves behind: a 'running' row, and the books that batch already rewrote.
 async function crashedRun(minutesAgo) {
-  const [b1] = await q("INSERT INTO books (title, categories, categories_fr) VALUES ('Crash 1', 'Children', 'Enfants') RETURNING id");
-  const [b2] = await q("INSERT INTO books (title, categories, categories_fr) VALUES ('Crash 2', 'Children', 'Enfants') RETURNING id");
+  const [b1] = await q("INSERT INTO books (title, categories) VALUES ('Crash 1', 'Children') RETURNING id");
+  const [b2] = await q("INSERT INTO books (title, categories) VALUES ('Crash 2', 'Children') RETURNING id");
   const [r] = await q("INSERT INTO genre_runs (started_at, status) VALUES (now() - make_interval(mins => $1::int), 'running') RETURNING id", [minutesAgo]);
   for (const b of [b1, b2]) {
     await q("INSERT INTO genre_run_changes (run_id, book_id, old_categories, old_categories_fr, new_categories, new_categories_fr) VALUES ($1, $2, 'Children''s Books', 'Livres', 'Children', 'Enfants')", [r.id, b.id]);
@@ -559,7 +554,6 @@ test("a stale 'running' run becomes failed (interrupted) with the books it did c
   for (const id of bookIds) {
     const now = await cats(id);
     assert.equal(now.categories, "Children's Books");
-    assert.equal(now.categories_fr, "Enfants", "Undo puts back the English only: an old run's French before-value is never written");
   }
 });
 

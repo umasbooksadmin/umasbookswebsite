@@ -1,6 +1,6 @@
 // Customer-facing book page and Browse on the French site: books have an English description and English genres only
 // (Sharon, 2026-10-28). /fr/ shows the ENGLISH description and genres (marked lang="en"), inside the French page.
-// Works with NULL French columns (every book after migration 107) and never shows a leftover French value.
+// Books have no French columns (dropped by migration 108).
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
@@ -15,14 +15,14 @@ before(async () => {
   process.env.DATABASE_URL = app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   ({ pool } = require("../../src/db"));
-  // NULL French columns: every book after migration 107.
+  // A book as every book is now: English description and genres only.
   const { rows } = await pool.query(
     "INSERT INTO books (title, authors, categories, description) VALUES ('Genre test book', 'A. Writer', 'Mystery, Science Fiction, Zymurgy', 'A quiet lighthouse mystery with zymurgy.') RETURNING id"
   );
   bookId = rows[0].id;
-  // A leftover French value (as if restored by hand): never shown.
+  // A second English-only book (History).
   const { rows: [l] } = await pool.query(
-    "INSERT INTO books (title, authors, categories, categories_fr, description, description_fr) VALUES ('Leftover book', 'B. Writer', 'History', 'Histoire', 'An English history.', 'Une histoire française.') RETURNING id"
+    "INSERT INTO books (title, authors, categories, description) VALUES ('Leftover book', 'B. Writer', 'History', 'An English history.') RETURNING id"
   );
   leftoverId = l.id;
   for (const id of [bookId, leftoverId]) await pool.query("INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 5, 'very_good')", [id]);
@@ -39,7 +39,7 @@ const get = (p, lang) => fetchPage(p, lang).then((r) => r.text());
 const kicker = (html) => (html.match(/class="book-detail-kicker">(?:<span lang="en">)?([^<]*)</) || [])[1];
 const about = (html) => (html.match(/<p class="book-about">([\s\S]*?)<\/p>/) || [])[1];
 
-test("/fr/books/N answers 200 with NULL French columns: English genres and description, marked lang=en, in a French page", async () => {
+test("/fr/books/N answers 200: English genres and description, marked lang=en, in a French page", async () => {
   const res = await fetchPage(`/fr/books/${bookId}`);
   assert.equal(res.status, 200);
   const html = await res.text();
@@ -62,7 +62,7 @@ test("book page: English genres in both languages (no lang mark on the English p
   assert.equal(about(en), "A quiet lighthouse mystery with zymurgy.");
 });
 
-test("a leftover French description or genre in the database is never shown (the French page prefers the English)", async () => {
+test("a second book: the French page shows its English genre and description, no French", async () => {
   const fr = await get(`/fr/books/${leftoverId}`);
   assert.equal(kicker(fr), "History");
   assert.equal(about(fr), '<span lang="en">An English history.</span>');
@@ -88,5 +88,4 @@ test("the French Browse page and its genre address answer 200; search on /fr/ (a
   assert.ok((await search("genre=Mystery&lang=fr")).includes(bookId), "the English genre filter");
   assert.ok((await search("topic=mystery,thriller&lang=fr")).includes(bookId), "the Browse button's topic");
   assert.ok(!(await search("q=Policier&lang=fr")).includes(bookId), "no French genre to find");
-  assert.ok(!(await search("q=fran%C3%A7aise&lang=fr")).includes(leftoverId), "a leftover French description is not searched");
 });

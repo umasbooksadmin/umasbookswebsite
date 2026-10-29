@@ -22,10 +22,10 @@ let skipReason = null;
 
 const HOSTILE = '<img src=x onerror="window.__xss=1">';
 
-async function newBook(title, categories, { categoriesFr = null } = {}) {
+async function newBook(title, categories) {
   const { rows } = await pool.query(
-    "INSERT INTO books (title, authors, categories, categories_fr, description) VALUES ($1, 'Some Author', $2, $3, 'x') RETURNING id",
-    [title, categories, categoriesFr]
+    "INSERT INTO books (title, authors, categories, description) VALUES ($1, 'Some Author', $2, 'x') RETURNING id",
+    [title, categories]
   );
   await pool.query("INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 7, 'good')", [rows[0].id]);
   return rows[0].id;

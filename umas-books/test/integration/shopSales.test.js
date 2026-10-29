@@ -114,7 +114,7 @@ test("old shop_sales rows stay and still count in Reports and the accounting exp
 
 // ---------- source ----------
 
-const INTAKE = { description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5" };
+const INTAKE = { description: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5" };
 const sourceOfTitle = async (title) =>
   (await pool.query("SELECT c.source FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = $1", [title])).rows[0].source;
 

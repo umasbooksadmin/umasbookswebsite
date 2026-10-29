@@ -54,7 +54,7 @@ let n = 0;
 async function addBook(fields) {
   const title = `Fixed Price Book ${Date.now()}-${++n}`;
   const res = await post("/admin/inventory", {
-    title, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", ...fields,
+    title, description: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", ...fields,
   });
   return { res, title, text: res.status === 200 ? await res.text() : "" };
 }
