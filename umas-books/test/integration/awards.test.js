@@ -355,7 +355,7 @@ test("saving a new book returns at once while the awards check runs in the backg
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("the save waited for the awards lookup")), 15000).unref());
     const res = await Promise.race([http("/admin/inventory", {
       method: "POST",
-      form: { title, author: "Intake Author", isbn, condition: "very_good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
+      form: { title, author: "Intake Author", isbn, condition: "very_good", price: "5", status: "in_stock", description: "d", coverUrl: "https://example.org/c.jpg" },
     }), timeout]);
     assert.equal(res.status, 302);
     assert.match(res.location, /^\/admin\/inventory\/\d+$/);
@@ -378,7 +378,7 @@ test("a failing awards lookup never fails or loses the save", async () => {
   net.wikidata = "error";
   const res = await http("/admin/inventory", {
     method: "POST",
-    form: { title, author: "A", isbn: isbn13(), condition: "very_good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
+    form: { title, author: "A", isbn: isbn13(), condition: "very_good", price: "5", status: "in_stock", description: "d", coverUrl: "https://example.org/c.jpg" },
   });
   assert.equal(res.status, 302);
   const bookId = Number(res.location.split("?")[0].split("/").pop());
@@ -412,13 +412,16 @@ test("migration 080 removes stored Wikidata awards and queues every book for a r
 
 test("layout: description and awards sit in the top block beside the cover, before price and copies, in EN and FR, with or without them", async () => {
   const book = await seedBook();
-  await pool.query("UPDATE books SET description = 'Plain English blurb.', description_fr = 'Résumé en français.' WHERE id = $1", [book.id]);
+  // Books have an English description only (2026-10-28): the French page shows it too.
+  await pool.query("UPDATE books SET description = 'Plain English blurb.' WHERE id = $1", [book.id]);
   await addAward(book.id, "Layout Prize", { year: 2020 });
-  for (const [lang, blurb, head] of [["en", "Plain English blurb.", "About this book"], ["fr", "Résumé en français.", "À propos de ce livre"]]) {
+  for (const [lang, blurb, byline] of [["en", "Plain English blurb.", ">by "], ["fr", "Plain English blurb.", ">de "]]) {
     const html = (await http(`/books/${book.id}`, { user: null, cookie: `umasbooks_lang=${lang}` })).text;
     const col = html.indexOf('<h1 style="margin-bottom:4px;"');
     const at = (s) => html.indexOf(s, col); // the meta description in <head> repeats the blurb
-    assert.ok(col > 0 && at(`class="book-about-title">${head}`) > col && at(blurb) > at(head), `${lang}: description under the title`);
+    // No "About this book" heading (Sharon, 2026-10-28): the description follows the author line directly.
+    assert.ok(col > 0 && at(byline) > col && at(`<p class="book-about">`) > at(byline) && at(blurb) > at(byline), `${lang}: description under the title and author`);
+    assert.ok(!html.includes("About this book") && !html.includes("À propos de ce livre") && !html.includes("book-about-title"), `${lang}: no "About this book" heading`);
     assert.ok(at('class="book-awards"') > at(blurb), `${lang}: awards after the description`);
     const after = Math.min(...["book-detail-price", "availability-box"].map((c) => at(`class="${c}`)).filter((i) => i >= 0));
     assert.ok(at('class="book-awards"') < after && at(blurb) < after, `${lang}: both before price and copies`);

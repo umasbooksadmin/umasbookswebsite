@@ -21,7 +21,10 @@ mailer.sendMail = async (opts) => { sent.push(opts); };
 const errorAlert = require("../../src/lib/errorAlert");
 
 const limits = require("../../src/lib/aiLimits");
-const { generateBookDescription, translateDescriptionToFrench } = require("../../src/lib/bookDescription");
+const { generateBookDescription } = require("../../src/lib/bookDescription");
+const { translateEmptyFrench } = require("../../src/lib/collectionTranslate");
+// A translation call (books have none since 2026-10-28: the collection one is the translation feature here).
+const translateTitle = async (text) => { const r = await translateEmptyFrench({ title_en: text }); return r.ok && r.filled.length ? r.title_fr : null; };
 const { generateBookGenres } = require("../../src/lib/bookGenre");
 const { extractBookInfoFromPhoto } = require("../../src/lib/coverVision");
 const { lookupMarket } = require("../../src/lib/pricing/market");
@@ -198,10 +201,10 @@ test("at the cap every AI feature is skipped (null, no outbound call) and nothin
   const restore = warnQuiet();
   try {
     assert.equal(await generateBookDescription({ title: "One", author: "A" }), "A short blurb.");
-    assert.equal(await translateDescriptionToFrench("Text to translate"), "A short blurb.");
+    assert.equal(await translateTitle("Text to translate"), "A short blurb.");
     assert.equal(anthropicBodies.length, 2);
     assert.equal(await generateBookDescription({ title: "Three", author: "A" }), null);
-    assert.equal(await translateDescriptionToFrench("Another text"), null);
+    assert.equal(await translateTitle("Another text"), null);
     assert.equal(await generateBookGenres({ title: "Three" }), null);
     assert.equal(await extractBookInfoFromPhoto(Buffer.from("x"), "image/jpeg"), null);
     assert.equal(await lookupMarket(pool, { isbn: isbn13From("978014399999") }, { fetchImpl: async () => { throw new Error("must not be called"); }, env: { PRICING_AI: "1", ANTHROPIC_API_KEY: "k", AI_DAILY_MAX_CALLS: "2" } }), null);
@@ -230,15 +233,13 @@ test("identical concurrent AI requests share one call and one slot", async () =>
 test("text sent to the AI is capped: title 200, author 200, description 2000", async () => {
   await generateBookDescription({ title: "T".repeat(100000), author: "A".repeat(5000), publisher: "P".repeat(5000), publishedYear: 1999 });
   await generateBookGenres({ title: "T".repeat(100000), author: "A".repeat(5000), description: "D".repeat(100000) });
-  await translateDescriptionToFrench("D".repeat(100000));
-  assert.equal(anthropicBodies.length, 3);
+  assert.equal(anthropicBodies.length, 2);
   for (const b of anthropicBodies) assert.ok(b.messages[0].content.length < 3500, `prompt is bounded (${b.messages[0].content.length})`);
   const desc = anthropicBodies[0].messages[0].content;
   assert.ok(desc.includes("T".repeat(200)) && !desc.includes("T".repeat(201)));
   assert.ok(desc.includes("A".repeat(200)) && !desc.includes("A".repeat(201)));
   const genre = anthropicBodies[1].messages[0].content;
   assert.ok(genre.includes("D".repeat(2000)) && !genre.includes("D".repeat(2001)));
-  assert.ok(anthropicBodies[2].messages[0].content.includes("D".repeat(2000)) && !anthropicBodies[2].messages[0].content.includes("D".repeat(2001)));
 });
 
 // ------------------------------------------------------------ the alert mail
@@ -330,7 +331,7 @@ test("POST generate-description: a huge title is clamped; the 11th request in a 
   assert.equal(blocked.json.error, "Too many AI requests: wait a minute and try again.");
   const calls = anthropicBodies.length;
   assert.equal((await request("/admin/inventory/generate-description", { method: "POST", form: { title: "Other admin" }, userId: otherAdminId })).status, 200, "per admin, not global");
-  assert.equal(anthropicBodies.length, calls + 2, "the blocked request made no AI call (the other admin's made description + translation)");
+  assert.equal(anthropicBodies.length, calls + 1, "the blocked request made no AI call (the other admin's made the description only: no translation)");
 });
 
 test("POST /admin/inventory/lookup with a photo: the 11th photo in a minute is refused with the message on the page; typing an ISBN is not counted", async () => {
@@ -405,29 +406,3 @@ test("the AI usage report shows a banner when the daily cap is used up", async (
   await settle();
 });
 
-test("POST translate-french: at the daily cap the genres are still translated and the message says why; no AI call is made", async () => {
-  process.env.AI_DAILY_MAX_CALLS = "0";
-  const restore = warnQuiet();
-  try {
-    const r = await request("/admin/inventory/translate-french", { method: "POST", form: { genre: "Fantasy, Young Adult", description: "A dragon book." } });
-    assert.equal(r.status, 200);
-    assert.equal(r.json.genreFr, "Fantasy, Jeune adulte");
-    assert.equal(r.json.descriptionFr, null);
-    assert.match(r.json.aiMessage, /^The translation could not be made right now \(Daily AI limit reached \(0\)\. Resets at midnight Paris time\)\. The French genres were still updated\.$/);
-    assert.equal(anthropicBodies.length, 0);
-  } finally { restore(); }
-});
-
-test("POST translate-french: a huge description is clamped; the 11th request in a minute gets a friendly JSON 429; another admin is not affected", async () => {
-  const me = await freshAdmin();
-  const first = await request("/admin/inventory/translate-french", { method: "POST", userId: me, form: { genre: "Fantasy", description: "D".repeat(60000) } });
-  assert.equal(first.status, 200);
-  assert.ok(anthropicBodies[0].messages[0].content.length < 2300, "bounded prompt");
-  for (let i = 1; i < 10; i++) assert.equal((await request("/admin/inventory/translate-french", { method: "POST", userId: me, form: { genre: "Fantasy", description: `Book ${i}` } })).status, 200);
-  const calls = anthropicBodies.length;
-  const blocked = await request("/admin/inventory/translate-french", { method: "POST", userId: me, form: { genre: "Fantasy", description: "Book 11" } });
-  assert.equal(blocked.status, 429);
-  assert.equal(blocked.json.error, "Too many AI requests: wait a minute and try again.");
-  assert.equal(anthropicBodies.length, calls, "the blocked request made no AI call");
-  assert.equal((await request("/admin/inventory/translate-french", { method: "POST", form: { genre: "Fantasy", description: "Other admin" }, userId: otherAdminId })).status, 200, "per admin, not global");
-});

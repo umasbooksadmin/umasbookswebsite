@@ -31,10 +31,10 @@ const COLLECTION_PAGE_SIZE = 24;
 const APPROVED_IN_STOCK_FROM = `FROM curated_collection_books cb
      JOIN books b ON b.id = cb.book_id
      WHERE cb.collection_id = $1 AND cb.status = 'approved' AND ${IN_STOCK_SQL()}`;
-// Each row also carries the book's genre (categories, categories_fr) and the AI's reason (reason, reason_fr) for bookExtras().
+// Each row also carries the book's genre (categories, English in both languages) and the AI's reason (reason, reason_fr) for bookExtras().
 async function approvedInStockBooks(pool, collectionId, { offset = 0, limit = null } = {}) {
   const { rows } = await pool.query(
-    `SELECT b.id, b.title, b.authors, b.cover_url, b.categories, b.categories_fr, cb.reason, cb.reason_fr,
+    `SELECT b.id, b.title, b.authors, b.cover_url, b.categories, cb.reason, cb.reason_fr,
             (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
             ${BUY_COPY_SQL("b.id")} AS buy_copy_id
      ${APPROVED_IN_STOCK_FROM}
@@ -101,15 +101,15 @@ const frenchShort = (s) => frenchPlainText(s).replace(/'/g, "\u2019");
 
 // The two lines under a book on the customer collection page, in the visitor's language. Used by the page AND the
 // "Show more" API (routes/collections.js), so the first 24 books and the next ones say exactly the same.
-//   genre: the book's genres as the book page shows them (lib/genres.js: the French taxonomy on /fr/), or null;
+//   genre: the book's genres as the book page shows them (lib/genres.js: the English genres, on /fr/ too), or null;
 //   why:   the AI's reason, or null for a book added by hand. In French ONLY the French reason: until it exists
 //          (reason_fr is NULL) the line is not shown, never the English.
 function bookExtras(row, lang) {
   const fr = lang === "fr";
-  const genre = String(genresLabel(row.categories, fr ? "fr" : "en", row.categories_fr) || "").trim();
+  const genre = String(genresLabel(row.categories) || "").trim();
   const en = String(row.reason || "").trim();
   const why = !en || en === HAND_REASON ? "" : String((fr ? row.reason_fr : en) || "").trim();
-  return { genre: genre ? (fr ? frenchShort(genre) : genre) : null, why: why ? (fr ? frenchShort(why) : why) : null };
+  return { genre: genre || null, why: why ? (fr ? frenchShort(why) : why) : null };
 }
 
 // The publish rules. -> { ok: true } | { ok: false, error } (the error is for the admin screens, English).

@@ -1,5 +1,6 @@
-// "Update all books" (Admin > Genres): rewrites books.categories / categories_fr of every book through the genre
-// rules. This touches the real catalogue, so it follows the Reprice tool's safety model (lib/pricing/reprice.js):
+// "Update all books" (Admin > Genres): rewrites books.categories of every book through the genre rules. Books have
+// English genres only (Sharon, 2026-10-28): books have no French genre column (older runs' French
+// before/after values stay in genre_run_changes as history, and Undo puts back the English only). This touches the real catalogue, so it follows the Reprice tool's safety model (lib/pricing/reprice.js):
 //
 //   PREVIEW   planRun() computes the whole rewrite WITHOUT writing: how many books would change, 10 before/after
 //             examples, totals, and a fingerprint (count + sha256 of "id:new value" of every change).
@@ -25,31 +26,28 @@ const LOCK_KEY = 7243911; // arbitrary constant, apart from migrate.js's
 const STALE_RUN_MINUTES = 15; // a 'running' row this old whose lock nobody holds is a run the server never finished
 const INTERRUPTED_NOTE = "interrupted: the server stopped before this run finished";
 
-// The rewrite of every book that has genres. -> { changes: [{ id, title, old, oldFr, en, fr, enChanged, frChanged }], stats, hash, rulesSnapshot }
+// The rewrite of every book that has genres. -> { changes: [{ id, title, old, en }], stats, hash, rulesSnapshot }
 async function planRun(db) {
   const { rules, stored } = await readRules(db);
   const { rows } = await db.query(
-    "SELECT id, title, categories, categories_fr FROM books WHERE categories IS NOT NULL AND btrim(categories) <> '' ORDER BY id"
+    "SELECT id, title, categories FROM books WHERE categories IS NOT NULL AND btrim(categories) <> '' ORDER BY id"
   );
   const changes = [];
-  const stats = { booksWithGenres: rows.length, booksChanged: 0, genresRemoved: 0, genresRenamed: 0, duplicatesCollapsed: 0, frenchOnly: 0 };
+  const stats = { booksWithGenres: rows.length, booksChanged: 0, genresRemoved: 0, genresRenamed: 0, duplicatesCollapsed: 0 };
   const hash = crypto.createHash("sha256");
   for (const b of rows) {
-    const p = planBook(b.categories, b.categories_fr, rules);
-    if (!p.changed) continue;
-    const en = p.enChanged ? p.en : b.categories; // spacing alone never rewrites a string
-    const fr = p.fr;
-    changes.push({ id: b.id, title: b.title, old: b.categories, oldFr: b.categories_fr, en, fr, enChanged: p.enChanged, frChanged: p.frChanged });
+    const p = planBook(b.categories, rules);
+    if (!p.changed) continue; // spacing alone never rewrites a string
+    const en = p.en;
+    changes.push({ id: b.id, title: b.title, old: b.categories, en });
     stats.booksChanged += 1;
     stats.genresRemoved += p.removed;
     stats.genresRenamed += p.renamed;
     stats.duplicatesCollapsed += p.collapsed;
-    if (!p.enChanged) stats.frenchOnly += 1;
-    hash.update(`${b.id}:${en == null ? "\u0000" : en}|${fr == null ? "\u0000" : fr}\n`);
+    hash.update(`${b.id}:${en == null ? "\u0000" : en}\n`);
   }
-  // Examples: books whose English genres change come first (they are what the admin is looking for).
   // Different before -> after pairs first, so ten examples show ten kinds of change rather than one repeated.
-  const ordered = [...changes.filter((c) => c.enChanged), ...changes.filter((c) => !c.enChanged)];
+  const ordered = changes;
   const seenPairs = new Set();
   const varied = ordered.filter((c) => { const k = `${c.old}\u0000${c.en}`; if (seenPairs.has(k)) return false; seenPairs.add(k); return true; });
   const examples = [...varied, ...ordered.filter((c) => !varied.includes(c))].slice(0, EXAMPLES);
@@ -61,7 +59,7 @@ async function planRun(db) {
 
 // The part of a plan that fits in a session / a page (no list of every change).
 function planSummary(plan) {
-  return { count: plan.count, hash: plan.hash, stats: plan.stats, examples: plan.examples.map((e) => ({ id: e.id, title: e.title, old: e.old, oldFr: e.oldFr, en: e.en, fr: e.fr })) };
+  return { count: plan.count, hash: plan.hash, stats: plan.stats, examples: plan.examples.map((e) => ({ id: e.id, title: e.title, old: e.old, en: e.en })) };
 }
 
 // Runs fn(client) holding the one-run-at-a-time lock. -> { busy: true } when another run holds it.
@@ -121,20 +119,20 @@ async function applyRun(pool, actor = {}, expected = null, { onBatch } = {}) {
       for (const batch of chunks(plan.changes, BATCH)) {
         await client.query("BEGIN");
         try {
-          const payload = JSON.stringify(batch.map((c) => ({ id: c.id, old: c.old, oldFr: c.oldFr, en: c.en, fr: c.fr })));
+          const payload = JSON.stringify(batch.map((c) => ({ id: c.id, old: c.old, en: c.en })));
           // The book must still hold what the plan read: one saved since is left alone.
           const { rows: done } = await client.query(
-            `UPDATE books b SET categories = t.en, categories_fr = t.fr, updated_at = now()
-             FROM jsonb_to_recordset($1::jsonb) AS t(id int, old text, "oldFr" text, en text, fr text)
-             WHERE b.id = t.id AND b.categories IS NOT DISTINCT FROM t.old AND b.categories_fr IS NOT DISTINCT FROM t."oldFr"
+            `UPDATE books b SET categories = t.en, updated_at = now()
+             FROM jsonb_to_recordset($1::jsonb) AS t(id int, old text, en text)
+             WHERE b.id = t.id AND b.categories IS NOT DISTINCT FROM t.old
              RETURNING b.id`, [payload]
           );
           const ids = done.map((r) => r.id);
           if (ids.length) {
             await client.query(
-              `INSERT INTO genre_run_changes (run_id, book_id, old_categories, old_categories_fr, new_categories, new_categories_fr)
-               SELECT $1, t.id, t.old, t."oldFr", t.en, t.fr
-               FROM jsonb_to_recordset($2::jsonb) AS t(id int, old text, "oldFr" text, en text, fr text)
+              `INSERT INTO genre_run_changes (run_id, book_id, old_categories, new_categories)
+               SELECT $1, t.id, t.old, t.en
+               FROM jsonb_to_recordset($2::jsonb) AS t(id int, old text, en text)
                WHERE t.id = ANY($3::int[])`, [run.id, payload, ids]
             );
           }
@@ -179,14 +177,13 @@ async function undoableRunId(db) {
 }
 
 async function runExamples(db, runId, limit = EXAMPLES) {
-  // One book per different before -> after pair (English and French), so the examples show different kinds of change;
-  // a change of the French alone counts too (the genre clean-up of migration 107 has many).
+  // One book per different before -> after pair, so the examples show different kinds of change.
   const { rows } = await db.query(
     `SELECT * FROM (
-       SELECT DISTINCT ON (c.old_categories, c.new_categories, c.old_categories_fr, c.new_categories_fr) c.book_id, b.title, c.old_categories, c.new_categories, c.old_categories_fr, c.new_categories_fr
+       SELECT DISTINCT ON (c.old_categories, c.new_categories) c.book_id, b.title, c.old_categories, c.new_categories
        FROM genre_run_changes c LEFT JOIN books b ON b.id = c.book_id
-       WHERE c.run_id = $1 AND (c.old_categories IS DISTINCT FROM c.new_categories OR c.old_categories_fr IS DISTINCT FROM c.new_categories_fr)
-       ORDER BY c.old_categories, c.new_categories, c.old_categories_fr, c.new_categories_fr, c.book_id) t
+       WHERE c.run_id = $1 AND c.old_categories IS DISTINCT FROM c.new_categories
+       ORDER BY c.old_categories, c.new_categories, c.book_id) t
      ORDER BY t.book_id LIMIT $2`, [runId, limit]
   );
   return rows;
@@ -195,8 +192,7 @@ async function runExamples(db, runId, limit = EXAMPLES) {
 // What Undo of `runId` would do: a book goes back only while it still holds exactly what the run wrote.
 async function previewUndo(db, runId) {
   const { rows } = await db.query(
-    `SELECT c.book_id, (b.id IS NOT NULL AND b.categories IS NOT DISTINCT FROM c.new_categories
-                        AND b.categories_fr IS NOT DISTINCT FROM c.new_categories_fr) AS restorable
+    `SELECT c.book_id, (b.id IS NOT NULL AND b.categories IS NOT DISTINCT FROM c.new_categories) AS restorable
      FROM genre_run_changes c LEFT JOIN books b ON b.id = c.book_id WHERE c.run_id = $1 ORDER BY c.book_id`, [runId]
   );
   const ok = rows.filter((r) => r.restorable).map((r) => r.book_id);
@@ -218,17 +214,17 @@ async function undoRun(pool, runId, expected = null) {
       return { mismatch: true, expectedCount: Number(expected.count), liveCount: live.count };
     }
     const { rows: all } = await client.query(
-      "SELECT book_id, old_categories, old_categories_fr, new_categories, new_categories_fr FROM genre_run_changes WHERE run_id = $1 ORDER BY book_id", [runId]
+      "SELECT book_id, old_categories, new_categories FROM genre_run_changes WHERE run_id = $1 ORDER BY book_id", [runId]
     );
     let restored = 0;
     for (const batch of chunks(all, BATCH)) {
       await client.query("BEGIN");
       try {
         const { rowCount } = await client.query(
-          `UPDATE books b SET categories = t.old, categories_fr = t."oldFr", updated_at = now()
-           FROM jsonb_to_recordset($1::jsonb) AS t(id int, old text, "oldFr" text, en text, fr text)
-           WHERE b.id = t.id AND b.categories IS NOT DISTINCT FROM t.en AND b.categories_fr IS NOT DISTINCT FROM t.fr`,
-          [JSON.stringify(batch.map((c) => ({ id: c.book_id, old: c.old_categories, oldFr: c.old_categories_fr, en: c.new_categories, fr: c.new_categories_fr })))]
+          `UPDATE books b SET categories = t.old, updated_at = now()
+           FROM jsonb_to_recordset($1::jsonb) AS t(id int, old text, en text)
+           WHERE b.id = t.id AND b.categories IS NOT DISTINCT FROM t.en`,
+          [JSON.stringify(batch.map((c) => ({ id: c.book_id, old: c.old_categories, en: c.new_categories })))]
         );
         await client.query("COMMIT");
         restored += rowCount;

@@ -101,7 +101,7 @@
   // The fields a lookup fills, as form field name -> key in the lookup answer.
   var FILL_FIELDS = {
     title: "title", author: "author", publisher: "publisher", publishedYear: "publishedYear",
-    genre: "genre", genreFr: "genreFr", description: "description", coverUrl: "coverUrl",
+    genre: "genre", description: "description", coverUrl: "coverUrl",
   };
 
   // What to put in the form for a lookup answer: every field the volunteer has
@@ -446,7 +446,7 @@
       savedEl.hidden = false;
     }
 
-    var CLEAR_FIELDS = ["isbn", "title", "author", "publisher", "publishedYear", "genre", "genreFr", "coverUrl", "description", "descriptionFr", "publisherPrice", "copyNotes"];
+    var CLEAR_FIELDS = ["isbn", "title", "author", "publisher", "publishedYear", "genre", "coverUrl", "description", "publisherPrice", "copyNotes"];
     function resetForm(keep) {
       form.reset();
       CLEAR_FIELDS.forEach(function (name) { var el = form.elements[name]; if (el) el.value = ""; });

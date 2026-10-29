@@ -26,7 +26,7 @@ after(async () => { global.fetch = realFetch; await settled(); await pool.end();
 let seq = 0;
 const isbn = () => isbn13From(`978${String(8000000 + (++seq)).padStart(9, "0")}`);
 const tok = () => `lib-token-${String(++seq).padStart(4, "0")}-abcdefghij`;
-const form = (over = {}) => ({ title: `Lib book ${seq + 1}`, author: "A", description: "d", descriptionFr: "d", coverUrl: "/img/0123456789abcdef.jpg", binding: "trade", condition: "very_good", price: "5", location: "Store", source: "donation", intakeToken: tok(), ...over });
+const form = (over = {}) => ({ title: `Lib book ${seq + 1}`, author: "A", description: "d", coverUrl: "/img/0123456789abcdef.jpg", binding: "trade", condition: "very_good", price: "5", location: "Store", source: "donation", intakeToken: tok(), ...over });
 const audits = [];
 const ctx = () => ({ userId: adminId, audit: async (e) => { audits.push(e); } });
 const prepared = async (body, files) => {
@@ -42,7 +42,7 @@ const prepared = async (body, files) => {
 test("parseIntakeInput: a plain form is read and normalised", () => {
   const r = intake.parseIntakeInput(form({
     title: "  The Title  ", author: " ", isbn: "978-0-14-312755-0", location: "  Back   room\t", source: "nonsense", status: "weird", condition: "bogus",
-    publishedYear: "1999", acquisitionCost: "2.5", acquiredAt: "2024-03-09", copyNotes: " n ", genre: "Fiction", genreFr: "",
+    publishedYear: "1999", acquisitionCost: "2.5", acquiredAt: "2024-03-09", copyNotes: " n ", genre: "Fiction",
   }));
   assert.equal(r.ok, true);
   const v = r.value;
@@ -57,7 +57,7 @@ test("parseIntakeInput: a plain form is read and normalised", () => {
   assert.equal(v.costCheck.value, 2.5);
   assert.equal(v.acquiredCheck.value, "2024-03-09");
   assert.equal(v.notes, "n");
-  assert.ok(v.genreFr, "an empty French genre is filled from the English one");
+  assert.deepEqual(Object.keys(v).filter((k) => /(Fr|_fr)$/.test(k)), [], "no French genre or description is read or made (books have none)");
 });
 
 test("parseIntakeInput: a missing title is refused with the form still returned", () => {

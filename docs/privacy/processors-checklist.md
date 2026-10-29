@@ -93,7 +93,7 @@ Date checked: ____ / ____ / ______ / Done by: ____________
 
 - **What they get (checked in `src/lib/coverVision.js`, `src/lib/bookDescription.js` and `src/lib/pricing/market.js`):**
   - Cover scan: the **photo of a book cover or barcode** an admin uploads in the inventory screen, plus a fixed instruction asking for ISBN, title and author.
-  - Description: only book facts (title, author, publisher, year) and a fixed instruction; the French translation sends only the English description text.
+  - Description: only book facts (title, author, publisher, year) and a fixed instruction (English only: book descriptions are no longer translated to French).
   - Pricing lookups (only when `PRICING_AI` is switched on, off by default): the book's **ISBN, title, author and binding** and a fixed instruction asking for current used prices of that edition, using the web search tool. Results are cached per ISBN.
   - **No member, buyer, email, name or order data is ever sent.** Only admins can trigger it, and the call is skipped if the key is missing.
 - **Retention at Anthropic:** inputs and outputs are deleted from Anthropic's systems within 30 days (source: Anthropic privacy centre; confirmed 4 October 2026), except content flagged for usage-policy violations, which is kept longer. The site sends only book facts and cover photos, no personal data.

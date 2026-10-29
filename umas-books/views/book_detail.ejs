@@ -17,13 +17,13 @@
   </div>
 
   <div>
-    <% if (book.categories) { %><div class="book-detail-kicker"><%= genresLabel(book.categories, book.categories_fr) %></div><% } %>
+    <% if (book.categories) { %><div class="book-detail-kicker"><%- bookText(genresLabel(book.categories)) %></div><% } %>
     <h1 style="margin-bottom:4px;"><%- bookText(book.title) %></h1>
     <p class="muted" style="margin-top:0;"><%= tr('by', 'de') %> <%- book.authors ? bookText(book.authors) : tr('Unknown author', 'Auteur inconnu') %></p>
 
     <% if (book.description) { %>
-      <h2 class="book-about-title"><%= tr('About this book', 'À propos de ce livre') %></h2>
-      <p class="book-about"><%= tr(book.description, book.description_fr) %></p>
+      <%# Books have an English description only (Sharon, 2026-10-28): the French page shows it too, marked lang="en". %>
+      <p class="book-about"><%- bookText(book.description) %></p>
     <% } %>
 
     <% if (typeof awards !== 'undefined' && awards.length) { %>

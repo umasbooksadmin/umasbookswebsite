@@ -81,7 +81,13 @@ const DYNAMIC_PAGES = {
 // An award label is a proper name from an outside source, shown as it is in both languages.
 // "Cloudflare" is a company name and "umasbooks_lang" the literal name of our language cookie (a code
 // element in the legal notice): neither is translated.
-const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author|Class|Award)/, /^[ÉE]veil$/, "Message", "Cloudflare", "Have I Been Pwned", "umasbooks_lang", "Blog" /* the same word in French */, "Fiction", "Romance" /* genre buttons, drawn by the server since src/lib/browseGenres.js: spelled the same in French */];
+const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author|Class|Award)/, /^[ÉE]veil$/, "Message", "Cloudflare", "Have I Been Pwned", "umasbooks_lang", "Blog" /* the same word in French */, "Fiction", "Romance" /* genre buttons, drawn by the server since src/lib/browseGenres.js: spelled the same in French */,
+  // Books have an English description and English genres only (Sharon, 2026-10-28): the French site shows them in English
+  // (marked lang="en"). These are book data, not interface text: the seeded book's description and the genre buttons'
+  // English labels. "All Genres" is interface text and stays French (not listed here).
+  "A plain English description.",
+  ...require("../fixtures/browseGenres.golden.json").genres.filter((g) => g.slug !== "all").map((g) => g.en),
+];
 
 let app;
 let seeded;
@@ -102,7 +108,7 @@ async function seed() {
   await client.connect();
   try {
     const { rows: b } = await client.query(
-      "INSERT INTO books (title, authors, description, description_fr, categories, categories_fr, binding) VALUES ('I18n Shop Book', 'I18n Shop Author', 'A plain English description.', 'Une description en français.', 'Fiction', 'Roman', 'trade') RETURNING id"
+      "INSERT INTO books (title, authors, description, categories, binding) VALUES ('I18n Shop Book', 'I18n Shop Author', 'A plain English description.', 'Fiction', 'trade') RETURNING id"
     );
     await client.query("INSERT INTO books (title, authors) VALUES ('I18n Shop Book Two', 'I18n Shop Author')");
     await client.query("INSERT INTO book_awards (book_id, label, year, kind, source, status) VALUES ($1, 'I18n Shop Award Prize', 2020, 'award', 'wikidata', 'verified')", [b[0].id]);

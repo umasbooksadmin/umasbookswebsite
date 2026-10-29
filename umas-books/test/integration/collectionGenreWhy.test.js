@@ -2,7 +2,8 @@
 // The customer collection page shows, under each book, its genre and the AI's "why it's here" line (lib/collections.js
 // bookExtras). Real app, throwaway database:
 //   - English page: the genre as stored, then the English reason on its own (no "Why it’s here:" label, owner's choice)
-//   - French page: the French genre (the site's taxonomy, as on the book page), the French reason on its own (no label),
+//   - French page: the ENGLISH genre (books have English genres only since 2026-10-28, as on the book page; marked
+//     lang="en"), the French reason on its own (no label),
 //     and NEVER the English reason: a reason with no French yet hides the line
 //   - a book added by hand (reason "Added by hand", an admin note) shows its genre only, in both languages
 //   - the API (?lang=en|fr) gives the same genre and why as the page, so "Show more" prints what the page prints
@@ -21,10 +22,10 @@ let skipReason = null;
 
 const HOSTILE = '<img src=x onerror="window.__xss=1">';
 
-async function newBook(title, categories, { categoriesFr = null } = {}) {
+async function newBook(title, categories) {
   const { rows } = await pool.query(
-    "INSERT INTO books (title, authors, categories, categories_fr, description) VALUES ($1, 'Some Author', $2, $3, 'x') RETURNING id",
-    [title, categories, categoriesFr]
+    "INSERT INTO books (title, authors, categories, description) VALUES ($1, 'Some Author', $2, 'x') RETURNING id",
+    [title, categories]
   );
   await pool.query("INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 7, 'good')", [rows[0].id]);
   return rows[0].id;
@@ -103,11 +104,11 @@ test("English page: the genre and the English reason under each book", async () 
   assert.ok(!/Why it(’|'|&#39;)s here/.test(t) && !t.includes("col-why-label"), "the reason has no label (owner's choice)");
 });
 
-test("French page: the French genre and the French reason; a reason without French is hidden, never shown in English", async () => {
+test("French page: the English genre (lang=en) and the French reason; a reason without French is hidden, never shown in English", async () => {
   const t = await html("/fr/collections/why-shelf");
-  assert.match(item(t, ids.both), new RegExp(`<p class="col-genre">Policier, Science-fiction</p><p class="col-why">Une énigme astucieuse dans un Paris pluvieux\\.</p>`));
+  assert.match(item(t, ids.both), new RegExp(`<p class="col-genre" lang="en">Mystery, Science Fiction</p><p class="col-why">Une énigme astucieuse dans un Paris pluvieux\\.</p>`));
   // no French reason yet: the genre only
-  assert.match(item(t, ids.enOnly), /<div class="col-more"><p class="col-genre">Romance<\/p><\/div><\/div>/);
+  assert.match(item(t, ids.enOnly), /<div class="col-more"><p class="col-genre" lang="en">Romance<\/p><\/div><\/div>/);
   assert.ok(!item(t, ids.enOnly).includes("col-why"));
   // (the page's script dictionary carries both languages, as on Browse: only what the page prints counts)
   const printed = t.replace(/<script[\s\S]*?<\/script>/g, "");
@@ -123,13 +124,13 @@ test("a book added by hand shows its genre only (EN and FR): its 'Added by hand'
     const t = await html(`${prefix}/collections/why-shelf`);
     for (const id of [ids.hand, ids.handReal]) {
       const it = item(t, id);
-      assert.match(it, /<div class="col-more"><p class="col-genre">[^<]+<\/p><\/div><\/div>/, `${prefix || "/"} book ${id}: genre only`);
+      assert.match(it, /<div class="col-more"><p class="col-genre"(?: lang="en")?>[^<]+<\/p><\/div><\/div>/, `${prefix || "/"} book ${id}: genre only`);
       assert.ok(!it.includes("col-why"));
     }
     assert.ok(!t.includes("Added by hand"));
   }
-  assert.match(item(await html("/fr/collections/why-shelf"), ids.hand), /<p class="col-genre">Thriller<\/p>/);
-  assert.match(item(await html("/fr/collections/why-shelf"), ids.handReal), /<p class="col-genre">Horreur<\/p>/);
+  assert.match(item(await html("/fr/collections/why-shelf"), ids.hand), /<p class="col-genre" lang="en">Thriller<\/p>/);
+  assert.match(item(await html("/fr/collections/why-shelf"), ids.handReal), /<p class="col-genre" lang="en">Horror<\/p>/, "the English genre, never a French one");
 });
 
 test("every text is escaped on the page (a genre or a reason cannot add markup)", async () => {
@@ -149,11 +150,11 @@ test("API: ?lang=en and ?lang=fr give the same genre and why as the page; no ?la
   const E = by(en);
   const F = by(fr);
   assert.deepEqual(E[ids.both], { genre: "Mystery, Science Fiction", why: "A clever puzzle set in a rainy Paris." });
-  assert.deepEqual(F[ids.both], { genre: "Policier, Science-fiction", why: "Une énigme astucieuse dans un Paris pluvieux." });
+  assert.deepEqual(F[ids.both], { genre: "Mystery, Science Fiction", why: "Une énigme astucieuse dans un Paris pluvieux." });
   assert.deepEqual(E[ids.enOnly], { genre: "Romance", why: "A sweet love story across the Channel." });
   assert.deepEqual(F[ids.enOnly], { genre: "Romance", why: null }, "no French: no why, never the English");
   assert.deepEqual(E[ids.hand], { genre: "Thriller", why: null });
-  assert.deepEqual(F[ids.handReal], { genre: "Horreur", why: null });
+  assert.deepEqual(F[ids.handReal], { genre: "Horror", why: null });
   assert.deepEqual(E[ids.noGenre], { genre: null, why: "Quiet and kind." });
   assert.equal(E[ids.hostile].why, `Brave ${HOSTILE} & bold.`, "JSON carries the text as it is; the page script escapes it");
   // the page prints exactly the API's words (the first 24 and the next ones say the same)
@@ -162,7 +163,7 @@ test("API: ?lang=en and ?lang=fr give the same genre and why as the page; no ?la
   for (const [lang, list] of [["en", en], ["fr", fr]]) {
     for (const b of list) {
       const it = item(page[lang], b.id);
-      const g = /<p class="col-genre">([^<]*)<\/p>/.exec(it);
+      const g = /<p class="col-genre"(?: lang="en")?>([^<]*)<\/p>/.exec(it);
       const w = /<p class="col-why">([^<]*)<\/p>/.exec(it);
       assert.equal(g ? unesc(g[1]) : null, b.genre, `${lang} ${b.id} genre`);
       assert.equal(w ? unesc(w[1]) : null, b.why, `${lang} ${b.id} why`);

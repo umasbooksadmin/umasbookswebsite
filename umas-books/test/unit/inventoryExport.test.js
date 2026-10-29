@@ -13,6 +13,7 @@ const { toCsv } = require("../../src/lib/reports");
 const COPY_HEADER = [
   "ISBN-13", "ISBN-10", "Title", "Author(s)", "Publisher", "Year", "Binding", "Condition", "Price (EUR)", "Location",
   "Source", "Status", "Date added", "Copy ID", "Till code", "Book ID", "Genres", "Clearance", "Publisher price (EUR)", "Notes", "Date sold",
+  "Date received", "Cost (EUR)", "Suggested price (EUR)",
 ];
 
 test("the per-copy header is exactly this list, and has no personal-data column", () => {
@@ -33,6 +34,7 @@ const dbRow = {
   source: "donation", status: "in_stock", notes: '=HYPERLINK("http://x")', added: "2026-10-01", sold: null,
   isbn: "978-2-07-036822-8", title: 'Le "Petit" Prince; suite', authors: "A. de Saint-Exupéry", publisher: "Gallimard",
   published_year: 1999, binding: "mass_market", categories: "Fiction, Classics",
+  acquired: "2026-09-15", acquisition_cost: "0.00", suggested_price: "5.00",
 };
 
 test("one copy line: semicolons, decimal comma, quoted text, bare numbers, neutralised formula, labels", () => {
@@ -41,6 +43,7 @@ test("one copy line: semicolons, decimal comma, quoted text, bare numbers, neutr
     '"9782070368228"', '"207036822X"', '"Le ""Petit"" Prince; suite"', '"A. de Saint-Exupéry"', '"Gallimard"', "1999", '"Mass Market"',
     '"Like New"', "6,50", '"Store"', '"Donation"', '"In Store"', '"2026-10-01"', "42", '"UB-42"', "7", '"Fiction, Classics"', '"Yes"', "",
     "\"'=HYPERLINK(\"\"http://x\"\")\"", '""',
+    '"2026-09-15"', "0,00", "5,00",
   ].join(";"));
 });
 

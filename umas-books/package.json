@@ -11,7 +11,6 @@
     "start": "node src/index.js",
     "migrate": "node src/migrate.js",
     "seed": "node src/seed.js",
-    "backfill-french-content": "node src/backfillFrenchContent.js",
     "clear-test-data": "node scripts/clear-test-data.js",
     "demo:load": "node scripts/demo-data.js load",
     "demo:remove": "node scripts/demo-data.js remove",

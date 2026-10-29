@@ -108,7 +108,7 @@ async function plant() {
   const { rows: [rr] } = await db.query("INSERT INTO price_reprice_runs (group_key, new_price, copies_changed) VALUES ('trade', 5, 1) RETURNING id");
   await db.query("INSERT INTO price_reprice_items (run_id, copy_id, new_price) VALUES ($1, 1, 5)", [rr.id]);
   // Admin > Genres: the run history goes with the books, the managed list and the rules are settings (kept)
-  const managedGenre = await one("INSERT INTO managed_genres (name_en, name_fr, browse_slug) VALUES ('Test genre', 'Genre test', 'test-genre') RETURNING id");
+  const managedGenre = await one("INSERT INTO managed_genres (name_en, browse_slug) VALUES ('Test genre', 'test-genre') RETURNING id");
   await db.query("INSERT INTO genre_rules (kind, pattern, pattern_key, action, target_managed_genre_id) VALUES ('exact', 'Test', 'test', 'map', $1)", [managedGenre]);
   const genreRun = await one("INSERT INTO genre_runs (actor_user_id) VALUES ($1) RETURNING id", [admin]);
   await db.query("INSERT INTO genre_run_changes (run_id, book_id, old_categories, new_categories) VALUES ($1, $2, 'a', 'b')", [genreRun, book]);
@@ -116,6 +116,9 @@ async function plant() {
   await db.query("INSERT INTO copy_intake_tokens (token, copy_id, book_id) VALUES ('tok-clear-test-0123456789', $1, $2)", [copy1, book]);
   const collection = await one("INSERT INTO curated_collections (slug, title_en) VALUES ('test-shelf', 'Test shelf') RETURNING id");
   await db.query("INSERT INTO curated_collection_books (collection_id, book_id, status) VALUES ($1, $2, 'approved')", [collection, book]);
+  // migration 107's copy of an old French book text follows the book
+  await db.query("INSERT INTO book_french_backup (book_id, description_fr) VALUES ($1, 'Un texte')", [book]);
+  await db.query("INSERT INTO book_genre_cleanup_backup (book_id, categories_before) VALUES ($1, 'Children''s Fiction§')", [book]);
 
   // content
   const event = await one("INSERT INTO events (title, starts_at, created_by) VALUES ('Event', now() + interval '2 days', $1) RETURNING id", [admin]);

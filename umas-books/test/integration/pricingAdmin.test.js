@@ -111,7 +111,7 @@ const suggestion = async (params) => (await json(`/admin/inventory/price-suggest
 
 async function seedBook({ isbn = isbn13(), title = tag(), copies = [{}] } = {}) {
   const [book] = await h.q(
-    "INSERT INTO books (isbn, title, authors, description, description_fr, cover_url) VALUES ($1, $2, 'A. Writer', 'd', 'd', '/c.png') RETURNING id",
+    "INSERT INTO books (isbn, title, authors, description, cover_url) VALUES ($1, $2, 'A. Writer', 'd', '/c.png') RETURNING id",
     [isbn, title]
   );
   const ids = [];
@@ -133,7 +133,7 @@ const auditRows = (action) => h.q("SELECT * FROM admin_audit_log WHERE action = 
 async function addCopy(fields) {
   const isbn = fields.isbn || isbn13();
   const r = await h.post("/admin/inventory", {
-    title: fields.title || tag(), isbn, condition: "good", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "/c.png", ...fields,
+    title: fields.title || tag(), isbn, condition: "good", status: "in_stock", description: "d", coverUrl: "/c.png", ...fields,
   });
   assert.equal(r.res.status, 302, r.text.slice(0, 300));
   return (await copiesOf(isbn)).pop();
@@ -379,7 +379,7 @@ test("tampered hidden fields are ignored beyond numeric validation; the chosen l
 test("new books keep the publisher-price path: levels and clearance are ignored", async () => {
   const c = await addCopy({ condition: "new", publisherPrice: "10", priceLevel: "clearance", price: "" });
   assert.deepEqual([Number(c.price), Number(c.publisher_price), c.is_clearance], [10, 10, false]);
-  const tooLow = await h.post("/admin/inventory", { title: tag(), isbn: isbn13(), condition: "new", publisherPrice: "10", priceLevel: "custom", price: "5", description: "d", descriptionFr: "d", coverUrl: "/c.png" });
+  const tooLow = await h.post("/admin/inventory", { title: tag(), isbn: isbn13(), condition: "new", publisherPrice: "10", priceLevel: "custom", price: "5", description: "d", coverUrl: "/c.png" });
   assert.equal(tooLow.res.status, 200);
   assert.match(tooLow.text, /A new book must be sold at the publisher(&#39;|')s price/);
   assert.match(tooLow.text, /name="suggestedLevel"/, "the form is shown again with its price control");

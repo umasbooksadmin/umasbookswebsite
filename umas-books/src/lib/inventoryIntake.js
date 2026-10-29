@@ -15,7 +15,7 @@ const { withTransaction } = require("../db");
 const { saveImage, isStoredImageUrl } = require("./imageStore");
 const { isAllowedCoverUrl } = require("./coverStore");
 const { sharpFromUpload } = require("./uploadImage");
-const { normalizeIsbn, translateGenresToFrench } = require("./bookLookup");
+const { normalizeIsbn } = require("./bookLookup");
 const { applyRulesToBook } = require("./genreRules");
 const { normalizeSource, normalizeCondition, normalizeBinding, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation } = require("./inventory");
 const { getSettings } = require("./pricing/settings");
@@ -54,15 +54,15 @@ function parseIntakeInput(body, files) {
   const yearCheck = parsePublishedYear(body.publishedYear);
   const publishedYear = yearCheck.error ? null : yearCheck.value;
   const genre = normalizeGenres(body.genre);
-  const genreFr = (body.genreFr || "").trim() || (genre ? translateGenresToFrench(genre) : null);
+  // Books have no French genre or description (Sharon, 2026-10-28): a posted French genre or description field (an
+  // old form or script) is ignored, never stored.
   const description = (body.description || "").trim() || null;
-  const descriptionFr = (body.descriptionFr || "").trim() || null;
   const coverUrl = (body.coverUrl || "").trim() || null;
   const binding = normalizeBinding(body.binding);
   const location = normalizeLocation(body.location);
   const source = normalizeSource(body.source);
   const value = {
-    title, author, isbn, publisher, yearCheck, publishedYear, genre, genreFr, description, descriptionFr, coverUrl,
+    title, author, isbn, publisher, yearCheck, publishedYear, genre, description, coverUrl,
     binding, location, source,
     condition: normalizeCondition(body.condition),
     status: normalizeStatus(body.status),
@@ -113,9 +113,9 @@ async function prepareIntake(db, input, { time = passthroughTime } = {}) {
 // The flash state of GET /admin/inventory/new/again: what was typed, with the message.
 // kind: "title" (no title), "input" (a value refused), "busy" (the same token is being saved).
 function intakeRefusal(input, kind, message) {
-  const { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding, condition, raw, typedPricing } = input;
+  const { isbn, title, author, publisher, publishedYear, description, coverUrl, genre, binding, condition, raw, typedPricing } = input;
   const base = { location: input.location || "", source: input.source || "", fromScan: input.answerMode.fromScan === "1", priceLevel: raw.priceLevel };
-  const book = { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding };
+  const book = { isbn, title, author, publisher, publishedYear, description, coverUrl, genre, binding };
   if (kind === "title") {
     return { ...base, prep: { isbn, title: null, author, binding: raw.binding, publisherPrice: raw.publisherPrice }, book: { ...book, title: null }, error: message, defaultPricing: typedPricing };
   }
@@ -172,8 +172,8 @@ async function saveBookAndCopy(pool, input, ctx) {
 }
 
 async function createBookAndCopy(pool, input, ctx, time) {
-  const { isbn, title, author, publisher, publishedYear, description, descriptionFr, binding, condition, location, source, token, choice, pricing, settings } = input;
-  let { genre, genreFr } = input;
+  const { isbn, title, author, publisher, publishedYear, description, binding, condition, location, source, token, choice, pricing, settings } = input;
+  let { genre } = input;
   let { coverUrl } = input;
   if (input.coverPhoto) coverUrl = await processCoverPhoto(input.coverPhoto);
 
@@ -193,13 +193,13 @@ async function createBookAndCopy(pool, input, ctx, time) {
       if (binding && !existing.binding) {
         await pool.query("UPDATE books SET binding = $1, updated_at = now() WHERE id = $2", [binding, bookId]);
       }
-      // A description, a French text or a cover the book still lacks is fetched AFTER the answer (lib/bookFill.js).
-      if (!existing.description || !existing.cover_url || !existing.description_fr) fillAfterSave = true;
+      // A description or a cover the book still lacks is fetched AFTER the answer (lib/bookFill.js).
+      if (!existing.description || !existing.cover_url) fillAfterSave = true;
     }
   }
 
   if (!bookId) {
-    // Only what is already known is stored now. The AI description, its French translation, the search for a
+    // Only what is already known is stored now. The AI description, the search for a
     // cover and the cover download all happen after the answer (fillBookGaps): they used to hold the save back
     // for 3 to 20 seconds. A cover address that is not yet a copy on our server is kept as the source.
     const cover = coverUrl && isStoredImageUrl(coverUrl)
@@ -208,13 +208,13 @@ async function createBookAndCopy(pool, input, ctx, time) {
     fillAfterSave = true;
     // The genre rules of Admin > Genres (lib/genreRules.js): a new book never brings back a name the admin cleaned up.
     // With no rule saved, nothing changes.
-    ({ genre, genreFr } = await applyRulesToBook(pool, genre, genreFr));
+    ({ genre } = await applyRulesToBook(pool, genre));
 
     const { rows } = await time("db", () => pool.query(
-      `INSERT INTO books (isbn, title, authors, publisher, published_year, description, description_fr, cover_url, categories, categories_fr, binding, created_by, cover_source_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `INSERT INTO books (isbn, title, authors, publisher, published_year, description, cover_url, categories, binding, created_by, cover_source_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT DO NOTHING RETURNING id`,
-      [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, cover.cover, genre, genreFr, binding, ctx.userId, cover.source]
+      [isbn || null, title, author, publisher, publishedYear, description, cover.cover, genre, binding, ctx.userId, cover.source]
     ));
     if (rows.length) {
       bookId = rows[0].id;
@@ -285,10 +285,10 @@ async function afterSaveFollowUps(pool, saved, input, ctx) {
   // appear within seconds. Never awaited: it must not delay or fail the save.
   if (saved.isNewBook) checkBookAwardsInBackground(pool, saved.bookId);
 
-  // Cover, description and translation: fetched now that the copy is saved and the answer is on its way.
+  // Cover and description: fetched now that the copy is saved and the answer is on its way.
   if (saved.fillAfterSave) {
-    const { isbn, title, author, publisher, publishedYear, description, descriptionFr } = input;
-    const hints = { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl: saved.coverUrl };
+    const { isbn, title, author, publisher, publishedYear, description } = input;
+    const hints = { isbn, title, author, publisher, publishedYear, description, coverUrl: saved.coverUrl };
     runAfterResponse(`fill book ${saved.bookId}`, () => fillBookGaps(pool, saved.bookId, hints));
   }
 

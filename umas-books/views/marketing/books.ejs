@@ -83,7 +83,7 @@
   "bk.band.ask.cta": "Demander",
   "bk.empty.ask": "Introuvable ? Demandez-nous de le chercher pour vous.",
 }; -%>
-<%# The genre button labels (g.<slug>) come from the managed genres (Admin > Genres): English and French, in the page dictionaries like every other text. -%>
+<%# The genre button labels (g.<slug>) come from the managed genres (Admin > Genres), in the page dictionaries like every other text. Book genres are English on both sites (Sharon, 2026-10-28): the French dictionary gets the English label, marked lang="en" on /fr/ (the "All Genres" button stays French). -%>
 <% browseGenres.forEach(function (g) { pageI18nEn[g.key] = g.labelEn; pageI18nFr[g.key] = g.labelFr; }); -%>
 <%- include('partials/mkt_header', {
   title: "Books — Uma's Books and Adventures",
@@ -144,7 +144,7 @@
         <button type="button" class="arrow arrow-next" id="bk-genre-next" data-i18n-attr="aria-label:bk.genres.next" aria-label="Next genres"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
         <%# The genre buttons (managed genres, src/lib/browseGenres.js). public/page-books.js reads data-slug / data-topic back from here and wires the clicks. %>
         <div class="bk-track bk-tiles" id="bk-genre-list" role="group" aria-labelledby="bk-genres-label"><%
-          browseGenres.forEach(function (g, i) { %><button type="button" class="bk-genre" data-index="<%= i %>" data-slug="<%= g.slug %>" data-topic="<%= g.topic %>"><span class="chip" style="background:<%= g.bg %>;color:<%= g.fg %>"><svg <%- iconAttrs %> aria-hidden="true"><%- g.svg %></svg></span><span data-i18n="<%= g.key %>"><%= pageI18nEn[g.key] %></span></button><% }) %></div>
+          browseGenres.forEach(function (g, i) { %><button type="button" class="bk-genre" data-index="<%= i %>" data-slug="<%= g.slug %>" data-topic="<%= g.topic %>"><span class="chip" style="background:<%= g.bg %>;color:<%= g.fg %>"><svg <%- iconAttrs %> aria-hidden="true"><%- g.svg %></svg></span><span data-i18n="<%= g.key %>"<%- lang === 'fr' && g.slug !== 'all' ? ' lang="en"' : '' %>><%= pageI18nEn[g.key] %></span></button><% }) %></div>
       </div>
     </section>
 

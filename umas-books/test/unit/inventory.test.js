@@ -25,7 +25,7 @@ test("normalizeStatus defaults an unknown value to in_stock", () => {
   assert.equal(normalizeStatus("missing"), "in_stock");
 });
 
-test("normalizeGenres trims, dedupes case-insensitively, and rejoins (a taxonomy genre takes its own spelling)", () => {
+test("normalizeGenres trims, dedupes case-insensitively, and rejoins (a fixed-list genre takes its own spelling)", () => {
   assert.equal(normalizeGenres(" Fantasy ,fiction, Fantasy"), "Fantasy, Fiction");
   assert.equal(normalizeGenres(" Gothic ,gothic, Fantasy"), "Gothic, Fantasy");
 });

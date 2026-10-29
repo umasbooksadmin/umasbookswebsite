@@ -66,7 +66,7 @@ async function runMatrix({ pool, server, adminId, realFetch }) {
   let tseq = 0;
   const isbn = () => isbn13From(`978${String(7000000 + (++seq)).padStart(9, "0")}`);
   const tok = () => `golden-token-${String(++tseq).padStart(3, "0")}-abcdefghij`;
-  const base = (over = {}) => ({ title: `Golden ${seq + 1}`, author: "A. Writer", description: "A description.", descriptionFr: "Une description.", coverUrl: "/img/0123456789abcdef.jpg", binding: "trade", status: "in_stock", condition: "very_good", price: "5", location: "Store", source: "donation", intakeToken: tok(), ...over });
+  const base = (over = {}) => ({ title: `Golden ${seq + 1}`, author: "A. Writer", description: "A description.", coverUrl: "/img/0123456789abcdef.jpg", binding: "trade", status: "in_stock", condition: "very_good", price: "5", location: "Store", source: "donation", intakeToken: tok(), ...over });
   const png = await require("sharp")({ create: { width: 40, height: 60, channels: 3, background: { r: 200, g: 30, b: 30 } } }).png().toBuffer();
 
   // Cases: [name, async (post) => [response, ...]]. Every case runs on the same database in order.
@@ -158,7 +158,7 @@ async function runMatrix({ pool, server, adminId, realFetch }) {
   add("isbn existing then new, binding fill", async () => {
     const i = isbn();
     return [
-      await post(base({ title: "Existing", isbn: i, binding: "", description: "", descriptionFr: "", coverUrl: "" }), { json: true }),
+      await post(base({ title: "Existing", isbn: i, binding: "", description: "", coverUrl: "" }), { json: true }),
       await post(base({ title: "Existing again", isbn: i, binding: "hardcover", price: "6" }), { json: true }),
       await post(base({ title: "Existing thrice", isbn: i, binding: "mass_market", price: "7" }), { json: true }),
     ];
@@ -191,8 +191,8 @@ async function runMatrix({ pool, server, adminId, realFetch }) {
     await post(base({ title: undefined, isbn: undefined, genre: "Fiction, Mystery", condition: "new", binding: "hardcover", fromScan: "1", priceLevel: "3" })),
   ]);
   add("genres and french genres", async () => [
-    await post(base({ title: "Genres", isbn: isbn(), genre: "Fiction, Mystery" , genreFr: ""}), { json: true }),
-    await post(base({ title: "Genres fr", isbn: isbn(), genre: "Fiction", genreFr: "Roman" }), { json: true }),
+    await post(base({ title: "Genres", isbn: isbn(), genre: "Fiction, Mystery" }), { json: true }),
+    await post(base({ title: "Genres fr", isbn: isbn(), genre: "Fiction" }), { json: true }),
     await post(base({ title: "Genres none", isbn: isbn(), genre: "" }), { json: true }),
   ]);
   add("learning loop fields and price levels", async () => [
@@ -370,7 +370,7 @@ async function runMatrix({ pool, server, adminId, realFetch }) {
     } else body = scrub(body);
     return { status: r.status, type: r.type, location: r.location ? idsIn(r.location) : null, body, follow: r.follow ? (r.follow.page ? { status: r.follow.status, page: r.follow.page } : { status: r.follow.status, text: scrub(r.follow.text) }) : null, extra: r.extra || null };
   };
-  // Only what the cases write: a migration can leave a line of its own in a fresh database (107 does).
+  // Only what the cases log: rows written by the migrations (e.g. migration 107's Admin activity line) are not a case's.
   let auditSeen = (await pool.query("SELECT COALESCE(max(id), 0)::int AS id FROM admin_audit_log")).rows[0].id;
   for (const [name, fn] of cases) {
     const responses = await fn();

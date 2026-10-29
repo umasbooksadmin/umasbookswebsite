@@ -1,6 +1,6 @@
 // Admin > Genres (/admin/genres): manage the genre names of the catalogue. English only, admin only.
 //
-//   managed genres   the list of genres the shop wants (EN + FR, order, and how each one shows on the public Browse page)
+//   managed genres   the list of genres the shop wants (English names, listed A to Z, and how each one shows on the public Browse page)
 //   found genres     every distinct raw genre in books.categories with its book count and the managed genre it is slotted into
 //   rules            "this genre / any genre containing this word becomes ..." (lib/genreRules.js: first match wins)
 //   AI help          proposes slots for unmapped genres; nothing is saved until the admin ticks and saves
@@ -57,7 +57,7 @@ function tableQuery(src) {
   const q = str(src.q, 80).replace(/[\u0000-\u001f]/g, "").trim(); // eslint-disable-line no-control-regex
   if (q) p.set("q", q);
   if (FILTERS.includes(src.filter) && src.filter !== "all") p.set("filter", src.filter);
-  if (SORT_KEYS.includes(src.sort) && src.sort !== "books") p.set("sort", src.sort);
+  if (SORT_KEYS.includes(src.sort) && src.sort !== admin.DEFAULT_SORT) p.set("sort", src.sort);
   const page = parseIntParam(src.page, { min: 1, max: 100000, default: 1 });
   if (page > 1) p.set("page", String(page));
   const s = p.toString();
@@ -70,7 +70,7 @@ const backTo = (body, anchor = "found") => `/admin/genres${tableQuery(body || {}
 router.get("/admin/genres", requireAdmin, async (req, res) => {
   const f = takeFlash(req, FLASH) || {};
   const filter = FILTERS.includes(req.query.filter) ? req.query.filter : "all";
-  const sort = SORT_KEYS.includes(req.query.sort) ? req.query.sort : "books";
+  const sort = SORT_KEYS.includes(req.query.sort) ? req.query.sort : admin.DEFAULT_SORT;
   const page = parseIntParam(req.query.page, { min: 1, max: 100000, default: 1 });
   const q = str(req.query.q, 80).trim();
   const [found, managed, { rules }] = await Promise.all([admin.foundGenres(pool), admin.listManaged(pool), loadRules(pool)]);
@@ -101,7 +101,7 @@ router.get("/admin/genres/rules/preview", requireAdmin, async (req, res) => {
 // ---------- managed genres ----------
 
 router.post("/admin/genres/managed", requireAdmin, writeLimit, async (req, res) => {
-  const r = await admin.addManaged(pool, { nameEn: req.body.nameEn, nameFr: req.body.nameFr });
+  const r = await admin.addManaged(pool, { nameEn: req.body.nameEn });
   if (!r.ok) {
     await flash(req, { error: r.error });
     return res.redirect(303, "/admin/genres#managed");
@@ -115,8 +115,8 @@ router.post("/admin/genres/managed/:id", requireAdmin, writeLimit, async (req, r
   const id = Number(req.params.id);
   const b = req.body;
   const r = await admin.updateManaged(pool, id, {
-    nameEn: b.nameEn, nameFr: b.nameFr, colour: b.colour, icon: b.icon, showOnBrowse: b.showOnBrowse === "1",
-    labelEn: b.labelEn, labelFr: b.labelFr, topic: b.topic, browseOrder: /^\d{1,4}$/.test(String(b.browseOrder || "")) ? Number(b.browseOrder) : undefined,
+    nameEn: b.nameEn, colour: b.colour, icon: b.icon, showOnBrowse: b.showOnBrowse === "1",
+    labelEn: b.labelEn, topic: b.topic, browseOrder: /^\d{1,4}$/.test(String(b.browseOrder || "")) ? Number(b.browseOrder) : undefined,
   });
   if (!r.ok) {
     await flash(req, { error: r.error });
@@ -132,11 +132,6 @@ router.post("/admin/genres/managed/:id", requireAdmin, writeLimit, async (req, r
   await flash(req, { notice: r.renamedFrom
     ? `Renamed "${r.renamedFrom}" to "${admin.cleanName(b.nameEn)}". Books still carry the old name until you press Update all books (a rule "${r.renamedFrom}" -> new name was added for that).`
     : "Saved." });
-  res.redirect(303, "/admin/genres#managed");
-});
-
-router.post("/admin/genres/managed/:id/move", requireAdmin, writeLimit, async (req, res) => {
-  await admin.moveManaged(pool, Number(req.params.id), req.body.dir === "up" ? "up" : "down");
   res.redirect(303, "/admin/genres#managed");
 });
 
@@ -218,7 +213,8 @@ router.post("/admin/genres/suggest", requireAdmin, aiLimit, async (req, res) => 
     await flash(req, { error: out.error });
     return res.redirect(303, "/admin/genres#ai");
   }
-  await flash(req, { suggestions: { proposals: out.proposals, rejected: out.rejected, asked: out.asked, notice: out.notice || null } });
+  const proposals = out.proposals.slice().sort((a, b) => admin.compareNames(a.name, b.name));
+  await flash(req, { suggestions: { proposals, rejected: out.rejected, asked: out.asked, notice: out.notice || null } });
   res.redirect(303, "/admin/genres#ai");
 });
 

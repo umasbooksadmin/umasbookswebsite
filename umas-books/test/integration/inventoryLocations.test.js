@@ -96,7 +96,7 @@ const logTexts = (state) => JSON.parse(state.log).map((e) => e.t);
 test("intake saves the location as typed (spaces tidied, capitals kept) on the new copy", async () => {
   const title = `Intake Book ${uniq()}`;
   const res = await post("/admin/inventory", {
-    title, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg",
+    title, description: "d", coverUrl: "https://example.test/c.jpg",
     status: "in_stock", condition: "very_good", price: "5", location: "  fiction   a1 ", fromScan: "1",
   });
   assert.equal(res.status, 302);
@@ -110,7 +110,7 @@ test("intake saves the location as typed (spaces tidied, capitals kept) on the n
 
 test("intake without a location stores NULL", async () => {
   const title = `No Location ${uniq()}`;
-  await post("/admin/inventory", { title, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5" });
+  await post("/admin/inventory", { title, description: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5" });
   const { rows } = await pool.query(
     "SELECT c.location FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = $1", [title]
   );
@@ -132,7 +132,7 @@ test("the add-book form is pre-filled with the carried location and a typed new 
   const { text } = await get("/admin/inventory/new?location=brand%20new%20shelf");
   assert.match(text, /name="location"[^>]*value="brand new shelf"/);
   const title = `Typed Location ${uniq()}`;
-  await post("/admin/inventory", { title, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5", location: "brand new shelf" });
+  await post("/admin/inventory", { title, description: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5", location: "brand new shelf" });
   const { text: after } = await get("/admin/inventory/new");
   assert.match(after, /<option value="brand new shelf">/);
 });
@@ -312,7 +312,7 @@ const oneEntryFor = (html, name) => optionValues(html.match(/<datalist id="locat
 test("Store is saved as 'Store', not 'STORE', and typing 'store' later is the same place in the list", async () => {
   const t1 = `Cap Store ${uniq()}`;
   const t2 = `Cap Store lower ${uniq()}`;
-  const base = { description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5" };
+  const base = { description: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5" };
   await post("/admin/inventory", { ...base, title: t1, location: "Capital Test Shelf" });
   await post("/admin/inventory", { ...base, title: t2, location: "capital test shelf" });
   const { rows } = await pool.query("SELECT b.title, c.location FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = ANY($1) ORDER BY b.title", [[t1, t2]]);

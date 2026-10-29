@@ -131,15 +131,12 @@ test("control: a real admin gets through to the admin dashboard", async () => {
   assert.equal(res.status, 200);
 });
 
-test("POST /admin/inventory/translate-french: an admin without the CSRF token is refused, with it the JSON answer comes", async () => {
+test("POST /admin/inventory/translate-french is gone (books have no French): an admin with the CSRF token gets 404", async () => {
   const jar = await loginJar(await createUser({ admin: true }));
   const headers = { cookie: jar.header(), "content-type": FORM["content-type"] };
-  const bare = await fetch(`${app.base}/admin/inventory/translate-french`, { method: "POST", redirect: "manual", headers, body: "genre=Fantasy" });
-  assert.equal(bare.status, 403);
   const token = await fetchCsrfToken(app.base, jar);
-  const ok = await fetch(`${app.base}/admin/inventory/translate-french`, { method: "POST", redirect: "manual", headers, body: new URLSearchParams({ _csrf: token, genre: "Humor" }).toString() });
-  assert.equal(ok.status, 200);
-  assert.equal((await ok.json()).genreFr, "Humour");
+  const gone = await fetch(`${app.base}/admin/inventory/translate-french`, { method: "POST", redirect: "manual", headers, body: new URLSearchParams({ _csrf: token, genre: "Humor" }).toString() });
+  assert.equal(gone.status, 404);
 });
 
 const IDENTITIES = [

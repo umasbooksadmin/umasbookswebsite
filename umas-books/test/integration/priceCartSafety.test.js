@@ -111,7 +111,7 @@ function guest() {
 // A new book + copy through the real admin route (price and the rest as typed).
 const intakeFields = (title, over = {}) => ({
   title, price: "6.50", condition: "very_good", status: "in_stock",
-  description: "d", descriptionFr: "d fr", coverUrl: "http://cover.example/c.jpg", ...over,
+  description: "d", coverUrl: "http://cover.example/c.jpg", ...over,
 });
 const bookByTitle = async (title) => (await pool.query("SELECT * FROM books WHERE title = $1", [title])).rows;
 
@@ -324,7 +324,7 @@ test("admin edit copy: a bad price or cost is refused, the copy is unchanged and
 
 test("admin edit book: a bad published year is refused and the book is unchanged", async () => {
   const bookId = await makeBook();
-  const res = await adminPost(`/admin/inventory/${bookId}`, { title: "Changed title", publishedYear: "20xx", description: "d", descriptionFr: "d", coverUrl: "http://cover.example/c.jpg" });
+  const res = await adminPost(`/admin/inventory/${bookId}`, { title: "Changed title", publishedYear: "20xx", description: "d", coverUrl: "http://cover.example/c.jpg" });
   assert.equal(res.status, 200);
   assert.match(res.text, /Published year must be a whole number/);
   assert.match(res.text, /value="20xx"/);

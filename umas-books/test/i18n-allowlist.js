@@ -26,6 +26,10 @@ const ALLOW = [
   { match: "Fiction", reason: "genre button on Browse Books (src/lib/browseGenres.js, drawn by the server): \"Fiction\" is spelled the same in French" },
   { match: "Romance", reason: "genre button on Browse Books (src/lib/browseGenres.js, drawn by the server): \"Romance\" is spelled the same in French" },
   { match: /^1 vote$/, reason: "\"1 vote\" is spelled the same in French" },
+  // Book genres are English on both sites (Sharon, 2026-10-28): the Browse genre buttons on /fr/ show the managed genres'
+  // English labels (marked lang="en"). Stored content, not interface text; the "All Genres" button stays French.
+  ...require("./fixtures/browseGenres.golden.json").genres.filter((g) => g.slug !== "all")
+    .map((g) => ({ match: g.en, reason: "genre button on Browse Books: book genres are English on the French site too (stored content, marked lang=\"en\")" })),
 ];
 
 module.exports = { ALLOW };

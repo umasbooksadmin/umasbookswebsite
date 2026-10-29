@@ -868,27 +868,17 @@ s.write("A11 the tagged copy keeps the price chosen at intake and records the su
   assert.equal(Number(price), 5, `copy price ${price}`);
 });
 
-s.write("A116 (must) 'Update the French from the English' fills the two French boxes from the English now in the form, shows the 'English changed' hint, and saves nothing", { as: "admin" }, async (ctx) => {
+s.test("A116 (must) books have no French fields: the edit form shows only the English Genres and Description, and the French book page shows the English genres", { as: "admin" }, async (ctx) => {
   if (!tagged.id) ctx.skip("needs A10b");
   await admin(ctx, `/admin/inventory/${tagged.id}`);
-  const btn = "button[data-fr-sync]";
-  // The edit form sits inside a closed <details> ("Edit details"). A closed one cannot take focus, so typing into
-  // it is silently lost (puppeteer's type() focuses first): open it the way an admin does, by clicking the summary.
-  await (await ctx.page.evaluateHandle(() => document.getElementById("genre").closest("details").querySelector(":scope > summary"))).asElement().click();
-  await ctx.page.waitForSelector("#genre", { visible: true });
-  assert.ok(await ctx.page.$eval(btn, (b) => b.offsetParent !== null), "the button is shown");
-  const frBefore = await ctx.page.$eval("#genreFr", (i) => i.value);
-  await ctx.page.focus("#genre");
-  await ctx.page.keyboard.press("End"); // the caret starts at the beginning: put it after the existing genres
-  await ctx.page.keyboard.type(", Poetry");
-  assert.match(await ctx.page.$eval("#genre", (i) => i.value), /, Poetry$/, "the English genre was really typed");
-  if (frBefore) assert.ok(await ctx.page.$eval("[data-fr-stale='genreFr']", (p) => !p.hidden), "the hint shows under Genres (French)");
-  await ctx.page.click(btn); // the browser's confirm box is accepted by the harness when a French box has text
-  await ctx.page.waitForFunction(() => /French updated from the English|could not be made right now/.test(document.getElementById("fr-sync-status").textContent), { timeout: 30000 });
-  assert.match(await ctx.page.$eval("#genreFr", (i) => i.value), /Poésie/, "the unsaved English genre was translated");
-  assert.equal(new URL(ctx.page.url()).pathname, `/admin/inventory/${tagged.id}`, "no page change");
-  await admin(ctx, `/admin/inventory/${tagged.id}`);
-  assert.ok(!/Poetry/.test(await ctx.page.$eval("#genre", (i) => i.value)), "nothing was saved");
+  // No French field of any name (the old French Genres / Description boxes and their sync buttons are gone).
+  for (const sel of ["form [id$='Fr']", "form [name$='Fr']", "form [name$='_fr']", "form [lang='fr']", "[data-fr-sync]", "[data-fr-stale]"]) assert.equal(await ctx.page.$(sel), null, `no ${sel} on the book edit form`);
+  assert.ok(await ctx.page.$("#genre") && await ctx.page.$("#description"), "the English Genres and Description are there");
+  const genre = (await ctx.page.$eval("#genre", (i) => i.value)).trim();
+  const res = await ctx.goto(`/fr/books/${tagged.id}`);
+  assert.equal(res.status(), 200, "the French book page answers");
+  assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr", "the page around the book is French");
+  if (genre) assert.equal((await ctx.page.$eval(".book-detail-kicker", (k) => k.textContent)).trim(), genre, "the genres are the English ones");
 });
 
 s.write("A15b (must) adding an award shows it on the public book page; removing it takes it away", { as: "admin" }, async (ctx) => {
@@ -1305,6 +1295,7 @@ s.manual("A100 reprice: an exact-count confirmation and an undo of the last run 
 s.manual("A101 blog publish dates are Paris time and bulk publish/draft are audited (covered by test/integration/blogCorrectness.test.js)", "needs waiting for a scheduled date");
 s.manual("A117 Genres: managed list, mapping rules, 'Show matches' and 'Suggest slots with AI' change nothing on a book until you confirm (covered by test/integration/genresAdmin.test.js)", "slotting genres and the AI button change the shared genre rules: left for you to do by hand");
 s.manual("A118 Genres: 'Update all books' previews with before/after examples, applies only the previewed set, and the last run can be undone (covered by test/integration/genresAdmin.test.js and genresRealApp.test.js)", "applying it rewrites the real catalogue: left for you to do by hand");
+s.manual("A119 Genre spelling is tidy: a saved genre loses a stray § and curly apostrophes and takes the known spelling; migration 109 left one Admin activity line (covered by test/integration/genreSpellingSave.test.js and genreSpellingMigration.test.js)", "the migration runs once at deploy on the real catalogue: checked by hand in Admin activity and the backup table");
 
 s.test("A102 (must) on a phone (375 px and 320 px) the admin lists and tables fit the screen, long titles wrap, wide tables say they scroll, and the member calendars are a list", { as: "admin", timeout: 300000 }, async (ctx) => {
   const pages = ["/admin", "/admin/inventory", "/admin/orders", "/admin/members", "/admin/blog", "/admin/announcements", "/admin/reports", "/admin/events", "/admin/meetings", "/admin/volunteer-shifts", "/admin/charity", "/admin/till/day", "/admin/diagnostics/lookup"];

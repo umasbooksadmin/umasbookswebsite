@@ -46,6 +46,10 @@ const COPY_COLUMNS = [
   { key: "publisherPrice", label: "Publisher price (EUR)", type: "eur" },
   { key: "notes", label: "Notes", type: "text" },
   { key: "sold", label: "Date sold", type: "date" },
+  // Added at the END so the older columns keep their place for anyone who built a sheet on them.
+  { key: "acquiredAt", label: "Date received", type: "date" },
+  { key: "acquisitionCost", label: "Cost (EUR)", type: "eur" },
+  { key: "suggestedPrice", label: "Suggested price (EUR)", type: "eur" },
 ];
 
 const BOOK_COLUMNS = [
@@ -114,6 +118,7 @@ function copyRow(r) {
     added: r.added, copyId: r.id, tillCode: `UB-${r.id}`, bookId: r.book_id,
     genres: r.categories, clearance: r.is_clearance ? "Yes" : "No",
     publisherPrice: r.publisher_price, notes: r.notes, sold: r.sold,
+    acquiredAt: r.acquired, acquisitionCost: r.acquisition_cost, suggestedPrice: r.suggested_price,
   };
 }
 
@@ -179,6 +184,7 @@ async function writeCopiesCsv(db, sink, { batch = BATCH, filter = null } = {}) {
     const { rows: page } = await db.query(
       `SELECT c.id, c.book_id, c.condition, c.price, c.publisher_price, c.is_clearance, c.location, c.source,
               c.status, c.notes, ${PARIS_DAY("c.created_at")} AS added, ${PARIS_DAY("c.sold_at")} AS sold,
+              to_char(c.acquired_at, 'YYYY-MM-DD') AS acquired, c.acquisition_cost, c.suggested_price,
               b.isbn, b.title, b.authors, b.publisher, b.published_year, b.binding, b.categories
        FROM book_copies c JOIN books b ON b.id = c.book_id
        WHERE c.id > $${ai}${extra} ORDER BY c.id LIMIT $${ai + 1}`, [...fp.params, after, batch]

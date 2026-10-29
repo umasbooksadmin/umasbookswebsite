@@ -1,88 +1,85 @@
-// The genre clean-up of every save (src/lib/genreClean.js), the translation of the cleaned names, and the canonical
-// spelling of a known genre.
+// The clean-up of every saved book genre (src/lib/genreClean.js), English only: stray §, curly apostrophes, capitals of
+// a known genre, the two sure typos, duplicates, empty parts. Also the write path helpers (normalizeGenres, pickGenres).
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { cleanGenreName, canonicalGenres, tidyFrench, buildKnown, planGenreCleanup } = require("../../src/lib/genreClean");
-const { translateGenresToFrench, STATIC_KNOWN_GENRES, GENRE_ALIASES_FR, COMMON_GENRES, COMMON_GENRES_FR } = require("../../src/lib/bookLookup");
+const { cleanGenreName, cleanList, buildKnown, canonicalGenre, canonicalGenres, planGenreCleanup, GENRE_TYPOS } = require("../../src/lib/genreClean");
+const { COMMON_GENRES, STATIC_KNOWN_GENRES, pickGenres } = require("../../src/lib/bookLookup");
 const { normalizeGenres } = require("../../src/lib/inventory");
 
-test("a curly or typographic apostrophe becomes the straight one", () => {
-  for (const a of ["’", "‘", "ʼ", "′", "`", "´", "‛"]) {
-    assert.equal(cleanGenreName(`Children${a}s Fiction`), "Children's Fiction", JSON.stringify(a));
-  }
-});
+const known = buildKnown({ common: COMMON_GENRES, managed: [{ name_en: "Art & Design" }, { name_en: "Health & Wellness" }] });
 
-test("a stray character at the end is dropped (the § of a Mac ISO keyboard, and the like)", () => {
-  for (const junk of ["§", "±", "`", "~", "*", ".", ";", ":", "\"", "'", "”", "»", " §", "§§", ". ", "-", "–", "…", " "]) {
-    assert.equal(cleanGenreName(`Children's Fiction${junk}`), "Children's Fiction", JSON.stringify(junk));
-  }
-});
-
-test("leading junk is dropped, spaces of every kind are collapsed", () => {
+test("a stray § (or other junk) at the start or end goes, nothing inside a name is touched", () => {
+  assert.equal(cleanGenreName("Children's Fiction§"), "Children's Fiction");
   assert.equal(cleanGenreName("§Fantasy"), "Fantasy");
-  assert.equal(cleanGenreName("* Fantasy"), "Fantasy");
-  assert.equal(cleanGenreName("“Mystery”"), "Mystery");
-  assert.equal(cleanGenreName("'Classics'"), "Classics");
-  assert.equal(cleanGenreName("  Science \t  Fiction  "), "Science Fiction");
+  assert.equal(cleanGenreName("* Mystery. ;"), "Mystery");
+  assert.equal(cleanGenreName("Science-Fiction"), "Science-Fiction");
+  assert.equal(cleanGenreName("Health & Wellbeing"), "Health & Wellbeing");
+  assert.equal(cleanGenreName("Crime (Classic)"), "Crime (Classic)");
+  assert.equal(cleanGenreName("Économie§"), "Économie");
+  assert.equal(cleanGenreName("C++"), "C++");
   assert.equal(cleanGenreName("§"), "");
   assert.equal(cleanGenreName(null), "");
 });
 
-test("legitimate names are left exactly as they are", () => {
-  for (const name of [
-    "Science-Fiction", "Health & Wellbeing", "Crime (Classic)", "Children's Fiction", "Self-help", "Non-fiction",
-    "Sci-Fi", "C++", "C#", "[Rare] Books", "1984 Collection", "WW2", "Arts & Crafts",
-  ]) assert.equal(cleanGenreName(name), name);
+test("curly apostrophes U+2018 and U+2019 (and the other typographic ones) become the straight one", () => {
+  assert.equal(cleanGenreName("Children’s Fiction"), "Children's Fiction");
+  assert.equal(cleanGenreName("Children‘s Fiction"), "Children's Fiction");
+  assert.equal(cleanGenreName("Childrenʼs Fiction"), "Children's Fiction");
+  assert.equal(cleanGenreName("  Children’s   Fiction§ "), "Children's Fiction");
 });
 
-test("French names, accented letters included, are left exactly as they are", () => {
-  for (const name of [...COMMON_GENRES_FR, ...GENRE_ALIASES_FR.map(([, fr]) => fr), "Économie et gestion", "Santé & Bien-être", "Décoration d'intérieur", "Œuvres complètes", "Été"]) {
-    assert.equal(cleanGenreName(name), name);
+test("a known genre takes its own capitals and spelling; an unknown one is only cleaned", () => {
+  assert.equal(canonicalGenre("art & design", known), "Art & Design");
+  assert.equal(canonicalGenre("art & Design", known), "Art & Design");
+  assert.equal(canonicalGenre("SCIENCE FICTION", known), "Science Fiction");
+  assert.equal(canonicalGenre("children’s fiction§", known), "Children's Fiction");
+  assert.equal(canonicalGenre("Gothic Horrors§", known), "Gothic Horrors", "unknown: cleaned, not guessed");
+  assert.equal(canonicalGenre("Mistery", known), "Mistery", "a typo that is not in the list is NOT corrected");
+});
+
+test("typos only where the mapping is certain", () => {
+  assert.deepEqual(GENRE_TYPOS.map((t) => t[0]), ["chidren's fiction", "childrens fiction"]);
+  assert.equal(canonicalGenre("Chidren's Fiction", known), "Children's Fiction");
+  assert.equal(canonicalGenre("Chidren’s Fiction§", known), "Children's Fiction");
+  assert.equal(canonicalGenre("Childrens Fiction", known), "Children's Fiction");
+  assert.equal(canonicalGenre("Children's Books", known), "Children's Books", "not a typo of a known genre: left alone");
+  // A managed spelling of the genre wins over the taxonomy's, typo or not.
+  const k2 = buildKnown({ common: COMMON_GENRES, managed: [{ name_en: "Children's fiction" }] });
+  assert.equal(canonicalGenre("Chidren's Fiction", k2), "Children's fiction");
+});
+
+test("a list: duplicates (any capitals) dropped, empty parts dropped, order kept, tidy ', ' separator", () => {
+  assert.equal(canonicalGenres("Fiction,fiction ,, §, Mystery ,Fiction", known), "Fiction, Mystery");
+  assert.equal(canonicalGenres("Children's Fiction§, Children’s Fiction, Chidren's Fiction", known), "Children's Fiction");
+  assert.equal(canonicalGenres("Fantasy; Epic, art & design", known), "Fantasy; Epic, Art & Design");
+  assert.equal(canonicalGenres("", known), null);
+  assert.equal(canonicalGenres(null, known), null);
+  assert.equal(canonicalGenres(" , §, ", known), null);
+  assert.deepEqual(cleanList("A, b ,, §"), ["A", "b"]);
+});
+
+test("planGenreCleanup: only a real change counts; spacing alone and 'nothing left' leave the value as stored", () => {
+  assert.equal(planGenreCleanup("Children's Fiction§", known), "Children's Fiction");
+  assert.equal(planGenreCleanup("art & Design, Fiction", known), "Art & Design, Fiction");
+  assert.equal(planGenreCleanup("Fiction,Mystery", known), "Fiction,Mystery", "spacing around commas only: untouched");
+  assert.equal(planGenreCleanup("Gothic", known), "Gothic");
+  assert.equal(planGenreCleanup("§", known), "§", "a genre list that would be empty is not wiped by a data fix");
+  assert.equal(planGenreCleanup(null, known), null);
+  assert.equal(planGenreCleanup("", known), "");
+  // idempotent
+  for (const v of ["Children's Fiction§", "chidren’s fiction, ART & design", "Fiction, fiction"]) {
+    const once = planGenreCleanup(v, known);
+    assert.equal(planGenreCleanup(once, known), once, v);
   }
 });
 
-test("translateGenresToFrench translates the cleaned names", () => {
-  assert.equal(translateGenresToFrench("Children's Fiction"), "Fiction jeunesse");
-  assert.equal(translateGenresToFrench("Children’s Fiction"), "Fiction jeunesse");
-  assert.equal(translateGenresToFrench("Children's Fiction§"), "Fiction jeunesse");
-  assert.equal(translateGenresToFrench("children’s fiction§, MYSTERY."), "Fiction jeunesse, Policier");
-  assert.equal(translateGenresToFrench("Gothic§"), "Gothic", "outside the taxonomy: kept, cleaned");
-  assert.equal(translateGenresToFrench("Science Fiction, , Fantasy"), "Science-fiction, Fantasy");
-});
-
-test("a known genre takes its canonical spelling; others stay as typed, cleaned", () => {
-  assert.equal(normalizeGenres("children’s fiction§"), "Children's Fiction");
-  assert.equal(normalizeGenres("young adult fiction, gothic novel§"), "Young Adult Fiction, gothic novel");
-  assert.equal(normalizeGenres("Children's Fiction§, Children’s Fiction"), "Children's Fiction", "duplicates after the clean-up collapse");
-  assert.equal(normalizeGenres("§, ±"), null);
-  const known = buildKnown({ common: COMMON_GENRES, commonFr: COMMON_GENRES_FR, managed: [{ name_en: "Health & Wellness", name_fr: "Santé & Bien-être" }, { name_en: "Fiction", name_fr: "" }] });
-  assert.equal(canonicalGenres("health & wellness*", known), "Health & Wellness");
-  assert.equal(known.get("fiction").fr, "Fiction", "a managed genre without a French name takes the taxonomy's");
-});
-
-test("tidyFrench: the stray §, and an English name of a known genre, are fixed; real French is kept", () => {
-  const k = STATIC_KNOWN_GENRES;
-  assert.equal(tidyFrench("Children's Fiction§", "Children's Fiction", k), "Fiction jeunesse");
-  assert.equal(tidyFrench("Children’s Fiction", "Children's Fiction", k), "Fiction jeunesse");
-  assert.equal(tidyFrench("Fiction jeunesse§", "Children's Fiction", k), "Fiction jeunesse");
-  assert.equal(tidyFrench("", "Children's Fiction, Gothic", k), "Fiction jeunesse, Gothic", "no French: made from the English");
-  assert.equal(tidyFrench("Roman gothique", "Gothic", k), "Roman gothique", "hand-typed French is kept");
-  assert.equal(tidyFrench("Policier, Mystery", "Mystery", k), "Policier", "duplicates collapse");
-});
-
-test("no French name of the lists is itself the English of a DIFFERENT known genre (a French entry is never re-translated wrongly)", () => {
-  for (const fr of [...COMMON_GENRES_FR, ...GENRE_ALIASES_FR.map(([, f]) => f)]) {
-    const hit = STATIC_KNOWN_GENRES.get(fr.toLowerCase());
-    if (hit) assert.equal(hit.fr, fr, fr);
-  }
-});
-
-test("planGenreCleanup (what migration 107 does to one book)", () => {
-  const k = STATIC_KNOWN_GENRES;
-  assert.deepEqual(planGenreCleanup("Children's Fiction§", "Children's Fiction§", k), { en: "Children's Fiction", fr: "Fiction jeunesse" });
-  assert.deepEqual(planGenreCleanup("Children's Fiction", null, k), { en: "Children's Fiction", fr: "Fiction jeunesse" });
-  assert.deepEqual(planGenreCleanup("Fiction,Mystery", "Fiction,Policier", k), { en: "Fiction,Mystery", fr: "Fiction,Policier" }, "spacing alone: untouched");
-  assert.deepEqual(planGenreCleanup("Gothic", null, k), { en: "Gothic", fr: null }, "unknown genre, no French: untouched");
-  assert.deepEqual(planGenreCleanup("§", "§", k), { en: "§", fr: "§" }, "nothing would be left: untouched");
+test("write path helpers: normalizeGenres and pickGenres use the same clean-up", () => {
+  assert.equal(normalizeGenres("Children's Fiction§"), "Children's Fiction");
+  assert.equal(normalizeGenres("children’s fiction, Chidren's Fiction"), "Children's Fiction");
+  assert.equal(normalizeGenres(" Fantasy ,fiction, Fantasy"), "Fantasy, Fiction");
+  assert.equal(normalizeGenres("Gothic, gothic"), "Gothic");
+  assert.equal(normalizeGenres("§"), null);
+  assert.ok(STATIC_KNOWN_GENRES.has("science fiction"));
+  assert.equal(pickGenres(["Gothic tales§"]), "Gothic tales");
 });

@@ -76,9 +76,9 @@ async function seed(databaseUrl, creds) {
 
   const book = async (b, copies, awards = []) => {
     const { rows } = await db.query(
-      `INSERT INTO books (isbn, title, authors, categories, categories_fr, binding, description, description_fr)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [b.isbn || null, b.title, b.author, b.categories || "Fiction", b.categoriesFr || "Fiction", b.binding || "trade", b.description || "A sample book.", b.descriptionFr || "Un livre d’exemple."]
+      `INSERT INTO books (isbn, title, authors, categories, binding, description)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [b.isbn || null, b.title, b.author, b.categories || "Fiction", b.binding || "trade", b.description || "A sample book."]
     );
     for (const c of copies) {
       await db.query(
@@ -122,9 +122,9 @@ async function seed(databaseUrl, creds) {
   // newest first by the time of day, and the arrows must still land on whole cards.
   await db.query(
     `WITH b AS (
-       INSERT INTO books (title, authors, categories, categories_fr, binding, description, description_fr)
+       INSERT INTO books (title, authors, categories, binding, description)
        SELECT 'E2E Sample New In Bulk ' || g || CASE WHEN g % 5 = 0 THEN ' with a much longer subtitle on a narrow card' ELSE '' END,
-              'Bulk Author ' || g, 'Fiction', 'Fiction', 'trade', 'A sample book.', 'Un livre d’exemple.'
+              'Bulk Author ' || g, 'Fiction', 'trade', 'A sample book.'
        FROM generate_series(1, 230) g RETURNING id, title)
      INSERT INTO book_copies (book_id, condition, price, status, is_clearance, location, source, created_at)
      SELECT id, 'very_good', 4, 'in_stock', FALSE, 'Shelf A', 'donation',

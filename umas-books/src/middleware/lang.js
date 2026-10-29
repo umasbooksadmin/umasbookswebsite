@@ -78,8 +78,8 @@ function langMiddleware(req, res, next) {
   res.locals.assetUrl = assetUrl; // versioned /assets, /style.css ... URLs (lib/assetUrl.js)
   res.locals.eur = (n) => formatEuro(n, lang);
   res.locals.conditionLabel = (value) => conditionLabel(value, lang);
-  res.locals.genreLabel = (genre) => genreLabel(genre, lang);
-  res.locals.genresLabel = (csv, storedFr) => genresLabel(csv, lang, storedFr);
+  res.locals.genreLabel = (genre) => genreLabel(genre); // books have English genres only, on /fr/ too (lib/genres.js)
+  res.locals.genresLabel = (csv) => genresLabel(csv);
   res.locals.bookText = (text, language) => bookText(text, lang, language);
   res.locals.escHtml = escHtml; // for the few views that build a mixed sentence around bookText()
   res.locals.favName = (title, language) => favName(title, lang, language);

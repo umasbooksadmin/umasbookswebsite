@@ -77,7 +77,7 @@ const get = (p, o) => request(p, o);
 const post = (p, o) => request(p, { ...o, method: "POST" });
 const asJson = { accept: "application/json" };
 
-const copyBody = (title, extra = {}) => ({ title, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5", ...extra });
+const copyBody = (title, extra = {}) => ({ title, description: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5", ...extra });
 
 // ------------------------------------------------------------ the JSON lookup
 

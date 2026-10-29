@@ -211,7 +211,7 @@ function normalizeStatus(value) {
 // "Fantasy, Fiction" form so the same genre typed with different
 // spacing or casing doesn't show up twice in the genre filters. Each genre
 // is cleaned (curly apostrophe, a stray § at the end... see lib/genreClean.js)
-// and a genre of the fixed taxonomy takes its own spelling ("children's
+// and a genre of the fixed list takes its own spelling ("children's
 // fiction" -> "Children's Fiction"). The save paths then do the same with the
 // managed genres of Admin > Genres (lib/genreRules.js applyRulesToBook).
 function normalizeGenres(value) {

@@ -85,8 +85,8 @@ router.post("/admin/inventory/suggest", requireAdmin, async (req, res) => {
     book: {
       isbn, title: (b.title || "").trim() || null, author: (b.author || "").trim() || null, publisher: (b.publisher || "").trim() || null,
       publishedYear: b.publishedYear ? Number(b.publishedYear) : null, description: (b.description || "").trim() || null,
-      descriptionFr: (b.descriptionFr || "").trim() || null, coverUrl: (b.coverUrl || "").trim() || null,
-      genre: normalizeGenres(b.genre), genreFr: (b.genreFr || "").trim() || null, binding,
+      coverUrl: (b.coverUrl || "").trim() || null,
+      genre: normalizeGenres(b.genre), binding,
     },
     fromScan: b.fromScan === "1",
     selectedCondition: condition,
