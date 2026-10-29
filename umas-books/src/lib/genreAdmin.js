@@ -3,7 +3,7 @@
 // lib/genreRun.js, the matching in lib/genreRules.js, the AI help in lib/genreSuggest.js.
 //
 // Managed genres have an English name only (Sharon, 2026-10-28: books have English genres, the French site shows them):
-// managed_genres.name_fr / browse_label_fr are left in the table but never written or read any more.
+// the table has no French name or French Browse label (dropped by migration 108).
 //
 // Nothing here changes a book. Every edit of a managed genre or a rule clears the caches (rules, found genres, Browse
 // buttons), so the next page and the next save see it.

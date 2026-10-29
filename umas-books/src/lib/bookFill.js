@@ -9,7 +9,7 @@
 // a cover that could not be downloaded keeps its source address for the 5-minute
 // cover job (coverStore.backfillCovers), as before.
 // Books have no French description or French genre (Sharon, 2026-10-28): nothing French is ever written here; the
-// French site shows the English description (migration 107 emptied books.description_fr / categories_fr).
+// French site shows the English description (the books table has no French columns since migration 108).
 
 const { lookupByIsbn, searchByTitleAuthor, isbnCoverUrl } = require("./bookLookup");
 const { prepareCover } = require("./coverStore");

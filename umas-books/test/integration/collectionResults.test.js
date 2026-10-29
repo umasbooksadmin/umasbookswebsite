@@ -31,9 +31,9 @@ async function newShelf(slug, count, { published = true } = {}) {
     // book n is shown at position n; every other title has a longer subtitle so cards differ in height; every 7th has no cover
     await pool.query(
       `WITH b AS (
-         INSERT INTO books (title, authors, categories, categories_fr, binding, description, description_fr)
+         INSERT INTO books (title, authors, categories, binding, description)
          SELECT ${"'" + slug + " Book '"} || lpad(g::text, 3, '0') || CASE WHEN g % 5 = 0 THEN ' with a much longer subtitle on a narrow card' ELSE '' END,
-                'Author ' || g, 'Fiction', 'Fiction', 'trade', 'x', 'x'
+                'Author ' || g, 'Fiction', 'trade', 'x'
          FROM generate_series(1, $1::int) g RETURNING id, title),
        c AS (INSERT INTO book_copies (book_id, condition, price, status) SELECT id, 'good', 5, 'in_stock' FROM b RETURNING 1)
        INSERT INTO curated_collection_books (collection_id, book_id, status, position)

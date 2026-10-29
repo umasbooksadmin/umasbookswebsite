@@ -207,8 +207,8 @@ reservation) and `book_requests.lang`; an empty value means English. French mail
 carry the same no-break spaces as the pages. A crawler test reads every customer page,
 form message and email in French and fails on English left in them (`docs/i18n-audit.md`). Books
 have an English description and English genres only (Sharon, 2026-10-28): the French
-site shows them in English, marked `lang="en"` (migration 107 emptied the old
-`description_fr` / `categories_fr` columns into `book_french_backup`; runbook section aq).
+site shows them in English, marked `lang="en"` (migration 107 copied the old French book
+texts into `book_french_backup` and migration 108 dropped the columns; runbook section aq).
 Admin screens, and the admin-only alert emails, stay English.
 
 **Preview mode.** `lib/preview.js` reads `PREVIEW_MODE` (`true` or `1`) on every

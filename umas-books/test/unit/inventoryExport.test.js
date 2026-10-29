@@ -34,7 +34,7 @@ const dbRow = {
   source: "donation", status: "in_stock", notes: '=HYPERLINK("http://x")', added: "2026-10-01", sold: null,
   isbn: "978-2-07-036822-8", title: 'Le "Petit" Prince; suite', authors: "A. de Saint-Exupéry", publisher: "Gallimard",
   published_year: 1999, binding: "mass_market", categories: "Fiction, Classics",
-  acquired: "2026-09-15", acquisition_cost: "0.00", suggested_price: "5.00", categories_fr: "Fiction, Classiques", // a leftover French genre is never exported
+  acquired: "2026-09-15", acquisition_cost: "0.00", suggested_price: "5.00",
 };
 
 test("one copy line: semicolons, decimal comma, quoted text, bare numbers, neutralised formula, labels", () => {
@@ -101,7 +101,7 @@ test("zero rows: just the header", async () => {
 });
 
 test("book rows: totals and the donated/withdrawn remainder", async () => {
-  const b = { id: 1, isbn: "9780306406157", title: "T", authors: null, publisher: null, published_year: null, binding: null, categories: null, copies: 5, in_stock: 2, reserved: 1, sold: 1, categories_fr: "Fiction" };
+  const b = { id: 1, isbn: "9780306406157", title: "T", authors: null, publisher: null, published_year: null, binding: null, categories: null, copies: 5, in_stock: 2, reserved: 1, sold: 1 };
   let text = "";
   await x.writeBooksCsv(fakeDb([b]), (s) => { text += s; });
   assert.equal(text.split("\r\n")[1], '1;"9780306406157";"0306406152";"T";"";"";;"";"";5;2;1;1;1');

@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { buildBookSeo, itemCondition, absoluteUrl } = require("../../src/lib/bookSeo");
 const { translator } = require("../../src/lib/lang");
 
-const book = { id: 7, title: "Emma", authors: "Jane Austen", cover_url: "/img/abc", description: "A <comedy> of manners.", description_fr: "Une comédie de mœurs.", isbn: "9780141439587", binding: "trade" };
+const book = { id: 7, title: "Emma", authors: "Jane Austen", cover_url: "/img/abc", description: "A <comedy> of manners.", isbn: "9780141439587", binding: "trade" };
 const copies = [
   { condition: "very_good", price: "4.50" },
   { condition: "new", price: "9.90" },
@@ -36,7 +36,7 @@ test("Book + Offer JSON-LD has the fields search engines need", () => {
   assert.equal(jsonLd.offers.find((x) => x.price === "9.90").itemCondition, "https://schema.org/NewCondition");
 });
 
-test("French uses the English description (books have no French one; a leftover description_fr is ignored); no copies means no offers; external covers stay as they are", () => {
+test("French uses the English description (books have no French one); no copies means no offers; external covers stay as they are", () => {
   const seo = buildBookSeo({ book: { ...book, cover_url: "https://covers.openlibrary.org/x.jpg" }, copies: [], base, lang: "fr", tr: translator("fr") });
   assert.equal(seo.description, "A <comedy> of manners.");
   assert.equal(seo.jsonLd.offers, undefined);
@@ -44,7 +44,7 @@ test("French uses the English description (books have no French one; a leftover 
 });
 
 test("a book with no description gets a sentence; no base URL means no relative cover is invented", () => {
-  const seo = buildBookSeo({ book: { ...book, description: "", description_fr: "" }, copies, base: "", lang: "en", tr: translator("en") });
+  const seo = buildBookSeo({ book: { ...book, description: "" }, copies, base: "", lang: "en", tr: translator("en") });
   assert.match(seo.description, /^Emma by Jane Austen/);
   assert.equal(seo.ogImage, "");
   assert.equal(absoluteUrl("", "/x"), "");
