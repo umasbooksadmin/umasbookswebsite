@@ -11,7 +11,7 @@
 //   --force                  allow the current month or a future month (tests only; the workflow then
 //                            does not store the files, see output complete=false)
 //
-// Files (same CSV dialect as the admin export: UTF-8 BOM, semicolon, decimal comma, CRLF):
+// Files (same CSV dialect as the admin export: UTF-8 BOM, | separator, no quotes, decimal point, CRLF):
 //   accounting_<label>.csv  till_days_<label>.csv  summary_<label>.txt  email_body.txt
 // The log shows counts and totals only, never a data row.
 require("dotenv").config({ quiet: true });

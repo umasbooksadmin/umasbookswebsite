@@ -109,36 +109,36 @@ function formatCell(value, type, { csv = false } = {}) {
 
 // ---------- CSV ----------
 
-// One CSV cell. Text is always quoted (quotes doubled); a text cell that a
-// spreadsheet could read as a formula (starts with = + - @, or a tab/CR) gets
-// a leading apostrophe so it stays plain text. Numbers are written bare.
+// THE CSV FORMAT (every CSV the system produces, since 2026-10-30): "|" between
+// values, NO text qualifier (no quote marks anywhere, header included), a decimal
+// POINT in money and numbers (8.00), UTF-8 BOM (so Excel shows accents) and CRLF
+// line ends. Open in Excel with Data > From Text/CSV, Delimiter: Custom, |.
+// Because there is no quoting, a value must never contain the delimiter or a line
+// break: csvCell() turns "|" into "/" and any run of CR / LF / tab into one space.
+// Spreadsheet formula protection is kept: a text cell that starts with = + - @
+// (or a tab / CR, or those after leading whitespace) gets a leading apostrophe so
+// it stays plain text. Numbers are written bare.
+const CSV_SEP = "|";
 function csvCell(value) {
   if (value === null || value === undefined) return "";
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
-  let s = String(value);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return `"${s.replace(/"/g, '""')}"`;
+  const raw = String(value);
+  let s = raw.replace(/\|/g, "/").replace(/[\r\n\t]+/g, " ");
+  if (/^[=+\-@\t\r]/.test(raw) || /^\s*[=+\-@]/.test(s)) s = `'${s}`;
+  return s;
 }
 
-// Two CSV dialects. "neutral" (the default): comma separator, decimal point.
-// "fr" (for French Excel, which reads a comma file as ONE column of text):
-// semicolon separator, decimal comma, and always UTF-8 BOM + CRLF.
-function csvDialect(locale) {
-  return locale === "fr" ? { sep: ";", decimal: "," } : { sep: ",", decimal: "." };
-}
+// Kept for old bookmarks: ?locale=fr and ?format=csv-fr are still accepted but
+// give the same pipe file as every other download.
 const wantsFrenchCsv = (query = {}) => query.locale === "fr" || query.format === "csv-fr";
-const csvDecimal = (text, dialect) => (dialect.decimal === "," ? String(text).replace(".", ",") : String(text));
 
-// A section as CSV text: header row, data rows, then the totals row. UTF-8
-// BOM first so Excel reads accents correctly; CRLF line ends.
-function toCsv(section, { locale } = {}) {
-  const d = csvDialect(locale);
-  const lines = [section.columns.map((c) => csvCell(c.label)).join(d.sep)];
+// A section as CSV text: header row, data rows, then the totals row (BOM first, CRLF).
+function toCsv(section) {
+  const lines = [section.columns.map((c) => csvCell(c.label)).join(CSV_SEP)];
   const asRow = (row) => section.columns.map((c) => {
     const cell = formatCell(row[c.key], c.type, { csv: true });
-    if (c.type === "text" || c.type === "date") return csvCell(cell);
-    return c.type === "int" ? cell : csvDecimal(cell, d);
-  }).join(d.sep);
+    return c.type === "text" || c.type === "date" ? csvCell(cell) : cell;
+  }).join(CSV_SEP);
   for (const row of section.rows) lines.push(asRow(row));
   if (section.totals && section.csvTotals !== false) lines.push(asRow(section.totals));
   return "\uFEFF" + lines.join("\r\n") + "\r\n";
@@ -756,5 +756,5 @@ module.exports = {
   PAID_ORDERS_BY_ACCOUNT_SQL,
   REPORTS, GROUPS, LIST_LIMIT, ACCOUNTS_PAGE_SIZE, getReport, runReport,
   validDay, todayParis, subMonths, addDays, parseDateRange, parseGroup, agingCutoffs, agingBucket,
-  formatCell, csvCell, toCsv, csvDialect, csvDecimal, wantsFrenchCsv,
+  formatCell, csvCell, toCsv, CSV_SEP, wantsFrenchCsv,
 };

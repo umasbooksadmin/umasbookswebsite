@@ -190,11 +190,11 @@ test("Accounts report CSV: BOM, headers, filtered rows, formula-safe, audited, n
   assert.match(res.headers.get("content-type"), /text\/csv/);
   assert.match(res.headers.get("content-disposition"), /umas-books-accounts-accounts\.csv/);
   assert.equal(res.headers.get("cache-control"), "no-store");
-  assert.ok(text.startsWith("﻿\"Name\",\"Email\",\"Type\",\"Member until\",\"Email confirmed\",\"Created\",\"Last login\",\"Paid reservations\",\"Total spent\",\"Disabled\""));
-  assert.match(text, /"'=HYPERLINK\(""x""\)"/);
+  assert.ok(text.startsWith("\uFEFFName|Email|Type|Member until|Email confirmed|Created|Last login|Paid reservations|Total spent|Disabled"));
+  assert.match(text, /\n'=HYPERLINK\("x"\)\|/);
   assert.ok(text.includes(u.holder.email) && text.includes(u.expired.email));
   assert.ok(!text.includes(u.paying.email), "filter applies to the CSV");
-  assert.match(text, /,1,60\.00,"yes"/);
+  assert.match(text, /\|1\|60\.00\|yes/);
   const { rows } = await pool.query("SELECT detail FROM admin_audit_log WHERE action = 'report.csv' AND detail = 'accounts'");
   assert.ok(rows.length >= 1);
   await pool.query("UPDATE users SET display_name = 'Hana Holder' WHERE id = $1", [u.holder.id]);

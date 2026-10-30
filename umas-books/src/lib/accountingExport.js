@@ -1,6 +1,6 @@
 // The treasurer's records, produced without anyone opening the admin: the SAME accounting
 // code as Admin > Reports > Accounting export (lib/accounting.js accountingExportReport and
-// lib/reports.js toCsv in the French Excel dialect), plus the till end-of-day figures and a short
+// lib/reports.js toCsv: "|" separated, no quotes, decimal point), plus the till end-of-day figures and a short
 // summary. Used by scripts/export-accounting-month.js (the monthly GitHub workflow and the
 // yearly export of the nightly backup workflow). Read-only: SELECTs only.
 //
@@ -132,7 +132,7 @@ const PHONE_RES = [/(?:\+|\b00)\d[\d .-]{7,}\d/, /\b0[1-9](?:[ .-]?\d{2}){4}\b/,
 function assertNoPersonalData(name, text, expectedHeader) {
   if (expectedHeader) {
     const first = text.replace(/^\uFEFF/, "").split("\r\n")[0];
-    const header = first.split(";").map((c) => c.replace(/^"|"$/g, "").replace(/""/g, '"'));
+    const header = first.split("|");
     if (JSON.stringify(header) !== JSON.stringify(expectedHeader)) {
       throw new Error(`${name}: the columns are not the expected list (a column was added or changed). Refusing to write it until it is reviewed for personal data.`);
     }
@@ -244,9 +244,9 @@ function summaryText({ range, rows, tillRows, counts: c, generatedOn }) {
 async function buildExport(db, range, { now = new Date() } = {}) {
   const report = await accountingExportReport(db, { from: range.from, to: range.to });
   const section = report.sections[0];
-  const accountingCsv = toCsv(section, { locale: "fr" });
+  const accountingCsv = toCsv(section);
   const tRows = await tillDays(db, range);
-  const tillCsv = toCsv({ columns: TILL_COLUMNS, rows: tRows, csvTotals: false }, { locale: "fr" });
+  const tillCsv = toCsv({ columns: TILL_COLUMNS, rows: tRows, csvTotals: false });
   const c = await counts(db, range);
   const p = parisParts(now);
   const summary = summaryText({ range, rows: section.rows, tillRows: tRows, counts: c, generatedOn: `${p.y}-${pad(p.m)}-${pad(p.d)}` });
@@ -275,7 +275,7 @@ function emailBody(range, stats) {
   const lines = [
     `Attached are the accounting files for ${what} (Paris days ${range.from} to ${range.to}).`,
     "",
-    `- ${names.accounting}: the accounting export (the same file as Admin > Reports > Accounting export, French Excel format).`,
+    `- ${names.accounting}: the accounting export (the same file as Admin > Reports > Accounting export). Values are separated by | with no quotes and a decimal point: in Excel use Data > From Text/CSV, Delimiter: Custom, |.`,
     `- ${names.till}: the end-of-day summary of the till, one row per day.`,
     "",
     `Rows in the accounting export: ${stats.accountingRows}. Total: ${eurText(stats.totalCents)} EUR.`,

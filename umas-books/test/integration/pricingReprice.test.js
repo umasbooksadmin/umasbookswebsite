@@ -404,9 +404,9 @@ test("CSV: every changed copy with before and after, audited, admin only, and qu
   assert.match(res.res.headers.get("content-type"), /text\/csv/);
   assert.match(res.res.headers.get("content-disposition"), /attachment; filename="umas-books-reprice-run-\d+-trade\.csv"/);
   const lines = res.text.replace(/^\uFEFF/, "").trim().split("\r\n");
-  assert.equal(lines[0], '"run","group","copy_id","book_id","title","binding","old_price","new_price","old_suggested_price","old_suggested_level","old_price_basis"');
+  assert.equal(lines[0], 'run|group|copy_id|book_id|title|binding|old_price|new_price|old_suggested_price|old_suggested_level|old_price_basis');
   assert.equal(lines.length, 2);
-  assert.ok(lines[1].startsWith(`${run.id},"trade",${c1.id},${b.id},"'=HYPERLINK(""x""), ""q""","trade",8.50,5.00,,`), lines[1]);
+  assert.ok(lines[1].startsWith(`${run.id}|trade|${c1.id}|${b.id}|'=HYPERLINK("x"), "q"|trade|8.50|5.00||`), lines[1]);
   assert.equal((await auditRows("pricing.reprice.csv")).length, 1);
   assert.equal((await h.get(`/admin/pricing/reprice/runs/${run.id}/export.csv`, h.member)).res.status, 403);
   assert.equal((await h.get(`/admin/pricing/reprice/runs/99999/export.csv`)).res.status, 404);

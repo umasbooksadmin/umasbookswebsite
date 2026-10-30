@@ -286,8 +286,8 @@ test("reservations report: per month made, collected / expired / cancelled / ope
   assert.doesNotMatch(text, /Secret Reserver|reserver-secret/, "no names or email addresses");
 
   const lines = (await csv("/admin/reports/reservations?format=csv&from=2024-06-01&to=2024-07-31")).lines;
-  assert.equal(lines[0], '"Month","Reserved","Collected (sold)","Expired / no-show","Cancelled","Still open","Value collected","Conversion"');
-  assert.equal(lines[1].slice(0, 24), '"2024-06",5,2,1,2,0,15.0');
+  assert.equal(lines[0], 'Month|Reserved|Collected (sold)|Expired / no-show|Cancelled|Still open|Value collected|Conversion');
+  assert.equal(lines[1].slice(0, 22), '2024-06|5|2|1|2|0|15.0');
   assert.ok(!lines.join("\n").includes("@"));
   const { rows } = await pool.query("SELECT 1 FROM admin_audit_log WHERE action = 'report.csv' AND detail = 'reservations'");
   assert.equal(rows.length, 1, "the download is logged with the slug only");
@@ -407,9 +407,9 @@ test("CSV: attachment with BOM, header row, quoted cells, totals row, and an aud
   assert.match(res.headers.get("content-type"), /^text\/csv; charset=utf-8/);
   assert.match(res.headers.get("content-disposition"), /^attachment; filename="[^"]+\.csv"$/);
   assert.ok(bom, "UTF-8 byte order mark so Excel reads accents");
-  assert.equal(lines[0], '"Genre","In stock","In stock value","Reserved","Reserved value","Total copies","Total value"');
-  assert.ok(lines.includes('"Fantasy",3,14.50,0,0.00,3,14.50'), lines.join("\n"));
-  assert.equal(lines.at(-1), '"Total",5,38.50,1,3.00,6,41.50');
+  assert.equal(lines[0], 'Genre|In stock|In stock value|Reserved|Reserved value|Total copies|Total value');
+  assert.ok(lines.includes('Fantasy|3|14.50|0|0.00|3|14.50'), lines.join("\n"));
+  assert.equal(lines.at(-1), 'Total|5|38.50|1|3.00|6|41.50');
   const { rows } = await pool.query("SELECT detail FROM admin_audit_log WHERE action = 'report.csv'");
   assert.ok(rows.some((r) => r.detail === "inventory"));
   // The .csv extension works too, and each download is logged with the slug only.
@@ -426,18 +426,18 @@ test("CSV: attachment with BOM, header row, quoted cells, totals row, and an aud
 test("CSV: a title starting with = is escaped so a spreadsheet cannot run it", async () => {
   await ensureStock();
   const { lines, text } = await csv("/admin/reports/aging?format=csv&table=oldest");
-  assert.equal(lines[0], '"Title","Author","Price","Location","Acquired"');
-  assert.equal(lines[1], `"'=cmd","Some Author",4.00,"A1","${daysAgo(800)}"`);
-  assert.ok(!text.includes(',"=cmd"') && !text.includes('\n"=cmd"'));
+  assert.equal(lines[0], 'Title|Author|Price|Location|Acquired');
+  assert.equal(lines[1], `'=cmd|Some Author|4.00|A1|${daysAgo(800)}`);
+  assert.ok(!text.includes('|=cmd') && !text.includes('\n=cmd'));
 });
 
 test("CSV: the date range and the group choice apply to the download", async () => {
   const month = (await csv(`/admin/reports/sales?format=csv&${Y2024}&group=month`)).lines;
-  assert.equal(month[0], '"Period","Reserved-online items","Reserved-online revenue","Shop items","Shop revenue","Total revenue","Average per item"');
-  assert.equal(month[1], '"2024-03",1,6.00,1,7.50,13.50,6.75');
+  assert.equal(month[0], 'Period|Reserved-online items|Reserved-online revenue|Shop items|Shop revenue|Total revenue|Average per item');
+  assert.equal(month[1], '2024-03|1|6.00|1|7.50|13.50|6.75');
   const april = (await csv("/admin/reports/sales?format=csv&from=2024-04-01&to=2024-04-30&group=year")).lines;
-  assert.deepEqual(april.slice(1), ['"2024",1,9.00,2,9.00,18.00,6.00', '"Total",1,9.00,2,9.00,18.00,6.00']);
+  assert.deepEqual(april.slice(1), ['2024|1|9.00|2|9.00|18.00|6.00', 'Total|1|9.00|2|9.00|18.00|6.00']);
   const dropin = (await csv(`/admin/reports/sales?format=csv&table=dropin&${Y2024}`)).lines;
-  assert.equal(dropin[0], '"Period","Seats sold","Revenue"');
-  assert.equal(dropin.at(-1), '"Total",2,22.00');
+  assert.equal(dropin[0], 'Period|Seats sold|Revenue');
+  assert.equal(dropin.at(-1), 'Total|2|22.00');
 });

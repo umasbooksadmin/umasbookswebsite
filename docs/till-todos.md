@@ -9,8 +9,7 @@ negative row on the refund day; a closed day's cash difference gives a
 "Cash over/short" row; the opening float is never counted. The accounts come
 from the editable table `accounting_map` (`/admin/reports/accounting/mapping`),
 whose defaults (530 cash, 511 or 512 for cards, cheques and HelloAsso (HelloAsso is memberships only: reservations are paid in person), 707/706/756/754/708
-income, 658/758 over/short) are a guess to be confirmed. There is also a French
-Excel variant of every CSV (`&locale=fr`).
+income, 658/758 over/short) are a guess to be confirmed. Every CSV now uses the pipe format (`|`, no quotes, decimal point; since 2026-10-30).
 Ask the treasurer to confirm the import layout. Question for the treasurer: does Paheko's import (or the accountant's software)
 accept this layout, and which columns, date format, decimal separator and
 account codes does it want? Nothing here was checked against Paheko: do not

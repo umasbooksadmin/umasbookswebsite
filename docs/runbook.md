@@ -1652,19 +1652,27 @@ If you scan a copy that is "in someone's online cart" and the cart's hour has ru
 (nobody paid), the till offers **Release this copy from the expired cart and add it**.
 If the cart is still live it refuses and says how many minutes remain.
 
+### CSV format of every download
+
+Since 2026-10-30 every CSV the system produces (all reports and the accounting export, the till's end of day, the inventory downloads and the nightly inventory email, the monthly and yearly accounting files in Backblaze, the price-change run file) has the same format: **`|` (pipe) between values, no quote marks anywhere (header included), a decimal point in money (`8.00`)**, UTF-8 with a byte-order mark (so Excel shows accents) and Windows line ends. File names and `.csv` extensions are unchanged. There is no French-Excel variant any more: the old `&locale=fr` / `format=csv-fr` links still work and give the same file.
+
+Because nothing is quoted, a value can never contain the delimiter or a line break: a `|` inside a title or note is written as `/`, and line breaks or tabs become one space. A text starting with `=`, `+`, `-` or `@` gets a leading apostrophe so Excel cannot run it as a formula.
+
+**Open in Excel:** Data > From Text/CSV, File Origin *UTF-8*, Delimiter *Custom*, type `|`, Load (double-clicking the file shows one column, because Excel only splits on its own list separator).
+
+**Older files:** files stored in Backblaze (accounting-exports/, inventory-exports/) before 2026-10-30 are in the OLD format (semicolon separator, decimal comma, text in quotes); open those with delimiter *Semicolon*. Nothing re-reads the files automatically (the freshness checks only look at file names and times).
+
 ### The accounting export for the treasurer
 
 **Reports > Accounting export**: choose the dates, then **Download CSV**
-(comma separators and decimal points) or **Download for French Excel**
-(semicolon separators, decimal commas, UTF-8 with BOM, Windows line ends: French
-Excel opens it in columns with real numbers; the plain CSV opens as one column
-of text in French Excel). The same two downloads exist on the End of day page
+(the pipe format, see "CSV format of every download" below: `|` between values,
+no quotes, decimal point). The same download exists on the End of day page
 and on the other reports.
 
 **Giving the export to the treasurer.**
 
 1. At the start of each month download the previous month (first to last day)
-   with **Download for French Excel** and send the file. Row layout: Date,
+   with **Download CSV** and send the file. Row layout: Date,
    Category, Payment method, Count, Total (EUR), Libellé, Compte débit,
    Compte crédit, Journal. One row per Paris day, category and payment method
    (Cash, Card at the till, Cheque, HelloAsso, Bank transfer, Other / not recorded;
@@ -3224,7 +3232,7 @@ the owner steps at the end are done once.
 | **Yearly accounting export** | `accounting-exports/YYYY/accounting_YYYY-full-year.csv` (plus `till_days_` and `summary_` of the same name) | 2 January: the whole previous year | **10 years** | no |
 
 The accounting export is the same file as **Admin > Reports > Accounting
-export** (French Excel format: semicolons, decimal commas). `till_days_...` is
+export** (the pipe format: `|` between values, no quotes, decimal point). `till_days_...` is
 the end-of-day summary of the till, one row per day (opening float, cash
 counted, difference, totals by method, first and last receipt number, closed
 yes/no). `summary_...` is a short text: totals by account and method, number of
@@ -3455,9 +3463,9 @@ Both dated files are attached to the email (subject `[umas-books] Inventory expo
 
 **Columns (per copy):** ISBN-13, ISBN-10, Title, Author(s), Publisher, Year, Binding (Mass Market / Trade / Hardback / Other), Condition (New / Like New / Very Good / Good / Acceptable), Price (EUR), Location, Source, Status (In Store / Reserved / Sold / Donated / Damaged / withdrawn), Date added, Copy ID, Till code (`UB-<copy id>`), Book ID, Genres, Clearance (Yes/No), Publisher price (EUR), Notes, Date sold (when known), Date received, Cost (EUR), Suggested price (EUR). The app stores one ISBN per book: the other form is computed from it (an ISBN-10 exists only for 978- numbers). There is no subtitle or language column because the database does not hold them. **No customer data**: no buyer or reservation-holder name, email or phone, only the status. (The *Notes* column is the free-text note an admin typed on the copy: do not type personal data there.)
 
-**Format (one dialect, for French Excel; the same as the accounting export):** UTF-8 with a byte-order mark, **semicolon** separator, **decimal comma** (`4,50`), text in quotes, CRLF line ends, dates as `YYYY-MM-DD` (Paris days). A cell starting with `=`, `+`, `-` or `@` gets a leading apostrophe so Excel cannot run it as a formula.
+**Format (the one format of every CSV, see "CSV format of every download" below):** UTF-8 with a byte-order mark, **`|`** separator, **decimal point** (`4.50`), no quote marks, CRLF line ends, dates as `YYYY-MM-DD` (Paris days). A cell starting with `=`, `+`, `-` or `@` gets a leading apostrophe so Excel cannot run it as a formula.
 
-**Open in Excel (French settings).** Double-click the file, or Excel > File > Open. Accents and prices should look right. If everything is in one column: Data > From Text/CSV, delimiter *Semicolon*, encoding *UTF-8*. Excel may show a long ISBN as `9,78E+12` in a narrow column (widen it), and it drops the leading zero of an ISBN-10 such as `0306406152`; to keep it, import with Data > From Text/CSV and set the column type to *Text*.
+**Open in Excel.** Data > From Text/CSV, File Origin *UTF-8*, Delimiter *Custom* and type `|`, then Load. Excel may show a long ISBN as `9,78E+12` in a narrow column (widen it), and it drops the leading zero of an ISBN-10 such as `0306406152`; to keep it, import with Data > From Text/CSV and set the column type to *Text*.
 
 **Any time, from the website.** *Inventory* page > **Download all inventory (CSV)** (admins only; the link beside it gives the per-book file). Same columns and format, as of now. Each download is written to *Admin activity* (`inventory.csv`).
 

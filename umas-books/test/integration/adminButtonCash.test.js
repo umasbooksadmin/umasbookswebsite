@@ -145,12 +145,12 @@ test("close the day: counted = float + till cash + admin cash - cash refunds giv
   assert.equal(byMethod("Card at the till") + byMethod("Cheque"), 800 + 900);
   // the till days CSV: the new column is LAST, earlier columns keep their order
   const csv = (await ax.buildExport(h.pool, { from: day, to: day, kind: "month", label: day })).tillCsv.replace(/^\uFEFF/, "").split(/\r?\n/);
-  const header = csv[0].split(";").map((c) => c.replace(/"/g, ""));
+  const header = csv[0].split("|");
   assert.equal(header[header.length - 1], "Admin-button cash (EUR)");
   assert.equal(header[header.length - 2], "Cash refunds paid out (EUR)");
   assert.equal(header.slice(0, 5).join("|"), "Date|Opening float (EUR)|Cash counted (EUR)|Expected cash (EUR)|Difference (EUR)");
-  const todayRow = csv.find((l) => l.includes(day)).split(";");
-  assert.equal(todayRow[todayRow.length - 1].replace(/"/g, ""), "10,00", "admin-button cash 6.00 + 4.00 (the refunded one is still cash that came in)");
+  const todayRow = csv.find((l) => l.includes(day)).split("|");
+  assert.equal(todayRow[todayRow.length - 1].replace(/"/g, ""), "10.00", "admin-button cash 6.00 + 4.00 (the refunded one is still cash that came in)");
 });
 
 test("after the day is closed the admin button refuses cash (nothing changes) and offers Other; reopening allows it again", async () => {

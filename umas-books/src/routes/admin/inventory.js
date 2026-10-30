@@ -197,7 +197,7 @@ router.get("/admin/inventory/export.csv", requireAdmin, async (req, res) => {
   });
   const sink = (text) => (res.write(text) ? undefined : new Promise((resolve) => res.once("drain", resolve)));
   const result = await (perBook ? writeBooksCsv : writeCopiesCsv)(pool, sink);
-  await audit(req, { action: "inventory.csv", targetType: "inventory", detail: `${perBook ? "per book" : "per copy"}: ${result.rows} rows (French Excel)` });
+  await audit(req, { action: "inventory.csv", targetType: "inventory", detail: `${perBook ? "per book" : "per copy"}: ${result.rows} rows` });
   res.end();
 });
 
@@ -228,7 +228,7 @@ router.get("/admin/inventory/results.csv", requireAdmin, async (req, res) => {
   });
   const sink = (text) => (res.write(text) ? undefined : new Promise((resolve) => res.once("drain", resolve)));
   const result = await (perBook ? writeBooksCsv : writeCopiesCsv)(pool, sink, { filter });
-  await audit(req, { action: "inventory.csv", targetType: "inventory", detail: `filtered ${perBook ? "per book" : "per copy"}: ${result.rows} rows (French Excel)${nlSpec ? ", sentence search " + specParam(nlSpec).slice(0, 200) : filterQueryString(filters) ? ", search " + filterQueryString(filters).slice(0, 200) : ""}` });
+  await audit(req, { action: "inventory.csv", targetType: "inventory", detail: `filtered ${perBook ? "per book" : "per copy"}: ${result.rows} rows${nlSpec ? ", sentence search " + specParam(nlSpec).slice(0, 200) : filterQueryString(filters) ? ", search " + filterQueryString(filters).slice(0, 200) : ""}` });
   res.end();
 });
 

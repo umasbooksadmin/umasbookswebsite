@@ -108,7 +108,7 @@ test("old shop_sales rows stay and still count in Reports and the accounting exp
   const day = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Paris" });
   const res = await fetch(`${app.base}/admin/reports/accounting?from=${day}&to=${day}&format=csv`, { headers: { cookie: jar.header(), "x-forwarded-for": "10.79.1.1" } });
   assert.equal(res.status, 200);
-  assert.match(await res.text(), /"?Books used"?,"?Cash"?,\d+,"?7\.5/);
+  assert.match(await res.text(), /Books used\|Cash\|\d+\|7\.5/);
   assert.equal((await salesOf(copyId)).length, 1, "the row is still there");
 });
 

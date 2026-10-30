@@ -8,7 +8,6 @@
     <div><label for="day">Day</label><input id="day" name="day" type="date" max="<%= today %>" value="<%= day %>"></div>
     <button class="btn" type="submit">Show</button>
     <a class="btn btn-outline" href="/admin/till/day?day=<%= day %>&amp;format=csv">Download CSV</a>
-    <a class="btn btn-outline" href="/admin/till/day?day=<%= day %>&amp;format=csv&amp;locale=fr" title="Semicolon separators and decimal commas, for Excel in French">Download for French Excel</a>
     <button class="btn btn-outline" type="button" data-print>Print summary</button>
     <a class="btn btn-outline" href="/admin/till">Till</a>
   </form>
