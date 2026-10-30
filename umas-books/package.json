@@ -26,7 +26,7 @@
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.2",
     "connect-pg-simple": "^10.0.0",
-    "dotenv": "^18.0.8",
+    "dotenv": "^18.0.9",
     "ejs": "^7.0.2",
     "express": "^5.3.0",
     "express-rate-limit": "^8.7.0",
@@ -34,7 +34,7 @@
     "helmet": "^8.0.0",
     "isbn3": "^2.0.12",
     "multer": "^2.4.0",
-    "nodemailer": "^10.1.7",
+    "nodemailer": "^10.2.1",
     "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "sanitize-html": "^2.18.1",
@@ -44,8 +44,8 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.13.0",
     "globals": "^17.13.0",
-    "postcss": "^8.5.31",
-    "puppeteer": "^25.15.0"
+    "postcss": "^8.5.32",
+    "puppeteer": "^25.16.0"
   },
   "allowScripts": {
     "bcrypt@6.0.0": true,
