@@ -132,6 +132,10 @@ input[type="file"].file-input-hidden {
 .err-fields a { color: inherit; text-decoration: underline; }
 .error-box { background: #f7f1f0; border: 1px solid #d4b4ab; color: #90503f; padding: 10px 14px; border-radius: 3px; font-size: 15px; margin-bottom: 14px; }
 .notice-box { background: #f0f0ee; border: 1px solid #acaba1; color: #47462f; padding: 10px 14px; border-radius: 3px; font-size: 15px; margin-bottom: 14px; }
+/* "Your books are waiting in your cart" on the log-in and sign-up pages (views/partials/cart_waiting.ejs) */
+.cart-waiting p { margin: 0 0 8px; }
+.cart-waiting p:last-child { margin-bottom: 0; }
+.cart-waiting-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
 
 ul.plain { list-style: none; margin: 0; padding: 0; }
 ul.plain li { padding: 10px 0; border-bottom: 1px solid var(--line); }

@@ -6,6 +6,7 @@
    const invalidAttrs = (k) => _bad.has(k) ? ' aria-invalid="true" aria-describedby="form-errors"' : ''; %>
 <%- include('partials/form_error_summary', { error, fields: [..._bad].filter((k) => _fieldLabels[k]).map((k) => ({ id: _fieldLabels[k][0], label: _fieldLabels[k][1] })) }) %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
+<%- include('partials/cart_waiting') %>
 <%- include('partials/return_note') %>
 <form class="stack" method="post" action="/signup">
   <%- include('partials/csrf_field') %>

@@ -266,6 +266,8 @@ function createApp() {
   app.use(require("./middleware/noStoreForUsers").noStoreForTokenPages);
   app.use((req, res, next) => {
     res.locals.cartCount = Array.isArray(req.session.cart) ? req.session.cart.length : 0;
+    // Does the cart hold a book (a bare number is an old-style book line)? Only the sign-in and sign-up notice asks (partials/cart_waiting.ejs).
+    res.locals.cartHasBooks = Array.isArray(req.session.cart) && req.session.cart.some((l) => typeof l === "number" || (l && l.kind === "book"));
     next();
   });
 
