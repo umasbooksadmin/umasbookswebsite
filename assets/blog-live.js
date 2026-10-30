@@ -6,6 +6,8 @@
    can mark an English fallback). The blog pages themselves are rendered by the server (src/routes/blogPages.js). */
 (function () {
   window.UMAS_POSTS = window.UMAS_POSTS || [];
+  // True until the feed has answered (or failed): the slider (assets/blog.js carousel) shows its placeholder, not "No posts yet", meanwhile.
+  window.UMAS_POSTS_LOADING = true;
   // ?preview=1 on the page: ask for drafts and scheduled posts too; the server only honours it for a logged-in admin.
   var adminPreview = /[?&]preview=1(&|$)/.test(location.search);
   var query = ["lang=" + (document.documentElement.lang === "fr" ? "fr" : "en"), adminPreview ? "preview=1" : ""].filter(Boolean).join("&");
@@ -13,7 +15,10 @@
     .then(function (res) { return res.ok ? res.json() : null; })
     .then(function (posts) {
       window.UMAS_POSTS = Array.isArray(posts) ? posts : [];
-      window.dispatchEvent(new Event("umasposts:updated"));
     })
-    .catch(function () {});
+    .catch(function () {})
+    .then(function () {
+      window.UMAS_POSTS_LOADING = false;
+      window.dispatchEvent(new Event("umasposts:updated"));
+    });
 })();

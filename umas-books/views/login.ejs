@@ -6,6 +6,7 @@ const _pwFocus = !!(error && locals.typedEmail);
 const _emailFocus = !!(error && !locals.typedEmail); %>
 <% if (error) { %><div role="alert" class="error-box" id="login-error"><%= error %></div><% } %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
+<%- include('partials/cart_waiting') %>
 <%- include('partials/return_note') %>
 <form class="stack" method="post" action="/login">
   <%- include('partials/csrf_field') %>

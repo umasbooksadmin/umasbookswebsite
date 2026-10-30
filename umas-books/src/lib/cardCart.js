@@ -9,6 +9,7 @@
 //   condition, clearance)
 //   several that differ                  -> the icon opens the book page, where the customer picks a copy
 //
+// (public lists add `from`, the lowest of those prices, to a "several that differ" answer when the prices differ)
 // and, per person, a book that already has a copy in the session's cart shows "in your cart" (a link to the cart).
 // The markup is views/partials/card_cart.ejs on the server and UmasUI.cartControlHtml in public/ui.js in the browser
 // (test/unit/uiHelpers.test.js keeps them the same); public/cart-add.js does the adding without a page reload.
@@ -22,11 +23,20 @@ const BUY_COPY_SQL = (bookId = "b.id") => `(SELECT CASE WHEN COUNT(*) = 0 THEN N
             ELSE 0 END
      FROM book_copies bc WHERE bc.book_id = ${bookId} AND bc.status = 'in_stock' AND bc.price IS NOT NULL AND bc.price > 0)`;
 
-// The public JSON's `buy` field: null | { copyId } | { choose: true }.
-function cardBuy(buyCopyId) {
+// The lowest price of those same copies, but only when they do not all cost the same (NULL otherwise): the card then says
+// "from €X" next to the choose button (2026-10-27 review H11). Copies at one price with different grades just say the price.
+const BUY_FROM_SQL = (bookId = "b.id") => `(SELECT CASE WHEN COUNT(DISTINCT bc.price) > 1 THEN MIN(bc.price) END
+     FROM book_copies bc WHERE bc.book_id = ${bookId} AND bc.status = 'in_stock' AND bc.price IS NOT NULL AND bc.price > 0)`;
+
+// The public JSON's `buy` field: null | { copyId } | { choose: true } | { choose: true, from } (from = the lowest price,
+// when the copies' prices differ).
+function cardBuy(buyCopyId, fromPrice) {
   if (buyCopyId == null) return null;
   const id = Number(buyCopyId);
-  if (id === 0) return { choose: true };
+  if (id === 0) {
+    const from = fromPrice == null ? NaN : Number(fromPrice);
+    return from > 0 ? { choose: true, from } : { choose: true };
+  }
   return Number.isSafeInteger(id) && id > 0 ? { copyId: id } : null;
 }
 
@@ -58,4 +68,4 @@ async function setCardCartLocals(pool, req, res, { personal = false } = {}) {
   };
 }
 
-module.exports = { BUY_COPY_SQL, cardBuy, cartBookIds, setCardCartLocals };
+module.exports = { BUY_COPY_SQL, BUY_FROM_SQL, cardBuy, cartBookIds, setCardCartLocals };

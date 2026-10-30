@@ -148,16 +148,23 @@
     return sessionPromise;
   }
 
+  // Writes the cart's size into the header: the "Cart (n)" label and the phone header's number badge (hidden when the cart is empty).
+  // public/cart-add.js calls this too after a book is added from a card.
+  function showCartCount(n) {
+    document.querySelectorAll("[data-cart-count]").forEach(function (el) { el.textContent = String(n); });
+    document.querySelectorAll("[data-cart-badge]").forEach(function (el) { el.textContent = String(n); el.hidden = !(n > 0); });
+  }
+  window.UmasShowCartCount = showCartCount;
+
   // The header's "Cart (n)". The cart lives in the Members Area app's
   // session, so the count is only available on pages that app itself
   // serves; anywhere else it quietly stays at 0. (/api/session carries
   // cartCount; /api/cart/count remains for other callers.)
   function loadCartCount() {
-    var els = document.querySelectorAll("[data-cart-count]");
-    if (!els.length || !window.fetch) return;
+    if (!document.querySelector("[data-cart-count], [data-cart-badge]") || !window.fetch) return;
     getSession().then(function (data) {
       if (!data || typeof data.cartCount !== "number") return;
-      els.forEach(function (el) { el.textContent = String(data.cartCount); });
+      showCartCount(data.cartCount);
     });
   }
 

@@ -7,7 +7,7 @@
 
 const { localCover } = require("./coverStore");
 const { likeContains } = require("./parseParams");
-const { BUY_COPY_SQL } = require("./cardCart");
+const { BUY_COPY_SQL, BUY_FROM_SQL } = require("./cardCart");
 const { genresLabel } = require("./genres");
 const { frenchPlainText } = require("./frenchTypography");
 // Required when used: the pure helpers of this file are loaded by unit tests that have no database.
@@ -36,7 +36,8 @@ async function approvedInStockBooks(pool, collectionId, { offset = 0, limit = nu
   const { rows } = await pool.query(
     `SELECT b.id, b.title, b.authors, b.cover_url, b.categories, cb.reason, cb.reason_fr,
             (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
-            ${BUY_COPY_SQL("b.id")} AS buy_copy_id
+            ${BUY_COPY_SQL("b.id")} AS buy_copy_id,
+            ${BUY_FROM_SQL("b.id")} AS buy_from_price
      ${APPROVED_IN_STOCK_FROM}
      ORDER BY b.title_sort, b.title, b.id${limit == null ? "" : " LIMIT $2 OFFSET $3"}`,
     limit == null ? [collectionId] : [collectionId, limit, offset]
