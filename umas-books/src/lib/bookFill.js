@@ -11,21 +11,29 @@
 // Books have no French description or French genre (Sharon, 2026-10-28): nothing French is ever written here; the
 // French site shows the English description (the books table has no French columns since migration 108).
 
-const { lookupByIsbn, isbnCoverUrl, isValidIsbn, normalizeIsbn } = require("./bookLookup");
+const { lookupByIsbn, isbnCoverUrl, exactIsbnCover, isValidIsbn, normalizeIsbn } = require("./bookLookup");
 const { prepareCover } = require("./coverStore");
 const { generateBookDescription } = require("./bookDescription");
 
 // The cover address for a book saved without one, ONLY from that exact ISBN (its ISBN-10 or ISBN-13 form):
 //   1. the catalog record of that ISBN (lookupByIsbn asks Open Library / BnF by ISBN), or
-//   2. Open Library's own cover for the ISBN-13 ("default=false": a 404 when there is none, so a placeholder is never stored).
+//   2. Open Library's own cover for the ISBN-13 or the ISBN-10 form ("default=false": a 404 when there is none, so a
+//      placeholder is never stored), checked with a small HEAD request. When that check itself fails (network), the ISBN-13
+//      address is returned anyway and the download decides, as before.
 // There is NO title/author search any more: it returned another edition's picture, or another book's (the French Lieutenant's
 // Woman, 2026-10-30). No exact cover means no cover: the owner adds her own photo. null for a missing or invalid ISBN.
 async function findCoverUrl({ isbn }) {
   if (!isbn || !isValidIsbn(normalizeIsbn(isbn))) return null;
   const byIsbn = await lookupByIsbn(isbn);
   if (byIsbn && byIsbn.coverUrl) return byIsbn.coverUrl;
-  return isbnCoverUrl(isbn);
+  const exact = await exactIsbnCover(isbn);
+  if (exact.url) return exact.url;
+  return exact.state === "error" ? isbnCoverUrl(isbn) : null;
 }
+
+// How a cover address that came with the form (scan preview or typed) is recorded: 'isbn' when it is Open Library's cover for
+// an ISBN (the preview found it by the exact ISBN), otherwise 'form'.
+const coverOriginOf = (url) => (/^https:\/\/covers\.openlibrary\.org\/b\/isbn\//.test(String(url || "")) ? "isbn" : "form");
 
 // hints: { isbn, title, author, publisher, publishedYear, description, coverUrl }
 // as typed on the form (all optional). deps: injectable for tests.
@@ -48,7 +56,7 @@ async function fillBookGaps(pool, bookId, hints = {}, deps = {}) {
   ]);
   const cover = needCover ? await prepare(coverAddress) : { cover: null, source: null };
   // How the cover was chosen (migration 111): the address came with the form (catalog preview or typed) or was found by ISBN.
-  const origin = needCover && (cover.cover || cover.source) ? (hints.coverUrl ? "form" : "isbn") : null;
+  const origin = needCover && (cover.cover || cover.source) ? (hints.coverUrl ? coverOriginOf(hints.coverUrl) : "isbn") : null;
 
   if (!description && !cover.cover && !cover.source) return { filled: false };
   await pool.query(
@@ -64,4 +72,4 @@ async function fillBookGaps(pool, bookId, hints = {}, deps = {}) {
   return { filled: true, description: Boolean(description), cover: Boolean(cover.cover) };
 }
 
-module.exports = { fillBookGaps, findCoverUrl };
+module.exports = { fillBookGaps, findCoverUrl, coverOriginOf };

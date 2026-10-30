@@ -98,7 +98,7 @@ test("no view, script or stylesheet loads an image from Open Library or the Inte
   assert.deepEqual(offenders, []);
   // The server side only mentions them in the lookup/download libraries and the allow-list.
   const srcOffenders = walk(path.join(ROOT, "src")).filter((f) => /openlibrary\.org|archive\.org/i.test(read(f))).map((f) => path.relative(ROOT, f)).sort();
-  assert.deepEqual(srcOffenders, ["src/lib/bookLookup.js", "src/lib/bookSources.js", "src/lib/coverStore.js"]);
+  assert.deepEqual(srcOffenders, ["src/lib/bookLookup.js", "src/lib/bookSources.js", "src/lib/coverSearch.js", "src/lib/coverStore.js", "src/routes/admin/inventoryFindCover.js"]);
 });
 
 test("every cover <img> in the views and public scripts has width, height, an aspect ratio class and a fallback hook", () => {

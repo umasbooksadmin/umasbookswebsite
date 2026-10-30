@@ -78,11 +78,12 @@
       <% if (cover.external) { %>
         <p class="muted small cvr-note">This cover is an old web address that is not saved on our server, so it can't be rotated or cropped. Replace it with a photo, or remove it.</p>
       <% } else if (!cover.url) { %>
-        <p class="muted small cvr-note">This book has no cover. Take a photo of the front, or choose one from your files.</p>
+        <p class="muted small cvr-note">This book has no cover. Press Find a cover to pick one from Open Library, or take a photo of the front, or choose one from your files.</p>
       <% } else { %>
         <p class="muted small cvr-note">Changes are saved at once. The picture you replace is cleaned up automatically later.</p>
       <% } %>
       <div class="cvr-actions">
+        <a class="btn btn-outline btn-small" href="/admin/inventory/<%= book.id %>/find-cover?go=1">Find a cover</a>
         <form method="post" action="/admin/inventory/<%= book.id %>/cover/replace" enctype="multipart/form-data">
           <%- include('../../partials/csrf_field') %>
           <button type="button" class="btn btn-outline btn-small" data-trigger-file="cover-photo"><%= cover.url ? 'Replace cover photo' : 'Add cover photo' %></button>

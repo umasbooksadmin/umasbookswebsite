@@ -13,6 +13,9 @@ const DEFAULT_SOURCE = "donation";
 // The binding of a first-ever form is the last option of the list ("Other").
 const firstUseBinding = () => (BINDINGS.length ? BINDINGS[BINDINGS.length - 1].value : null);
 
+// The values of a first-ever form: where "Reset choices" on the scan page goes back to.
+const firstUseValues = () => ({ location: DEFAULT_LOCATION, source: DEFAULT_SOURCE, binding: firstUseBinding() || "", condition: "very_good" });
+
 // A binding key from a query or from the browser's memory. The older key
 // "paperback" is read as "trade" when the list has no "paperback" any more.
 function rememberedBinding(raw) {
@@ -76,4 +79,4 @@ async function savedCopy(pool, rawId) {
   return rows[0] || null;
 }
 
-module.exports = { lastUsed, DEFAULT_LOCATION, DEFAULT_SOURCE, firstUseBinding, rememberedBinding, formDefaults, carryQuery, savedCopy };
+module.exports = { firstUseValues, lastUsed, DEFAULT_LOCATION, DEFAULT_SOURCE, firstUseBinding, rememberedBinding, formDefaults, carryQuery, savedCopy };

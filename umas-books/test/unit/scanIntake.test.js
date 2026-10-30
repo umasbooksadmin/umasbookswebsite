@@ -204,6 +204,22 @@ test("shouldRefocusIsbn: the cursor never leaves a field the person is using (th
   assert.equal(S.shouldRefocusIsbn(el("DIV", { isContentEditable: true }), isbn), false);
 });
 
+test("remembered choices: a binding remembered from the last book (or carried by the address) starts as chosen, so a lookup keeps it", () => {
+  assert.equal(S.bindingStartsChosen({ fromServer: false, remembered: true }), true, "the last binding is kept when the page is reloaded");
+  assert.equal(S.bindingStartsChosen({ fromServer: true, remembered: false }), true);
+  assert.equal(S.bindingStartsChosen({ fromServer: false, remembered: false }), false, "nothing remembered: the catalog's binding may select itself");
+  // end to end with the lookup: the Hobbit's catalog says Trade, the remembered binding is Hardcover
+  const hint = { key: "trade", label: "Trade" };
+  const kept = S.chooseBinding({ current: "hardcover", hint, available: ["hardcover", "trade"], touched: S.bindingStartsChosen({ remembered: true }), baseline: "hardcover" });
+  assert.equal(kept.value, "hardcover");
+  assert.equal(kept.helper, "Open Library says: Trade", "the catalog's answer is only shown");
+});
+
+test("remembered choices: after a save only binding, condition, location and source are kept", () => {
+  const kept = S.choicesToKeep({ location: "Shelf A", condition: "good", binding: "hardcover", source: "purchase", isbn: "9780143127550", title: "T", author: "A", price: "5", copyNotes: "n", coverUrl: "/img/x.jpg" });
+  assert.deepEqual(kept, { location: "Shelf A", condition: "good", binding: "hardcover", source: "purchase" });
+});
+
 // ---- a stalled request is given up, so Save is never blocked for ever
 
 test("timeoutSignal aborts the request after the limit, and clear() cancels the timer", () => {

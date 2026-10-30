@@ -38,6 +38,36 @@ async function listCoversToCheck(pool, page = 1) {
   return { rows, total, page: p, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
 }
 
+// Books with NO cover at all (never found, or removed on purpose), the ones with a copy in stock first, so the owner can work
+// through them with the "Find a cover" button of the book. Counts are for the top of the page.
+const MISSING_WHERE = "b.cover_url IS NULL";
+const IN_STOCK = "(SELECT count(*) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')";
+
+async function coverCounts(pool) {
+  const { rows: [r] } = await pool.query(
+    `SELECT (SELECT count(*)::int FROM books b WHERE ${WHERE}) AS to_check,
+            (SELECT count(*)::int FROM books b WHERE ${MISSING_WHERE}) AS missing,
+            (SELECT count(*)::int FROM books b WHERE ${MISSING_WHERE} AND ${IN_STOCK} > 0) AS missing_in_stock`
+  );
+  return { toCheck: r.to_check, missing: r.missing, missingInStock: r.missing_in_stock };
+}
+
+async function listMissingCovers(pool, page = 1) {
+  const p = Math.min(1e6, Math.max(1, Math.floor(Number(page)) || 1));
+  const { rows: [{ total }] } = await pool.query(`SELECT count(*)::int AS total FROM books b WHERE ${MISSING_WHERE}`);
+  const { rows } = await pool.query(
+    `SELECT b.id, b.isbn, b.title, b.authors, b.publisher, b.published_year, b.cover_removed_at,
+            (SELECT count(*)::int FROM book_copies c WHERE c.book_id = b.id) AS copies,
+            ${IN_STOCK}::int AS in_stock
+       FROM books b
+      WHERE ${MISSING_WHERE}
+      ORDER BY ${IN_STOCK} DESC, b.id
+      LIMIT $1 OFFSET $2`,
+    [PAGE_SIZE, (p - 1) * PAGE_SIZE]
+  );
+  return { rows, total, page: p, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+}
+
 const pictureId = (url) => { const m = /\/b\/id\/(\d+)-/.exec(String(url || "")); return m ? m[1] : null; };
 
 // Does the cover we stored for this book match what the catalog has for its exact ISBN? One catalog lookup (cached by
@@ -63,4 +93,4 @@ async function checkCover(book, deps = {}) {
   return { state: "none", message: "No cover exists for this exact ISBN, so the picture here came from somewhere else (probably the old title search). Replace it with your own photo or remove it.", catalogCover: null };
 }
 
-module.exports = { listCoversToCheck, checkCover, pictureId, PAGE_SIZE };
+module.exports = { listCoversToCheck, coverCounts, listMissingCovers, checkCover, pictureId, PAGE_SIZE };

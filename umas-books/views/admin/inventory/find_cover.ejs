@@ -1,0 +1,51 @@
+<%- include('../../partials/admin_header', { title: title, active: active, pageTitle: pageTitle, pageSub: pageSub, extraCss: ['/cover-edit.css'] }) %>
+
+<p><a href="<%= backHref %>">&larr; <%= from === 'missing' ? 'Back to books without a cover' : from === 'check' ? 'Back to covers to check' : 'Back to the book' %></a></p>
+
+<div class="card">
+  <div class="section-title">Find a cover for this book</div>
+  <p class="muted small">
+    <strong><%= book.title %></strong><%= book.authors ? ' by ' + book.authors : '' %>
+    <%= book.publisher ? ' · ' + book.publisher : '' %><%= book.published_year ? ' · ' + book.published_year : '' %>
+    · <%= book.isbn ? 'ISBN ' + book.isbn : 'no ISBN' %>
+  </p>
+  <p class="small">These pictures come from Open Library, found by title and author. <strong>Nothing is applied until you press &ldquo;Use this cover&rdquo;.</strong> Prefer one marked <em>Same ISBN</em>: it is the picture of this exact edition. The others may show another edition of the book, so compare them with your copy in your hand.</p>
+  <% if (currentCover) { %>
+    <p class="small cvr-find-current"><img src="<%= currentCover %>" alt="Current cover of <%= book.title %>" width="60"> This is the current cover. Choosing one below replaces it.</p>
+  <% } %>
+</div>
+
+<div class="card">
+  <% if (result.state === 'idle') { %>
+    <p><a class="btn" href="<%= goHref %>">Search Open Library</a></p>
+  <% } else if (result.state !== 'ok') { %>
+    <p role="status"><%= result.message %></p>
+    <p class="small"><a class="btn btn-outline btn-small" href="<%= goHref %>">Search again</a>
+      <a class="btn btn-outline btn-small" href="/admin/inventory/<%= book.id %>#cover">Add a photo instead</a></p>
+  <% } else { %>
+    <p class="small" role="status"><%= result.candidates.length %> possible cover<%= result.candidates.length === 1 ? '' : 's' %>, best match first.</p>
+    <ul class="cvr-find-list">
+      <% result.candidates.forEach(function (c) { %>
+        <li class="cvr-find-item<%= c.isbnMatch ? ' cvr-find-match' : '' %>">
+          <img src="/admin/inventory/<%= book.id %>/find-cover/thumb/<%= c.coverId %>" width="120" loading="lazy"
+               alt="Candidate cover: <%= c.title || 'untitled' %><%= c.publisher ? ', ' + c.publisher : '' %><%= c.year ? ', ' + c.year : '' %>">
+          <div class="cvr-find-info">
+            <% if (c.isbnMatch) { %><div class="cvr-find-flag"><strong>Same ISBN</strong> as your book</div><% } else if (c.kind === 'work') { %><div class="cvr-find-flag cvr-find-weak">Main cover of the work: edition unknown</div><% } else { %><div class="cvr-find-flag cvr-find-weak">Different or unknown ISBN</div><% } %>
+            <div><strong><%= c.title || 'Untitled' %></strong></div>
+            <% if (c.author) { %><div class="small"><%= c.author %></div><% } %>
+            <div class="small muted"><%= [c.publisher, c.year, c.language].filter(Boolean).join(' · ') || 'No edition details' %></div>
+          </div>
+          <form method="post" action="/admin/inventory/<%= book.id %>/find-cover/choose">
+            <%- include('../../partials/csrf_field') %>
+            <input type="hidden" name="coverId" value="<%= c.coverId %>">
+            <% if (from) { %><input type="hidden" name="from" value="<%= from %>"><% } %>
+            <button class="btn btn-small" type="submit" aria-label="Use this cover: <%= c.title || 'untitled' %><%= c.publisher ? ', ' + c.publisher : '' %><%= c.year ? ', ' + c.year : '' %>">Use this cover</button>
+          </form>
+        </li>
+      <% }) %>
+    </ul>
+    <p class="muted small">None of these look right? <a href="/admin/inventory/<%= book.id %>#cover">Add your own photo</a> on the book's Cover card.</p>
+  <% } %>
+</div>
+
+<%- include('../../partials/admin_footer') %>

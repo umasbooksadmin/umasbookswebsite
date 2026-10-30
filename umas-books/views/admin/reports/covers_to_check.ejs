@@ -1,4 +1,4 @@
-<%- include('../../partials/admin_header', { title: title, active: active, pageTitle: pageTitle, pageSub: pageSub }) %>
+<%- include('../../partials/admin_header', { title: title, active: active, pageTitle: pageTitle, pageSub: pageSub, extraCss: ['/cover-edit.css'] }) %>
 
 <% if (flash && flash.error) { %><div class="error-box" role="alert"><%= flash.error %></div><% } %>
 <% if (flash && flash.notice) { %>
@@ -8,6 +8,50 @@
   </div>
 <% } %>
 
+<div class="card">
+  <p><strong><%= counts.missing %></strong> book<%= counts.missing === 1 ? ' has' : 's have' %> no cover<% if (counts.missing) { %>, <strong><%= counts.missingInStock %></strong> of them in stock<% } %>.</p>
+  <nav aria-label="Cover lists" class="cvr-tabs">
+    <a class="btn btn-small <%= view === 'missing' ? '' : 'btn-outline' %>" href="/admin/reports/covers-to-check?view=missing" <%- view === 'missing' ? 'aria-current="page"' : '' %>>Books without a cover (<%= counts.missing %>)</a>
+    <a class="btn btn-small <%= view === 'check' ? '' : 'btn-outline' %>" href="/admin/reports/covers-to-check" <%- view === 'check' ? 'aria-current="page"' : '' %>>Covers to check (<%= counts.toCheck %>)</a>
+  </nav>
+</div>
+
+<% if (view === 'missing') { %>
+<div class="card">
+  <p class="small">Books in stock come first. <strong>Find a cover</strong> searches Open Library by title and author and shows possible pictures; you choose one (nothing is applied by itself), or add your own photo from the book's page.</p>
+  <% if (!rows.length) { %>
+    <p>Every book has a cover.</p>
+  <% } else { %>
+  <div class="table-scroll">
+  <table class="ann-table">
+    <thead><tr><th scope="col">Title</th><th scope="col">ISBN</th><th scope="col">Copies</th><th scope="col">Actions</th></tr></thead>
+    <tbody>
+      <% rows.forEach(function (b) { %>
+        <tr>
+          <td><a href="/admin/inventory/<%= b.id %>"><strong><%= b.title %></strong></a><% if (b.authors) { %><div class="muted small"><%= b.authors %></div><% } %><% if (b.cover_removed_at) { %><div class="muted small">Cover removed on purpose</div><% } %></td>
+          <td><%= b.isbn || 'none' %></td>
+          <td><%= b.in_stock %> in stock<% if (b.copies !== b.in_stock) { %> (<%= b.copies %> in all)<% } %></td>
+          <td>
+            <div style="display:flex; flex-wrap:wrap; gap:6px;">
+              <a class="btn btn-small" href="/admin/inventory/<%= b.id %>/find-cover?go=1&amp;from=missing" aria-label="Find a cover for <%= b.title %>">Find a cover</a>
+              <a class="btn btn-outline btn-small" href="/admin/inventory/<%= b.id %>#cover" aria-label="Edit <%= b.title %>">Edit book</a>
+            </div>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  </div>
+  <% if (pages > 1) { %>
+    <p class="muted small">
+      Page <%= page %> of <%= pages %>
+      <% if (page > 1) { %> · <a href="?view=missing&amp;page=<%= page - 1 %>">Previous</a><% } %>
+      <% if (page < pages) { %> · <a href="?view=missing&amp;page=<%= page + 1 %>">Next</a><% } %>
+    </p>
+  <% } %>
+  <% } %>
+</div>
+<% } else { %>
 <div class="card">
   <p class="small">Before covers were tied to the exact ISBN, a book with no cover for its own ISBN could be given the first picture of a title search: another edition, or even another book. We can't tell from the data which covers are wrong, so these <strong><%= total %></strong> books (covers from a numbered picture, saved before we recorded how a cover was chosen) are listed for a quick look. Books in stock come first.</p>
   <p class="muted small"><strong>Check this book</strong> asks the catalog about that one ISBN (one request per press, never automatic). If it holds the same picture, the book is marked checked. Otherwise you are told what it found; the cover is never changed here. Use the book's page (Cover card) to replace it with your own photo or remove it.</p>
@@ -30,6 +74,7 @@
           <td>
             <div style="display:flex; flex-wrap:wrap; gap:6px;">
               <a class="btn btn-outline btn-small" href="/admin/inventory/<%= b.id %>#cover">Edit book</a>
+              <a class="btn btn-outline btn-small" href="/admin/inventory/<%= b.id %>/find-cover?go=1&amp;from=check" aria-label="Find a cover for <%= b.title %>">Find a cover</a>
               <% if (b.isbn) { %>
               <form method="post" action="/admin/reports/covers-to-check/<%= b.id %>/check">
                 <%- include('../../partials/csrf_field') %>
@@ -56,5 +101,7 @@
   <% } %>
   <% } %>
 </div>
+
+<% } %>
 
 <%- include('../../partials/admin_footer') %>
