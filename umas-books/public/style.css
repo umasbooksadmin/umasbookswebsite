@@ -282,6 +282,14 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink); font-size:
 .cart-item-body { flex: 1; min-width: 0; }
 .cart-item-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif; font-weight: 600; font-size: 17px; }
 .cart-item-price { font-family: var(--font-montserrat); font-weight: 600; color: var(--maroon-dark); flex: 0 0 auto; }
+/* Phones (2026-10-27 review H9): the title used to get a sliver between the cover, the price and the Remove button (one word per line).
+   Now the cover and the text share the first row, and the price and Remove sit on a row of their own under the text. */
+@media (max-width: 560px) {
+  .cart-item { flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; padding: 12px; }
+  .cart-item-body { flex: 1 1 calc(100% - 60px); min-width: 0; } /* as wide as the row leaves: forces the price and Remove onto the next row */
+  .cart-item-price { margin-left: 60px; align-self: center; } /* under the text: the 48px cover and the 12px gap */
+  .cart-item form { margin-left: auto; }
+}
 
 .favorite-toggle {
   position: absolute; top: 8px; right: 8px; z-index: 2; width: 30px; height: 30px; border-radius: 50%;

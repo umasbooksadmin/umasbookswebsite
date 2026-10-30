@@ -1,3 +1,4 @@
+/* global document, getComputedStyle */
 // Follow-ups from the 2026-10-27 reviews, on the REAL app (startTestApp: real CSRF check, sessions, templates):
 //   H4  a visitor with something in the cart who reaches the log-in or sign-up page is told their books are waiting in the cart
 //       (English and French) and is offered the guest checkout (GET /cart/guest); in preview mode the guest offer is left out
@@ -192,6 +193,42 @@ test("H10 in headless Chrome at 375px: adding a book from a card shows the numbe
     assert.equal(await page.$eval("a.h-cart", (a) => a.getAttribute("aria-label")), null, "named by its text, not a label that could go stale");
     await page.goto(`${app.base}/cart`, { waitUntil: "networkidle0" });
     assert.deepEqual(await badge().then((x) => [x.shown, x.text]), [true, "1"], "the next page shows it too");
+  } finally {
+    await browser.close();
+  }
+});
+
+// ---------------------------------------------------------------- H9
+test("H9: on a phone the cart rows give the title the full width (cover + text, then price and Remove on their own row), with no sideways scroll", async (t) => {
+  const style = loadSheet("public/style.css");
+  const at = { at: "@media (max-width: 560px)" };
+  assert.equal(style.getDecl(".cart-item", "flex-wrap", at), "wrap");
+  assert.equal(style.getDecl(".cart-item-body", "flex", at), "1 1 calc(100% - 60px)", "as wide as the row leaves, which pushes the price and Remove down");
+  assert.equal(style.getDecl(".cart-item", "display"), "flex", "computers keep the single row");
+
+  let browser;
+  try { browser = await require("puppeteer").launch({ headless: true, args: ["--no-sandbox"] }); } catch (err) { return t.skip(`no headless Chrome available: ${String(err.message).split("\n")[0]}`); }
+  try {
+    for (const width of [320, 375]) {
+      const page = await browser.newPage();
+      await page.setViewport({ width, height: 740, isMobile: true, hasTouch: true });
+      await page.setExtraHTTPHeaders({ "x-forwarded-for": newIp() });
+      await page.goto(`${app.base}/books.html`, { waitUntil: "networkidle0" });
+      await page.waitForSelector(".bk-cart-add button");
+      await page.$eval(".bk-cart-add button", (b) => b.click());
+      await page.waitForFunction(() => document.querySelector(".bk-cart-in:not([hidden])"), { timeout: 8000 });
+      await page.goto(`${app.base}/cart`, { waitUntil: "networkidle0" });
+      const m = await page.evaluate(() => {
+        const row = document.querySelector(".cart-item");
+        const r = (el) => { const b = (typeof el === "string" ? row.querySelector(el) : el).getBoundingClientRect(); return { top: b.top, bottom: b.bottom, left: b.left, right: b.right, width: b.width, height: b.height }; };
+        return { sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, body: r(".cart-item-body"), price: r(".cart-item-price"), btn: r("button"), row: r(row) };
+      });
+      assert.ok(m.sw <= m.cw, `${width}px: no horizontal scroll`);
+      assert.ok(m.price.top >= m.body.bottom - 1 && m.btn.top >= m.body.bottom - 1, `${width}px: price and Remove are under the text`);
+      assert.ok(m.body.width > width * 0.55, `${width}px: the title has most of the row (${Math.round(m.body.width)}px)`);
+      assert.ok(m.btn.right <= m.row.right && m.btn.height >= 30, `${width}px: Remove is inside the row and tappable`);
+      await page.close();
+    }
   } finally {
     await browser.close();
   }
