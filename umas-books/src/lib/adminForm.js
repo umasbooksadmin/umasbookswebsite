@@ -11,7 +11,7 @@ const LIMITS = {
   line: 200, // a location, a label
   text: 5000, // a description, an agenda, notes
   longText: 50000, // meeting minutes
-  richText: 100000, // an announcement or blog body (HTML, after cleaning)
+  richText: 250000, // an announcement or blog body (HTML, after cleaning); the form itself already stops at 256 KB (MULTIPART_RICH_TEXT_FIELD_SIZE)
 };
 
 // fields: [[label, value, max], ...]. The first one over its limit gives the
