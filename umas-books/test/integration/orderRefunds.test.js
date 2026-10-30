@@ -79,10 +79,10 @@ test("a refunded order is out of revenue, the sales report shows it as its own l
   const { text } = await h.get("/admin/reports/sales?from=2031-03-01&to=2031-03-31&group=month");
   assert.match(text, /Refunds \(reservations refunded in the shop; not included in the sales above\)/);
   const csvBooks = (await h.get("/admin/reports/sales?from=2031-03-01&to=2031-03-31&group=month&format=csv&table=books")).text;
-  assert.match(csvBooks, /"2031-03",1,5\.00,0,0\.00,5\.00/, "only the kept order is revenue");
+  assert.match(csvBooks, /2031-03\|1\|5\.00\|0\|0\.00\|5\.00/, "only the kept order is revenue");
   const csvRefunds = (await h.get("/admin/reports/sales?from=2031-03-01&to=2031-03-31&group=month&format=csv&table=refunds")).text;
   assert.match(csvRefunds, /Reservations refunded/);
-  assert.match(csvRefunds, /,1,7\.00/);
+  assert.match(csvRefunds, /\|1\|7\.00/);
 
   // Member page totals: €5, not €12 (the page rounds to whole euros).
   const members = await h.get(`/admin/members?view=${u[0].id}`);

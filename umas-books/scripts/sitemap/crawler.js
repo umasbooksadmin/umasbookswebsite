@@ -36,7 +36,7 @@ const ASSET_EXT = /\.(png|jpe?g|svg|ico|css|js|webmanifest|json|gif|woff2?|ttf|m
 // File downloads (the Reports page's "Download CSV" links) are not pages: a
 // browser navigating to one is aborted, which the crawl would count as a
 // failure. Skip them like any other asset.
-// Covers ?format=csv, ?format=csv&locale=fr (French Excel) and ?format=csv-fr.
+// Covers ?format=csv and the old ?format=csv&locale=fr / ?format=csv-fr links.
 const DOWNLOAD_QUERY = /[?&]format=csv(-fr)?(&|$)/i;
 const SKIP_SCHEME = /^(mailto:|tel:|sms:|javascript:|#)/i;
 const NAV_TIMEOUT = 15000;

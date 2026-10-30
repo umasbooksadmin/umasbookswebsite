@@ -216,7 +216,7 @@ jobs:
             Attached: inventory_${{ steps.gate.outputs.day }}.csv (one row per copy) and inventory_books_${{ steps.gate.outputs.day }}.csv (one row per book, with totals).
             ${{ steps.attach.outputs.note }}
 
-            To open in Excel (French settings): double-click the file, or in Excel use File > Open. Accents and prices (decimal comma) display correctly. If everything lands in one column, use Data > From Text/CSV and choose delimiter "Semicolon" and encoding "UTF-8".
+            The files use | between values, no quotes, and a decimal point (4.50). To open in Excel: Data > From Text/CSV, choose Delimiter "Custom" and type |, File Origin "UTF-8".
 
             The files contain no customer data. A copy of each is stored in Backblaze (private bucket), folder inventory-exports/, and kept for about 90 days. You can also download the current inventory any time from the admin Inventory page: "Download all inventory (CSV)".
 

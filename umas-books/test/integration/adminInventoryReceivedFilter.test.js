@@ -46,7 +46,7 @@ async function titles(qs) {
 }
 // Copy ids in the per-copy results CSV (column 14 is the copy id) and book titles in the per-book file.
 const csvRows = (text) => text.split("\r\n").slice(1).filter(Boolean);
-const csvCopyIds = async (qs) => csvRows((await get(`/admin/inventory/results.csv?q=RCV&${qs}`)).text).map((l) => Number(l.split(";")[13])).sort((a, b) => a - b);
+const csvCopyIds = async (qs) => csvRows((await get(`/admin/inventory/results.csv?q=RCV&${qs}`)).text).map((l) => Number(l.split("|")[13])).sort((a, b) => a - b);
 
 test("seed", async () => {
   await book("sep30", [{ at: "2026-09-30" }]);
@@ -141,7 +141,7 @@ test("invalid dates and from > to: a filter message, never a 500", async () => {
     assert.equal(r.status, 200, qs);
     assert.equal((await get(`/admin/inventory/results.csv?${qs}`)).status, 200, `csv ${qs}`);
   }
-  assert.match((await get("/admin/inventory/results.csv?receivedFrom=2026-13-01")).text, /;/, "CSV still served");
+  assert.match((await get("/admin/inventory/results.csv?receivedFrom=2026-13-01")).text, /\|/, "CSV still served");
 });
 
 test("parse + query string round trip", () => {

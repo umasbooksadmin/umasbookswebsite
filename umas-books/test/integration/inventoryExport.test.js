@@ -50,12 +50,12 @@ test("admin download: French-Excel CSV, one row per copy, no personal data", asy
   assert.ok(text.startsWith("\uFEFF"));
   const lines = text.split("\r\n");
   assert.equal(lines.length, 6); // header, 4 copies, trailing empty
-  assert.match(lines[0], /^\uFEFF"ISBN-13";"ISBN-10";"Title"/);
+  assert.match(lines[0], /^\uFEFFISBN-13\|ISBN-10\|Title/);
   for (const secret of SECRETS) assert.ok(!text.includes(secret), secret);
-  assert.match(text, /"Reserved"/);
-  assert.match(text, /"'=SUM\(A1\)"/); // formula neutralised
-  assert.match(text, /;4,50;/); // decimal comma
-  assert.match(text, /"2026-10-02"/); // date sold
+  assert.match(text, /\|Reserved\|/);
+  assert.match(text, /\|'=SUM\(A1\)\|/); // formula neutralised
+  assert.match(text, /\|4\.50\|/); // decimal point
+  assert.match(text, /\|2026-10-02\|/); // date sold
   assert.ok(!text.includes("No copies at all"));
 });
 

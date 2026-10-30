@@ -14,7 +14,7 @@ const { clearanceCandidates, cachedComparables, rulesSuggestionFor } = require("
 const { colorChartRows } = require("../../lib/pricing/colorChart");
 const { levelText } = require("../../lib/pricing/intake");
 const reprice = require("../../lib/pricing/reprice");
-const { csvCell } = require("../../lib/reports");
+const { csvCell, CSV_SEP } = require("../../lib/reports");
 const { parseIntParam } = require("../../lib/parseParams");
 
 const router = express.Router();
@@ -288,10 +288,10 @@ router.get("/admin/pricing/reprice/runs/:runId/export.csv", requireAdmin, async 
   const items = await reprice.runItems(pool, run.id);
   const header = ["run", "group", "copy_id", "book_id", "title", "binding", "old_price", "new_price", "old_suggested_price", "old_suggested_level", "old_price_basis"];
   const num = (v) => ({ bare: v == null ? "" : Number(v).toFixed(2) }); // prices are written as plain numbers
-  const lines = [header.map(csvCell).join(",")];
+  const lines = [header.map(csvCell).join(CSV_SEP)];
   for (const i of items) {
     lines.push([run.id, run.group_key, i.copy_id, i.book_id, i.title, i.binding, num(i.old_price), num(i.new_price), num(i.old_suggested_price), i.old_suggested_level, i.old_price_basis]
-      .map((v) => (v && typeof v === "object" ? v.bare : typeof v === "number" ? v : csvCell(v))).join(","));
+      .map((v) => (v && typeof v === "object" ? v.bare : typeof v === "number" ? v : csvCell(v))).join(CSV_SEP));
   }
   await audit(req, { action: "pricing.reprice.csv", targetType: "price_reprice_run", targetId: run.id, detail: `${items.length} copies` });
   res.set({

@@ -646,7 +646,7 @@ guidance prompt, picture, sort order, `published`, `last_generated_at`) and
   hand* (by genre, condition, location and source), *Aging stock*, *Sales over
   time* (online plus in-shop by day, week, month or year, drop-in seats shown
   apart), *Sell-through by genre*, *Membership*, *Intake log* and *Accounts* (everyone with an account by type; same type definitions as the admin accounts list, `lib/accountTypes.js`). Date ranges
-  are Paris calendar days. Any table can be downloaded as CSV; no report except *Accounts* shows
+  are Paris calendar days. Any table can be downloaded as CSV (one format for every CSV in the system: `|` separator, no quotes, decimal point, UTF-8 BOM, CRLF; `lib/reports.js` `csvCell`/`toCsv`); no report except *Accounts* shows
   email addresses or buyer names, and every CSV download is written to the audit
   log (report name only).
 * **Sell in shop** (`/admin/inventory/sell`) is **retired**: sales are made at the Till

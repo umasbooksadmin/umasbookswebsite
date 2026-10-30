@@ -343,9 +343,9 @@ test("the Reservations report: counts by outcome and the conversion rate, no nam
   assert.doesNotMatch(page.text, new RegExp(buyer.email));
   const csv = (await admin.get(`/admin/reports/reservations.csv?from=${day}&to=${day}`)).text;
   const lines = csv.trim().split("\r\n");
-  assert.match(lines[0], /Month","Reserved","Collected \(sold\)","Expired \/ no-show","Cancelled","Still open","Value collected","Conversion/);
-  const total = lines[lines.length - 1].split(",");
-  assert.equal(total[0], '"Total"');
+  assert.match(lines[0], /Month\|Reserved\|Collected \(sold\)\|Expired \/ no-show\|Cancelled\|Still open\|Value collected\|Conversion/);
+  const total = lines[lines.length - 1].split("|");
+  assert.equal(total[0], "Total");
   assert.ok(Number(total[1]) >= 4 && Number(total[2]) >= 1 && Number(total[3]) >= 1 && Number(total[4]) >= 1 && Number(total[5]) >= 1);
   // conversion = collected / (collected + expired + cancelled)
   const conv = Number(total[7]);

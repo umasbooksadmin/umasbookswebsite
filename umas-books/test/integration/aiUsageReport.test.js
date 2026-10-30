@@ -190,14 +190,14 @@ test("the CSV: AI tables download with a header row, counts, no personal data, l
   assert.match(res.headers.get("content-type"), /text\/csv/);
   assert.match(res.headers.get("content-disposition"), /attachment; filename="umas-books-lookup-sources-ai-all\.csv"/);
   const body = await res.text();
-  assert.match(body, /"Feature","Calls made","Succeeded","Failed \(error\)","Refused: rate limit \(429\)","Credit balance too low \/ billing","Input tokens","Output tokens","Web searches","Average response \(ms\)","Estimated cost \(USD\)","Estimated cost \(EUR\)"/);
-  assert.match(body, /"Genre suggestion",15,15,0,0,0,1500,150,0,300,/);
+  assert.match(body, /Feature\|Calls made\|Succeeded\|Failed \(error\)\|Refused: rate limit \(429\)\|Credit balance too low \/ billing\|Input tokens\|Output tokens\|Web searches\|Average response \(ms\)\|Estimated cost \(USD\)\|Estimated cost \(EUR\)/);
+  assert.match(body, /Genre suggestion\|15\|15\|0\|0\|0\|1500\|150\|0\|300\|/);
   assert.doesNotMatch(body, /@/);
   const daily = (await (await csv("table=ai_daily&period=all")).text()).replace(/^\uFEFF/, "").trim().split("\r\n");
   assert.equal(daily.length, 1 + 4, "every daily row");
-  assert.match(daily[0], /^"Day \(Paris\)","Feature"/);
+  assert.match(daily[0], /^Day \(Paris\)\|Feature/);
   const monthly = (await (await csv("table=ai_monthly&period=all")).text());
-  assert.match(monthly, /"Month","Feature"/);
+  assert.match(monthly, /Month\|Feature/);
   assert.ok((await pool.query("SELECT 1 FROM admin_audit_log WHERE action = 'report.csv' AND detail = 'lookup-sources'")).rows.length >= 3);
 });
 

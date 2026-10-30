@@ -163,7 +163,7 @@ test("Download these results (CSV) honours the spec and never calls the AI", asy
   const spec = specParam(validateSpec({ where: { field: "price", op: "!=", field2: "publisher_price" } }).spec);
   const perCopy = await req(`/admin/inventory/results.csv?${new URLSearchParams({ nl: spec })}`);
   assert.equal(perCopy.status, 200);
-  const ids = csvRows(perCopy.text).map((l) => Number(l.split(";")[13])).sort((a, b) => a - b);
+  const ids = csvRows(perCopy.text).map((l) => Number(l.split("|")[13])).sort((a, b) => a - b);
   assert.deepEqual(ids, [copyIds.get(T("diff"))[0], copyIds.get(T("cheap clearance"))[0]].sort((a, b) => a - b), "only the matching copies");
   const perBook = await req(`/admin/inventory/results.csv?${new URLSearchParams({ nl: spec, books: "1" })}`);
   assert.equal(csvRows(perBook.text).length, 2);
