@@ -233,3 +233,65 @@ test("H9: on a phone the cart rows give the title the full width (cover + text, 
     await browser.close();
   }
 });
+
+// ---------------------------------------------------------------- H11
+test("H11: the public lists carry `from` only for a choice whose copies differ in price", async () => {
+  const v = visitor();
+  const { books } = await (await v.get("/api/books/new-in?limit=100")).json();
+  const buy = Object.fromEntries(books.map((b) => [b.title, b.buy]));
+  assert.deepEqual(buy["Follow Two Prices"], { choose: true, from: 3.5 });
+  assert.deepEqual(buy["Follow Three Prices"], { choose: true, from: 5 }, "the lowest of three");
+  assert.deepEqual(buy["Follow Same Price"], { choose: true }, "one price, two grades: a choice, but no 'from'");
+  assert.deepEqual(buy["Follow Single"], { copyId: copy["Follow Single"][0] });
+  const search = await (await v.get("/api/books/search?q=Follow%20Two&paged=1")).json();
+  assert.deepEqual(search.books[0].buy, { choose: true, from: 3.5 });
+  const favs = await (await v.get(`/api/books/by-ids?ids=${id["Follow Three Prices"]}`)).json();
+  assert.deepEqual(favs[0].buy, { choose: true, from: 5 });
+});
+
+test("H11: 'More by' cards and the no-JavaScript Browse list say 'from €X' (EN) and 'dès X €' (FR), with the choose icon and no add icon", async () => {
+  const PLUS = '<path d="M13.3 9.6v4M11.3 11.6h4"/>';
+  for (const [lang, fromText, same] of [[undefined, "from €3.50", "€4.00", "€5.00"], ["fr", "dès 3,50 €", "4,00 €", "5,00 €"]]) {
+    const html = await text(visitor(app, lang).get(`/books/${id["Follow Single"]}`));
+    const card = (title) => html.split('<div class="book-card-wrap">').find((c) => c.includes(`>${title}<`));
+    const two = card("Follow Two Prices");
+    assert.ok(two.includes(`<span class="book-card-price">${fromText}</span>`), `${lang || "en"}: from the lowest price`);
+    assert.match(two, /bk-cart-choose/);
+    assert.ok(!two.includes(PLUS), `${lang || "en"}: the choose link does not use the add icon`);
+    const sameCard = card("Follow Same Price");
+    assert.ok(sameCard.includes(`<span class="book-card-price">${same}</span>`), `${lang || "en"}: one price, no 'from'`);
+    assert.doesNotMatch(sameCard.split("bk-cart")[0], /from|dès/);
+  }
+  const browse = await text(visitor().get("/books.html"));
+  assert.match(browse, /Follow Two Prices.{0,200}· from €3\.50/s, "the no-JavaScript list");
+  const browseFr = await text(visitor(app, "fr").get("/books.html"));
+  assert.match(browseFr, /Follow Two Prices.{0,200}· dès 3,50\u00a0€/s);
+});
+
+test("H11 in headless Chrome at 375px: the Browse card says 'from €3.50', its choose button is not the add icon and still opens the book page", async (t) => {
+  let browser;
+  try { browser = await require("puppeteer").launch({ headless: true, args: ["--no-sandbox"] }); } catch (err) { return t.skip(`no headless Chrome available: ${String(err.message).split("\n")[0]}`); }
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 375, height: 740, isMobile: true, hasTouch: true });
+    await page.setExtraHTTPHeaders({ "x-forwarded-for": newIp() });
+    await page.goto(`${app.base}/books.html`, { waitUntil: "networkidle0" });
+    await page.waitForSelector("#bk-new-track .bk-cart-choose");
+    const cards = await page.$$eval("#bk-new-track .bk-book", (list) => list.map((c) => ({
+      title: c.querySelector(".t").textContent.trim(),
+      price: c.querySelector(".p").firstChild.textContent.trim(),
+      choose: !!c.querySelector(".bk-cart-choose"),
+      plus: !!c.querySelector(".bk-cart-btn:not(.bk-cart-in) path[d='M13.3 9.6v4M11.3 11.6h4']"),
+      href: c.querySelector(".bk-cart-choose") && c.querySelector(".bk-cart-choose").getAttribute("href"),
+    })));
+    const by = Object.fromEntries(cards.map((c) => [c.title, c]));
+    assert.equal(by["Follow Two Prices"].price, "from €3.50");
+    assert.equal(by["Follow Two Prices"].choose, true);
+    assert.equal(by["Follow Two Prices"].plus, false, "no plus sign: it adds nothing");
+    assert.ok(by["Follow Two Prices"].href.endsWith(`/books/${id["Follow Two Prices"]}`));
+    assert.equal(by["Follow Same Price"].price, "€4.00");
+    assert.equal(by["Follow Single"].plus, true, "the add button keeps the plus");
+  } finally {
+    await browser.close();
+  }
+});

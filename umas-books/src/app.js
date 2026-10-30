@@ -448,7 +448,7 @@ function createApp() {
         // No-JavaScript fallback: the page fills its shelves from /api/books/*, so the server also lists the newest
         // books inside <noscript>. A fixed handful (36), never the whole New In list: the page must not grow with the
         // shelf (the carousel loads the rest in batches). Read from the list kept in memory, so it costs no query.
-        res.locals.noscriptBooks = await newInPage(pool, { offset: 0, limit: 36 }).then((r) => r.rows.map((b) => ({ ...b, buy: cardBuy(b.buy_copy_id) }))).catch(() => []);
+        res.locals.noscriptBooks = await newInPage(pool, { offset: 0, limit: 36 }).then((r) => r.rows.map((b) => ({ ...b, buy: cardBuy(b.buy_copy_id, b.buy_from_price) }))).catch(() => []);
         // The no-JavaScript list's cart icons (lib/cardCart.js): a signed-in person's own form and "in your cart"; a guest's are plain sign-in links.
         await setCardCartLocals(pool, req, res);
         // The New In carousel is only for the plain Browse view: with a search, a genre or ?new=1 in the address

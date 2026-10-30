@@ -121,6 +121,8 @@
     return { attr: '', span: '<span class="bk-cart-name">' + esc(parts[0]) + enSpan(frApos(title), language) + esc(parts.slice(1).join('{t}')) + '</span>' };
   }
   var CART_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 3.5h2.6l2.3 11.2a1.6 1.6 0 0 0 1.6 1.3h8.3a1.6 1.6 0 0 0 1.6-1.2l1.6-6.8H6"/><circle cx="9.5" cy="20" r="1.3"/><circle cx="17.5" cy="20" r="1.3"/><path d="M13.3 9.6v4M11.3 11.6h4"/></svg>';
+  // The "choose a copy" link has its own icon (a book with an arrow), not the add icon: it opens the book page, it adds nothing.
+  var CART_CHOOSE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3.5" y="3.5" width="11" height="14" rx="1.5"/><path d="M7.5 21h9a3 3 0 0 0 3-3V8"/><path d="M7 8h4M7 11h4"/><path d="m16 3.5 4 3.5-4 3.5"/></svg>';
   var CART_IN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 8h14.8l-1.6 6.8a1.6 1.6 0 0 1-1.6 1.2H9a1.6 1.6 0 0 1-1.6-1.3z" fill="currentColor"/><path d="M2.5 3.5h2.6L6 8"/><circle cx="9.5" cy="20" r="1.3"/><circle cx="17.5" cy="20" r="1.3"/><path d="m10.9 11.9 1.8 1.8 3.4-3.6" stroke="#fff"/></svg>';
   // Where the person is, for the sign-in page's returnTo (src/lib/returnTo.js accepts a local path up to 200 characters).
   function here() {
@@ -141,11 +143,19 @@
         '<button type="submit" class="bk-cart-btn"' + add.attr + '>' + CART_ADD_SVG + add.span + '</button></form>';
     } else {
       var choose = cartName('choose', b.title, b.language);
-      control = '<a class="bk-cart-btn bk-cart-choose" href="' + esc(href(b.url)) + '"' + choose.attr + '>' + CART_ADD_SVG + choose.span + '</a>';
+      control = '<a class="bk-cart-btn bk-cart-choose" href="' + esc(href(b.url)) + '"' + choose.attr + '>' + CART_CHOOSE_SVG + choose.span + '</a>';
     }
     var inCart = cartName('inCart', b.title, b.language);
     return '<span class="bk-cart" data-book-id="' + esc(b.id) + '">' + control +
       '<a class="bk-cart-btn bk-cart-in" href="/cart"' + inCart.attr + ' hidden>' + CART_IN_SVG + inCart.span + '</a></span>';
+  }
+
+  // The price text of a card: "from €X" (the lowest price) when the book has several copies at different prices and the cart button only
+  // chooses (b.buy = { choose: true, from }), else the price. views/partials/card_price.ejs is the server's copy.
+  function cardPrice(b) {
+    var buy = b && b.buy;
+    if (buy && buy.choose && buy.from > 0) return (lang() === 'fr' ? 'dès ' : 'from ') + euro(buy.from);
+    return b.price != null ? euro(b.price) : '';
   }
 
   // The Browse card. b = { id, title, author, price, coverUrl, url, buy }. The price line is outside the link: it carries the
@@ -154,7 +164,7 @@
     var cover = b.coverUrl
       ? '<img class="cover" src="' + esc(b.coverUrl) + '"' + coverAttrs(b.coverUrl, COVER_SIZES) + ' alt="" width="200" height="300" loading="lazy" decoding="async" data-cover>'
       : '<div class="cover cover-none" aria-hidden="true">' + esc(t('bk.nocover', 'No cover')) + '</div>';
-    var price = b.price != null ? euro(b.price) : '';
+    var price = b.price != null ? cardPrice(b) : '';
     var fav = withFavorite ? favButton(b.id, b.title, b.language, 'false', t('bk.fav.add', 'Add {t} to favorites').replace('{t}', b.title)) : '';
     return '<div class="bk-book">' + fav +
       '<a href="' + esc(href(b.url)) + '">' + cover +
@@ -175,7 +185,7 @@
     var cover = b.coverUrl
       ? '<img src="' + esc(b.coverUrl) + '"' + coverAttrs(b.coverUrl, COVER_SIZES) + ' alt="" class="book-card-cover" width="200" height="300" loading="lazy" decoding="async" data-cover>'
       : '<div class="book-card-cover book-thumb-placeholder" aria-hidden="true">' + pick('No cover', 'Pas de couverture') + '</div>';
-    var price = b.price != null ? '<span class="book-card-price">' + euro(b.price) + '</span>' : '';
+    var price = b.price != null ? '<span class="book-card-price">' + cardPrice(b) + '</span>' : '';
     var availability = b.inStockCount > 0
       ? '<span class="availability-badge is-in-stock"><span class="dot"></span>' + b.inStockCount + ' ' + pick('in stock', 'en stock') + '</span>'
       : '<span class="availability-badge is-out">&middot; ' + pick('Currently unavailable', 'Actuellement indisponible') + '</span>';
@@ -234,7 +244,7 @@
     frApos: frApos, esc: esc, enSpan: enSpan, favNameHtml: favNameHtml, lang: lang, t: t, euro: euro, href: href,
     coverSrcset: coverSrcset, coverAttrs: coverAttrs,
     HEART: HEART, bookCardHtml: bookCardHtml, favoriteCardHtml: favoriteCardHtml,
-    cartControlHtml: cartControlHtml, cartText: cartText, cartName: cartName, here: here,
+    cartControlHtml: cartControlHtml, cardPrice: cardPrice, cartText: cartText, cartName: cartName, here: here,
     reducedMotion: reducedMotion,
   };
 });
