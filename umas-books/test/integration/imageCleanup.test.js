@@ -337,7 +337,7 @@ test("every text column that looks image-bearing is listed in IMAGE_REFERENCES",
       WHERE table_schema = 'public' AND table_name <> 'images'
         AND data_type IN ('text', 'character varying')
         AND column_name ~* '(image|img|cover|photo|picture|thumb|avatar|logo|banner)'
-        AND column_name <> 'cover_source_url' -- an external address to download from (lib/coverStore.js), never an /img URL`
+        AND column_name NOT IN ('cover_source_url', 'cover_origin') -- an external address to download from (lib/coverStore.js), never an /img URL`
   );
   const missing = rows.map((r) => r.k).filter((k) => !listed.has(k));
   assert.deepEqual(missing, [], `add to IMAGE_REFERENCES in src/lib/imageCleanup.js: ${missing.join(", ")}`);

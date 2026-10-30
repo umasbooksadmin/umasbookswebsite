@@ -326,9 +326,10 @@ test("bookLookup: searchByTitleAuthor builds the query and maps docs", async () 
   assert.equal(u.searchParams.get("title"), "Dune");
   assert.equal(u.searchParams.get("author"), "Frank Herbert");
   assert.equal(u.searchParams.get("limit"), "5");
+  assert.ok(!u.searchParams.get("fields").includes("cover_i"), "the cover id is not even asked for");
   assert.deepEqual(results[0], {
     isbn: "111", title: "Dune", author: "Frank Herbert", publisher: "Chilton", publishedYear: 1965, description: null,
-    coverUrl: "https://covers.openlibrary.org/b/id/42-L.jpg", genre: "Fiction, Science Fiction",
+    coverUrl: null, genre: "Fiction, Science Fiction", // a title search never brings a cover (covers belong to an exact ISBN)
   });
   assert.deepEqual(results[1], {
     isbn: null, title: "Bare", author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null,

@@ -110,7 +110,7 @@ router.post("/admin/inventory/:id/cover/replace", requireAdmin, limiter, async (
   try {
     const data = await coverFromPhoto(file && file.buffer);
     const url = await saveImage(data, "image/jpeg", pool);
-    await pool.query("UPDATE books SET cover_url = $1, cover_removed_at = NULL, updated_at = now() WHERE id = $2", [url, book.id]);
+    await pool.query("UPDATE books SET cover_url = $1, cover_removed_at = NULL, cover_origin = 'photo', cover_checked_at = NULL, updated_at = now() WHERE id = $2", [url, book.id]);
     clearBrowseCaches(pool);
     await audit(req, { action: "cover.replace", targetType: "book", targetId: book.id, detail: book.cover_url ? "replaced" : "added" });
     return answer(req, res, book.id, "replaced", { coverUrl: url });
@@ -128,7 +128,7 @@ router.post("/admin/inventory/:id/cover/remove", requireAdmin, limiter, async (r
   if (!book) return;
   if (!book.cover_url) return answer(req, res, book.id, "removed", { coverUrl: null });
   await pool.query(
-    `UPDATE books SET cover_url = NULL, cover_source_url = NULL, cover_fetch_failures = 0, cover_removed_at = now(), updated_at = now()
+    `UPDATE books SET cover_url = NULL, cover_source_url = NULL, cover_fetch_failures = 0, cover_removed_at = now(), cover_origin = NULL, cover_checked_at = NULL, updated_at = now()
       WHERE id = $1`,
     [book.id]
   );

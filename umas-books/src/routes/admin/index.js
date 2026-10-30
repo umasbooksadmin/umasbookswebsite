@@ -25,6 +25,7 @@ router.use(require("./till"));
 router.use(require("./inventory"));
 router.use(require("./inventoryCover")); // the Cover card: replace, rotate, crop, remove
 router.use(require("./awards"));
+router.use(require("./coverReview")); // before reports: /admin/reports/covers-to-check is not a report slug
 router.use(require("./reports"));
 router.use(require("./forum"));
 router.use(require("./pricing"));

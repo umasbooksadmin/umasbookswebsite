@@ -598,13 +598,14 @@ test("add: a missing description is generated (English only, never translated); 
   assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/62-L.jpg");
 });
 
-test("add: with no ISBN match the cover falls back to a title/author search", async () => {
+test("add: with no ISBN match there is NO cover, and no title/author search is made for one (exact ISBN only)", async () => {
   const title = `Searched ${tag()}`;
   openLibrary.search = [{ title: "No cover" }, { title: "With cover", cover_i: 77 }];
   await post("/admin/inventory", { fields: { title, description: "d" } });
   const [book] = await bookByTitle(title);
-  await storedImage(book.cover_url);
-  assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/77-L.jpg");
+  assert.equal(book.cover_url, null);
+  assert.equal(book.cover_source_url, null);
+  assert.ok(!olCalls.some((u) => u.includes("search.json")), "no search for a cover");
 });
 
 test("add: an uploaded cover photo is stored as a resized JPEG in the image store, overriding the URL field", async () => {
