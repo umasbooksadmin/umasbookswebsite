@@ -26,6 +26,9 @@ const TERMS_OF_SALE_VERSION = "2026-10-28";
 //    is held this long for the guest to open the link in the email; unconfirmed,
 //    it is released automatically. Confirmed, the usual RESERVATION_DAYS apply.
 //    MAX_RESERVED_COPIES / MAX_ACTIVE_RESERVATIONS then count per email address.
+//  - GUEST_HOLD_MAX_COPIES / GUEST_HOLD_MAX_PER_IP: anonymous holds nobody has confirmed yet are
+//    capped shop-wide (copies held at once) and per connection (holds at once), so a script cannot
+//    tie up the shelves for 2 hours at a time (lib/guestOrders.js).
 const RESERVATION_DAYS = 14;
 const RESERVATION_EXTENSION_DAYS = 7;
 const MAX_RESERVED_COPIES = 10;
@@ -34,6 +37,8 @@ const SEAT_CANCEL_HOURS = 24;
 const SEAT_REMINDER_HOURS = 24;
 const RESERVATION_REMINDER_DAYS_BEFORE = 4;
 const GUEST_CONFIRM_HOURS = 2;
+const GUEST_HOLD_MAX_COPIES = 30;
+const GUEST_HOLD_MAX_PER_IP = 2;
 // A drop-in seat is held until the class ends (classes.ends_at); when a class
 // has no end time, this many hours after it starts.
 const SEAT_FALLBACK_SESSION_HOURS = 3;
@@ -187,6 +192,7 @@ module.exports = {
   BRAND_LEGAL_NAME, BRAND_SHORT_NAME, TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS,
   RESERVATION_DAYS, RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS,
   SEAT_CANCEL_HOURS, SEAT_REMINDER_HOURS, RESERVATION_REMINDER_DAYS_BEFORE, SEAT_FALLBACK_SESSION_HOURS, GUEST_CONFIRM_HOURS,
+  GUEST_HOLD_MAX_COPIES, GUEST_HOLD_MAX_PER_IP,
   CONTACT_EMAIL, SIREN, SIRET, RNA, REGISTERED_OFFICE, REGISTERED_OFFICE_FORMAL,
   MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER, SHOP_PHONE_DISPLAY, SHOP_PHONE_TEL,
   SHOP_OPEN_DAYS, SHOP_OPENS, SHOP_CLOSES, SHOP_HOURS_EN, SHOP_HOURS_FR,

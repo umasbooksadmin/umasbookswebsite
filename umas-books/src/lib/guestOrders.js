@@ -23,6 +23,12 @@
 //      address, confirmed or not: MAX_RESERVED_COPIES books, MAX_ACTIVE_RESERVATIONS
 //      reservations (lib/cart.js), on top of the per-IP limits and CSRF of the routes.
 //      The first email is a THROTTLED kind (anyone can type any address).
+//   4b. Limits on holds nobody has confirmed yet (anonymous, so abusable): at most
+//      GUEST_HOLD_MAX_COPIES copies held shop-wide, and GUEST_HOLD_MAX_PER_IP unconfirmed
+//      holds per connection (orders.client_ip, a /56-bucketed IP, emptied when the hold is
+//      confirmed or released). Refused with GUEST_HOLDS_FULL / GUEST_IP_HOLDS; the first
+//      raises one admin alert an hour. The shop-wide cap on first mails (outbox.js) also
+//      raises one (MAIL_THROTTLED with reason 'global'). A confirmed hold is never counted.
 //   5. A later account with the same email gets these orders attached
 //      (attachGuestOrders), ONLY once that account's email is confirmed.
 
@@ -33,13 +39,57 @@ const { buildGuestConfirmEmail, buildOrderConfirmationText, orderConfirmationSub
 const { SITE_TIME_ZONE } = require("./tz");
 const legal = require("./legal");
 const { RESERVATION_DAYS, SESSION_OVER_SQL, cancelReservationAsGuest } = require("./reservations");
+const { claimAlertSlot, releaseAlertSlot } = require("./alertFlags");
+const { sendAdminAlert } = require("./errorAlert");
 
 const GUEST_CONFIRM_HOURS = legal.GUEST_CONFIRM_HOURS;
 // A manage link keeps working this many days after the reservation's deadline (to see how it ended).
 const MANAGE_DAYS = 30;
 const TOKEN_RE = /^[a-f0-9]{64}$/;
 
+// Caps on UNCONFIRMED holds (see 4b). Mutable only for tests (setHoldLimits).
+const holdLimits = { maxCopies: legal.GUEST_HOLD_MAX_COPIES, maxPerIp: legal.GUEST_HOLD_MAX_PER_IP };
+function setHoldLimits(next) {
+  const before = { ...holdLimits };
+  Object.assign(holdLimits, next);
+  return () => Object.assign(holdLimits, before);
+}
+const ALERT_EVERY_MINUTES = 60;
+
 const lazyDb = () => require("../db");
+
+// Inside the reservation transaction, after the per-email limits: throws GUEST_IP_HOLDS or GUEST_HOLDS_FULL.
+// A shop-wide advisory lock makes the count race-free (guest reservations only; account holders never take it).
+async function assertGuestHoldCapacity(client, { ip, copies }) {
+  await client.query("SELECT pg_advisory_xact_lock(hashtext('reserve-guest-global'))");
+  if (ip) {
+    const { rows: [m] } = await client.query(
+      "SELECT count(*)::int AS n FROM orders WHERE is_guest AND status = 'reserved' AND guest_confirmed_at IS NULL AND client_ip = $1", [ip]);
+    if (m.n >= holdLimits.maxPerIp) throw new Error("GUEST_IP_HOLDS");
+  }
+  const { rows: [t] } = await client.query(
+    `SELECT count(*)::int AS n FROM book_copies c JOIN orders o ON o.id = c.cart_order_id
+     WHERE o.is_guest AND o.status = 'reserved' AND o.guest_confirmed_at IS NULL AND c.status = 'reserved'`);
+  if (t.n + copies > holdLimits.maxCopies) throw new Error("GUEST_HOLDS_FULL");
+}
+
+// One admin alert an hour (alert_flags, across restarts and instances) when a shop-wide guest limit refuses someone.
+// `which`: 'holds' (the unconfirmed-copies ceiling) or 'mail' (the shop-wide first-mail cap). Never throws; no personal data.
+async function alertGuestLimit(pool, which) {
+  const key = `guest_limit_${which}`;
+  try {
+    if (!(await claimAlertSlot(pool, key, ALERT_EVERY_MINUTES))) return false;
+    const text = which === "holds"
+      ? `The ceiling on guest reservations nobody has confirmed yet was reached (${holdLimits.maxCopies} copies held at once). New guest reservations are refused until some are confirmed or released (after ${GUEST_CONFIRM_HOURS} hours). If nobody real is waiting, someone is probably spamming the guest form: look at Admin > Orders for many unconfirmed guest holds.`
+      : "The shop-wide cap on first guest-reservation emails per hour was reached, so new guest reservations are refused for a while. Confirmations and other emails are not affected. If this is not a busy day, someone is probably spamming the guest form (see the 'Mail throttled' lines in the logs).";
+    const sent = await sendAdminAlert({ subject: "[umas-books] Guest reservation limit reached", text });
+    if (!sent) await releaseAlertSlot(pool, key);
+    return sent;
+  } catch (err) {
+    console.error("Guest limit alert failed:", err.message);
+    return false;
+  }
+}
 
 const confirmUrl = (base, token) => `${base}/cart/guest/confirm/${token}`;
 const manageUrl = (base, token) => `${base}/cart/guest/manage/${token}`;
@@ -72,7 +122,7 @@ async function startGuestHold(client, order, base) {
   const items = await loadOrderItems(client, order.id);
   const mail = buildGuestConfirmEmail(rows[0], items, { confirmUrl: confirmUrl(base, confirm), manageUrl: manageUrl(base, manage) });
   const r = await enqueueThrottled(client, { kind: "guest_reservation", lang: rows[0].lang, relatedOrderId: order.id, to: rows[0].buyer_email, ...mail }, { mode: "skipInterval" });
-  if (r.throttled) throw new Error("MAIL_THROTTLED");
+  if (r.throttled) throw Object.assign(new Error("MAIL_THROTTLED"), { reason: r.throttled });
   return r.id;
 }
 
@@ -121,7 +171,7 @@ async function confirmGuestOrder(pool, raw, base) {
     if (!order || order.status !== "reserved") return { outcome: "expired" };
     if (order.guest_confirmed_at) return { outcome: "used" };
     const { rows: upd } = await client.query(
-      `UPDATE orders o SET guest_confirmed_at = now(), reserved_until = ${CONFIRMED_DEADLINE_SQL} WHERE o.id = $1 RETURNING o.*`,
+      `UPDATE orders o SET guest_confirmed_at = now(), client_ip = NULL, reserved_until = ${CONFIRMED_DEADLINE_SQL} WHERE o.id = $1 RETURNING o.*`,
       [order.id]
     );
     const manageToken = await mintManageToken(client, upd[0]);
@@ -191,13 +241,23 @@ async function attachGuestOrders(db, userId) {
     `UPDATE orders o SET user_id = u.id
      FROM users u
      WHERE u.id = $1 AND u.email_verified_at IS NOT NULL AND NOT u.is_disabled
-       AND o.is_guest AND o.user_id IS NULL AND lower(o.buyer_email) = lower(u.email)`,
+       AND o.is_guest AND o.user_id IS NULL AND lower(o.buyer_email) = lower(u.email)
+     RETURNING o.id`,
     [userId]
   );
+  // The order is now managed from the account (cancel, collect): the emailed no-account link must stop working
+  // (a forwarded or leaked mail could otherwise still cancel it). The confirm link is left: an unconfirmed hold
+  // can still be confirmed from its mail, and it is single use.
+  if (r.rowCount) {
+    await db.query(
+      "UPDATE guest_order_tokens SET expires_at = now() WHERE purpose = 'manage' AND expires_at > now() AND order_id = ANY($1::int[])",
+      [r.rows.map((x) => x.id)]
+    );
+  }
   return r.rowCount;
 }
 
 module.exports = {
-  startGuestHold, peekConfirmToken, confirmGuestOrder, orderForManageToken, cancelWithManageToken, queueGuestResend,
+  startGuestHold, assertGuestHoldCapacity, alertGuestLimit, setHoldLimits, peekConfirmToken, confirmGuestOrder, orderForManageToken, cancelWithManageToken, queueGuestResend,
   attachGuestOrders, confirmUrl, manageUrl, GUEST_CONFIRM_HOURS, MANAGE_DAYS, TOKEN_RE,
 };

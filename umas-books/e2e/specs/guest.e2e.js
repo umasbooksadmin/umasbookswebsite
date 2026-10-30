@@ -1350,6 +1350,10 @@ s.test("G88 (must) a phone set to dark mode still gets the light site, with ligh
   }
 });
 
+s.manual("G63 unconfirmed guest holds are capped per connection (2) and shop-wide (30 copies); over a cap the guest gets one neutral message", "reserving as a guest on a live site ties up real stock and mails real addresses; covered by test/integration/guestHardening.test.js");
+s.manual("G64 every guest reservation limit gives the same neutral sentence (EN and FR) and never says anything about the address", "needs reservations and mails to real addresses; covered by test/integration/guestHardening.test.js and guestCheckout.test.js");
+s.manual("G65 a guest reservation mail has its own daily budget (3 per address) apart from sign-up / password-reset mails (5)", "needs real mailboxes and a day's mails; covered by test/integration/guestHardening.test.js");
+s.manual("G66 the emailed manage link of a guest reservation stops working once it is attached to an account", "needs a real mailbox and an account; covered by test/integration/guestCheckoutApp.test.js");
 s.manual("G89 added to the home screen on an iPhone, no bar or button sits behind the home indicator", "needs a real iPhone in home-screen (standalone) mode; the safe-area padding itself is checked by a unit test");
 
 s.test("G90 (must) covers on a phone are sized: the Browse Books grid asks for the 300, 450 or 600 px copy, never an oversized one for a 160 px slot", { viewport: GUEST_PHONE }, async (ctx) => {
