@@ -17,6 +17,7 @@ const { createApp } = require("./app");
 const { startJobs } = require("./jobs");
 const lookupStats = require("./lib/lookupStats"); // flushed at shutdown
 const aiUsageStats = require("./lib/aiUsageStats");
+const outbox = require("./lib/outbox");
 
 const app = createApp();
 
@@ -76,23 +77,30 @@ const jobs = startJobs(pool);
 //   1. stop the maintenance timers (no new background work),
 //   2. server.close() stops accepting connections and waits for in-flight
 //      requests to finish (idle keep-alive sockets are closed right away),
-//   3. only then pool.end(), so those requests can still reach the DB,
-//   4. exit 0. A hard-exit timer (unref'd, so it never keeps the process
-//      alive by itself) forces exit 1 if requests do not drain in time.
-const SHUTDOWN_TIMEOUT_MS = 10 * 1000;
+//   3. wait (at most MAIL_WAIT_MS) for mails being sent right now: closing the
+//      database under a mail that already left would leave its row pending, and
+//      the worker would send it a second time when the lease ran out,
+//   4. only then pool.end(), so those requests can still reach the DB,
+//   5. exit 0. A hard-exit timer (unref'd, so it never keeps the process
+//      alive by itself) forces exit 1 if this does not finish in time.
+const MAIL_WAIT_MS = 10 * 1000;
+const SHUTDOWN_TIMEOUT_MS = 10 * 1000 + MAIL_WAIT_MS; // draining requests (10 s) + waiting for mail
 let shuttingDown = false;
 function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`${signal} received - shutting down gracefully.`);
   jobs.stopAll();
+  outbox.stopSending();
   setTimeout(() => {
     console.error(`Shutdown did not finish within ${SHUTDOWN_TIMEOUT_MS / 1000}s - forcing exit.`);
     process.exit(1);
   }, SHUTDOWN_TIMEOUT_MS).unref();
   server.close(() => {
     // the lookup counts still in memory go to the database before the pool closes (never fails the shutdown)
-    Promise.all([lookupStats.getStats().stop().catch(() => {}), aiUsageStats.getStats().stop().catch(() => {})]).then(() => pool.end()).then(
+    Promise.all([lookupStats.getStats().stop().catch(() => {}), aiUsageStats.getStats().stop().catch(() => {}), outbox.waitForInFlightSends(MAIL_WAIT_MS).then((done) => {
+      if (!done) console.error(`Shutdown: a mail was still being sent after ${MAIL_WAIT_MS / 1000}s - closing anyway.`);
+    })]).then(() => pool.end()).then(
       () => {
         console.log("Shutdown complete.");
         process.exit(0);

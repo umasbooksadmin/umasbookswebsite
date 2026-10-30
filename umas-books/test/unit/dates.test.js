@@ -47,3 +47,15 @@ test("a weekly repeat keeps the same Paris wall-clock time across the October cl
 test("weeklyDateTimes returns nothing for an invalid start", () => {
   assert.deepEqual(weeklyDateTimes("bogus", "18:00", 4), []);
 });
+
+test("a day that does not exist is rejected, not rolled over into the next month", () => {
+  for (const bad of ["2026-02-30T10:00", "2026-02-29T10:00", "2026-04-31T09:00", "2026-06-31T09:00", "2026-01-01T24:00", "2026-13-01T10:00", "2026-00-10T10:00", "2026-01-00T10:00"]) {
+    assert.equal(parseLocalDateTime(bad), null, bad);
+  }
+  assert.equal(parseLocalDateTime("2026-02-30", "10:00"), null);
+  assert.equal(weeklyDateTimes("2026-02-30", "10:00", 3).length, 0);
+  // real edge days still parse
+  assert.ok(parseLocalDateTime("2028-02-29T10:00"), "29 February in a leap year");
+  assert.ok(parseLocalDateTime("2026-12-31T23:59"));
+  assert.equal(parseLocalDateTime("2026-07-15T18:00:30").getSeconds(), 30);
+});

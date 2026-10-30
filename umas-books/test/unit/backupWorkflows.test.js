@@ -48,7 +48,8 @@ test("nightly backup: uploads to the full/ and monthly/ prefixes", () => {
   assert.match(nightly, /\$\{PREFIX\}\/full\/\$\(basename "\$UPLOAD"\)/);
   assert.match(nightly, /\$\{PREFIX\}\/monthly\/\$\(basename "\$UPLOAD"\)/);
   assert.match(nightly, /umas_books_full_\$\{STAMP\}\.dump/);
-  assert.match(nightly, /date -u \+%d\)" = "01"/);
+  // no "only on the 1st" gate: a failed run on the 1st must not cost a whole month
+  assert.doesNotMatch(nightly, /date -u \+%d\)" = "01"/);
 });
 
 test("restore test: downloads the newest dump from the full/ prefix, read-only", () => {
@@ -91,8 +92,9 @@ test("nightly: bootstraps the monthly copy and has the force_monthly input", () 
   assert.match(nightly, /workflow_dispatch:[^\n]*\n\s+inputs:\n\s+force_monthly:[\s\S]*?type: boolean\n\s+default: false/);
   assert.match(nightly, /FORCE_MONTHLY: \$\{\{ inputs\.force_monthly \}\}/);
   assert.match(nightly, /bootstrap: no monthly copy exists at all/);
-  // one per calendar month: on the 1st only if none was written this month
-  assert.match(nightly, /"\$\(date -u \+%d\)" = "01" \] && \[ "\$\{NEWEST_MONTHLY:0:7\}" != "\$THIS_MONTH"/);
+  // one per calendar month: the first successful run of a month that finds none yet writes it (the 1st normally,
+  // the next night if the 1st failed)
+  assert.match(nightly, /elif \[ "\$\{NEWEST_MONTHLY:0:7\}" != "\$THIS_MONTH" \]; then\n\s+WRITE_MONTHLY=yes/);
 });
 
 const { spawnSync: spawnJm } = require("node:child_process");

@@ -2,6 +2,7 @@
 <% if (typeof notice !== "undefined" && notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
 
 <% if (typeof error !== "undefined" && error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<%- include('../partials/admin_bad_ranges', { rows: badRanges, noun: 'session', path: '/admin/sessions', editable: true }) %>
 <%# What was typed in a refused form is shown back in it (display only). %>
 <% const ov = typeof formOverlay !== "undefined" && formOverlay ? formOverlay : null; %>
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
@@ -35,7 +36,7 @@
             <details class="calendar-pill calendar-add-pill"<%= nv ? ' open' : '' %>>
               <summary>+ Add session</summary>
               <div class="calendar-pill-body">
-                <form class="stack" method="post" action="/admin/sessions">
+                <form class="stack" method="post" action="/admin/sessions" data-saving-text="Saving&hellip;">
                   <%- include('../partials/csrf_field') %>
                   <input type="hidden" name="view" value="<%= view %>">
                   <input type="hidden" name="month" value="<%= view === 'month' ? currentMonth : '' %>">
@@ -118,9 +119,9 @@
                       <label for="loc-<%= c.id %>">Location</label>
                       <input id="loc-<%= c.id %>" name="location" type="text" value="<%= ev ? ev.location : (c.location || '') %>">
                       <label for="start-<%= c.id %>">Starts at</label>
-                      <input id="start-<%= c.id %>" name="startsAt" type="datetime-local" required value="<%= new Date(c.starts_at.getTime() - c.starts_at.getTimezoneOffset()*60000).toISOString().slice(0,16) %>">
+                      <input id="start-<%= c.id %>" name="startsAt" type="datetime-local" required value="<%= ev && ev.startsAt ? ev.startsAt : new Date(c.starts_at.getTime() - c.starts_at.getTimezoneOffset()*60000).toISOString().slice(0,16) %>">
                       <label for="end-<%= c.id %>">Ends at</label>
-                      <input id="end-<%= c.id %>" name="endsAt" type="datetime-local" value="<%= c.ends_at ? new Date(c.ends_at.getTime() - c.ends_at.getTimezoneOffset()*60000).toISOString().slice(0,16) : '' %>">
+                      <input id="end-<%= c.id %>" name="endsAt" type="datetime-local" value="<%= ev && ev.startsAt != null ? ev.endsAt : (c.ends_at ? new Date(c.ends_at.getTime() - c.ends_at.getTimezoneOffset()*60000).toISOString().slice(0,16) : '') %>">
                       <label for="cap-<%= c.id %>">Capacity</label>
                       <input id="cap-<%= c.id %>" name="capacity" type="number" min="1" max="1000" step="1" value="<%= ev ? ev.capacity : (c.capacity != null ? c.capacity : '') %>">
                       <div class="muted small">Leave blank to keep the current capacity. It can't go below the seats already booked.</div>

@@ -191,6 +191,25 @@
     return Math.max(0, Math.round(innerHeight - vv.height - (vv.offsetTop || 0)));
   }
 
+  // A request is given up after this long, so a stalled connection can never leave the page waiting for ever
+  // (the Save button is blocked while a lookup is "in flight"). The server gives up on a lookup after
+  // SCAN_LOOKUP_TIMEOUT_MS (4 s by default), so 12 s is that plus a wide margin. A save may carry a photo over a
+  // slow phone connection: 30 s. A save that timed out is safe to repeat: it keeps its intake token (see saveInPlace).
+  var LOOKUP_TIMEOUT_MS = 12000;
+  var SAVE_TIMEOUT_MS = 30000;
+
+  // { signal, clear }: the signal aborts the fetch after `ms`; clear() stops the timer once the request has ended.
+  // (AbortSignal.timeout is newer than some phones' browsers, so an AbortController is used.)
+  function timeoutSignal(ms, setTimeoutFn, clearTimeoutFn) {
+    var setT = setTimeoutFn || setTimeout;
+    var clearT = clearTimeoutFn || clearTimeout;
+    if (typeof AbortController === "undefined") return { signal: undefined, clear: function () {} };
+    var controller = new AbortController();
+    var timer = setT(function () { controller.abort(); }, ms);
+    return { signal: controller.signal, clear: function () { clearT(timer); } };
+  }
+  function isTimeoutError(err) { return !!err && (err.name === "AbortError" || err.name === "TimeoutError"); }
+
   // ------------------------------------------------------------------ page part
 
   function init(document, window) {
@@ -390,11 +409,13 @@
       inFlight = true;
       hideSuggestion();
       setStatus("loading", "Looking up…");
-      fetch("/admin/inventory/lookup?isbn=" + encodeURIComponent(digits) + "&binding=" + encodeURIComponent(bindingSel.value), { credentials: "same-origin", headers: { Accept: "application/json" } })
+      var limit = timeoutSignal(LOOKUP_TIMEOUT_MS);
+      fetch("/admin/inventory/lookup?isbn=" + encodeURIComponent(digits) + "&binding=" + encodeURIComponent(bindingSel.value), { credentials: "same-origin", headers: { Accept: "application/json" }, signal: limit.signal })
         .then(function (r) {
           return r.json().then(function (j) { return { status: r.status, body: j }; }, function () { return { status: r.status, body: null }; });
         })
         .then(function (res) {
+          limit.clear();
           if (!guard.isCurrent(id)) return; // a newer scan is on its way
           inFlight = false;
           if (res.status === 401 && res.body && res.body.error === "session_expired") { signedOut(res.body.loginUrl); setStatus("error", "Signed out: log in again."); return; }
@@ -410,10 +431,13 @@
           refocusIsbn();
           askIsbndbPrice();
         })
-        .catch(function () {
+        .catch(function (err) {
+          limit.clear();
           if (!guard.isCurrent(id)) return;
           inFlight = false;
-          setStatus("error", "No connection: the lookup did not run. Fill in by hand, or scan again. The form still works.");
+          setStatus("error", isTimeoutError(err)
+            ? "The lookup is taking too long, so it was stopped. Fill in by hand and save, or scan again to try again."
+            : "No connection: the lookup did not run. Fill in by hand, or scan again. The form still works.");
         });
     }
 
@@ -534,11 +558,13 @@
         form.removeAttribute("aria-busy");
         Array.prototype.forEach.call(form.querySelectorAll("button[name=fast]"), function (b) { b.disabled = false; });
       };
-      fetch(form.getAttribute("action"), { method: "POST", body: fd, credentials: "same-origin", headers: { Accept: "application/json" } })
+      var limit = timeoutSignal(SAVE_TIMEOUT_MS);
+      fetch(form.getAttribute("action"), { method: "POST", body: fd, credentials: "same-origin", headers: { Accept: "application/json" }, signal: limit.signal })
         .then(function (r) {
           return r.json().then(function (j) { return { status: r.status, body: j, redirected: r.redirected }; }, function () { return { status: r.status, body: null, redirected: r.redirected }; });
         })
         .then(function (res) {
+          limit.clear();
           done();
           if (res.status === 401 && res.body && res.body.error === "session_expired") {
             signedOut(res.body.loginUrl);
@@ -563,9 +589,12 @@
           errorEl.hidden = false;
           setStatus("error", "Not saved.");
         })
-        .catch(function () {
+        .catch(function (err) {
+          limit.clear();
           done();
-          errorEl.textContent = "No connection: the book may not have been saved. Check the book list before saving it again.";
+          errorEl.textContent = isTimeoutError(err)
+            ? "The save is taking too long, so the page stopped waiting. The book may or may not have been saved. Press Save again (a repeat never adds the book twice), or check the book list."
+            : "No connection: the book may not have been saved. Check the book list before saving it again.";
           errorEl.hidden = false;
           setStatus("error", "Not saved.");
         });
@@ -622,6 +651,6 @@
   return {
     isbnDigits: isbnDigits, isCompleteIsbn: isCompleteIsbn, createScanWatcher: createScanWatcher, createRequestGuard: createRequestGuard, shouldRefocusIsbn: shouldRefocusIsbn,
     wantsIsbndbPrice: wantsIsbndbPrice, isbndbPriceMessage: isbndbPriceMessage, planFill: planFill, resolveBindingKey: resolveBindingKey, chooseBinding: chooseBinding, bindingStartsChosen: bindingStartsChosen, choicesToKeep: choicesToKeep, lookupStatus: lookupStatus,
-    keyboardInset: keyboardInset, FILL_FIELDS: FILL_FIELDS, init: init,
+    keyboardInset: keyboardInset, timeoutSignal: timeoutSignal, isTimeoutError: isTimeoutError, LOOKUP_TIMEOUT_MS: LOOKUP_TIMEOUT_MS, SAVE_TIMEOUT_MS: SAVE_TIMEOUT_MS, FILL_FIELDS: FILL_FIELDS, init: init,
   };
 });

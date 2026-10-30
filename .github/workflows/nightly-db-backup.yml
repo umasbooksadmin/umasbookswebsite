@@ -34,7 +34,7 @@ on:
   workflow_dispatch: # allows a manual "Run workflow" from the Actions tab
     inputs:
       force_monthly:
-        description: "Also write the long-term monthly/ copy now, even if it is not the 1st and one already exists this month (default: no)"
+        description: "Also write the long-term monthly/ copy now, even if one already exists this month (default: no)"
         type: boolean
         default: false
       force_yearly:
@@ -212,9 +212,10 @@ jobs:
           aws s3 cp "$UPLOAD" "s3://${BUCKET}/${PREFIX}/full/$(basename "$UPLOAD")" --endpoint-url "$ENDPOINT" --only-show-errors
           echo "Uploaded ($(du -h "$UPLOAD" | cut -f1)) to ${BUCKET}/${PREFIX}/full/$(basename "$UPLOAD")"
           # Long-term copy (monthly/): at most ONE per calendar month (UTC). It is
-          # written when none exists yet this month AND (today is the 1st, OR no
-          # monthly copy exists at all: bootstrap, so the first month is covered
-          # at once). A manual run with force_monthly=true writes it regardless.
+          # written by the first successful run of a month that finds none yet this
+          # month (normally the run of the 1st; if that run failed, the next night's run
+          # does it, so a failure on the 1st no longer costs a whole month), or when no
+          # monthly copy exists at all (bootstrap). A manual run with force_monthly=true writes it regardless.
           # The list query is null-safe: an empty folder returns "Contents: null".
           NEWEST_MONTHLY=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
                              --prefix "${PREFIX}/monthly/umas_books_full_" --delimiter "/" \
@@ -225,8 +226,8 @@ jobs:
             WRITE_MONTHLY=yes
           elif [ -z "$NEWEST_MONTHLY" ] || [ "$NEWEST_MONTHLY" = "None" ]; then
             WRITE_MONTHLY=yes # bootstrap: no monthly copy exists at all
-          elif [ "$(date -u +%d)" = "01" ] && [ "${NEWEST_MONTHLY:0:7}" != "$THIS_MONTH" ]; then
-            WRITE_MONTHLY=yes
+          elif [ "${NEWEST_MONTHLY:0:7}" != "$THIS_MONTH" ]; then
+            WRITE_MONTHLY=yes # none yet this month: the first successful run of the month writes it
           fi
           if [ "$WRITE_MONTHLY" = "yes" ]; then
             aws s3 cp "$UPLOAD" "s3://${BUCKET}/${PREFIX}/monthly/$(basename "$UPLOAD")" --endpoint-url "$ENDPOINT" --only-show-errors
