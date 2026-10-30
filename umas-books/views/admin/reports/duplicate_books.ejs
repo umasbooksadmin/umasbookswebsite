@@ -1,0 +1,36 @@
+<%- include('../../partials/admin_header', { title: title, active: active, pageTitle: pageTitle, pageSub: pageSub }) %>
+
+<p><a href="/admin/reports">&larr; Back to reports</a></p>
+
+<div class="card">
+  <p class="small">Each group below is a set of books that look like the same book: the <strong>same ISBN</strong> written as ISBN-10 in one record and ISBN-13 in the other, or the <strong>same title and author</strong> (ignoring capitals, accents and punctuation). Open each book and decide yourself. Two records with the same title and author can be two real editions, so nothing is merged or changed from this page.</p>
+  <p class="muted small"><strong><%= total %></strong> group<%= total === 1 ? '' : 's' %> found.<% if (total > shown) { %> The first <%= shown %> are shown.<% } %></p>
+</div>
+
+<% if (!groups.length) { %>
+  <div class="card"><p>No possible duplicates found.</p></div>
+<% } else { %>
+  <% groups.forEach(function (g) { %>
+    <div class="card">
+      <p class="small"><strong>Why:</strong>
+        <%= g.reasons.map(function (r) { return r === 'isbn' ? 'same ISBN (10 and 13 forms)' : 'same title and author'; }).join('; ') %></p>
+      <div class="table-scroll">
+      <table class="ann-table">
+        <thead><tr><th scope="col">Title</th><th scope="col">Author</th><th scope="col">ISBN</th><th scope="col">Copies</th></tr></thead>
+        <tbody>
+          <% g.books.forEach(function (b) { %>
+            <tr>
+              <td><a href="/admin/inventory/<%= b.id %>"><strong><%= b.title %></strong></a></td>
+              <td><%= b.authors || '' %></td>
+              <td><%= b.isbn || 'none' %></td>
+              <td><%= b.in_stock %> in stock<% if (b.copies !== b.in_stock) { %> (<%= b.copies %> in all)<% } %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  <% }) %>
+<% } %>
+
+<%- include('../../partials/admin_footer') %>

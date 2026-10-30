@@ -6,6 +6,7 @@
 
 const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
+const { isbn13From } = require("../helpers/isbn"); // the add-book form refuses an ISBN with a wrong check digit
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
 
 const db = prepareDatabase("awards", { isolated: true });
@@ -68,7 +69,7 @@ beforeEach(() => {
 function uniq() { return `${Date.now()}-${Math.floor(Math.random() * 1e6)}`; }
 let seq = 0;
 const tag = () => `Aw${Date.now().toString(36)}${++seq}`;
-const isbn13 = () => `979${String(Date.now()).slice(-7)}${String(++seq).padStart(3, "0")}`;
+const isbn13 = () => isbn13From(`979${String(Date.now()).slice(-7)}${String(++seq).padStart(2, "0")}`);
 const FAST = { gapMs: 0, sleep: async () => {} }; // no politeness or retry sleep in tests
 
 async function seedBook({ title = `Book ${tag()}`, authors = "Some Author", isbn = isbn13(), inStock = true } = {}) {

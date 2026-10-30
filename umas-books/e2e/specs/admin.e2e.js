@@ -1303,6 +1303,11 @@ s.manual("A122 The scan preview shows the book's exact-ISBN cover (covered by te
 s.manual("A123 Find a cover: candidates from Open Library, the admin picks one (covered by test/integration/findCover.test.js and test/unit/coverSearch.test.js)", "the real Open Library search and the look of the cards on a phone: checked by hand");
 s.manual("A124 Count of books without a cover, with the list and Find a cover (covered by test/integration/findCover.test.js)", "checked by hand against the inventory");
 s.manual("A125 The scan page keeps your last choices and Reset choices (covered by test/unit/scanIntake.test.js and test/unit/fastScan.test.js)", "needs a real browser session with stored choices: checked by hand and by the local browser run of this change");
+s.manual("A130 A refund reverses a membership even when the payer used another email (covered by test/integration/membershipRefundByOrder.test.js)", "needs the HelloAsso sandbox and a real refund: checked by hand on the test site");
+s.manual("A131 Sold or reserved copies are never repriced (covered by test/integration/pricingStatusGuard.test.js)", "needs a second tab selling the copy at the right moment: checked by hand");
+s.manual("A132 ISBN-10 and ISBN-13 are the same book; junk ISBNs and oversized text are refused (covered by test/integration/isbnSameBook.test.js)", "the add-book form is checked by hand with real typing");
+s.manual("A133 Possible duplicate books is a read-only list (covered by test/integration/isbnSameBook.test.js)", "which duplicates exist depends on the real inventory: checked by hand");
+s.manual("A134 Marking a copy Sold by hand records the date and leaves no sale (covered by test/integration/copyEditSold.test.js)", "checked by hand against the Sales report and the Accounting export");
 
 s.test("A102 (must) on a phone (375 px and 320 px) the admin lists and tables fit the screen, long titles wrap, wide tables say they scroll, and the member calendars are a list", { as: "admin", timeout: 300000 }, async (ctx) => {
   const pages = ["/admin", "/admin/inventory", "/admin/orders", "/admin/members", "/admin/blog", "/admin/announcements", "/admin/reports", "/admin/events", "/admin/meetings", "/admin/volunteer-shifts", "/admin/charity", "/admin/till/day", "/admin/diagnostics/lookup"];

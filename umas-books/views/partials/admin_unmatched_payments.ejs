@@ -4,7 +4,9 @@
     linked: 'Payment linked and membership granted.',
     payment_gone: 'That payment was already linked or no longer exists.',
     no_account: 'Choose an account to link to.',
-    disabled: 'That account is disabled.'
+    disabled: 'That account is disabled.',
+    refunded: 'Not linked: HelloAsso shows this payment as refunded or disputed, so it grants no membership. It is kept as a reversed record.',
+    check_failed: 'Not linked: HelloAsso could not be reached to confirm the payment is still valid. Try again in a few minutes.'
   };
 %>
 <% if (locals.linkNotice && linkNotices[linkNotice]) { %><div class="notice-box" role="status"><%= linkNotices[linkNotice] %></div><% } %>

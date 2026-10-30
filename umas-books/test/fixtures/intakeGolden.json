@@ -908,10 +908,13 @@
      "extra": null
     },
     {
-     "status": 302,
-     "type": null,
-     "location": "/admin/inventory/B48",
-     "body": "",
+     "status": 422,
+     "type": "application/json; charset=utf-8",
+     "location": null,
+     "body": {
+      "ok": false,
+      "error": "That ISBN is not valid (wrong length or check digit). Check the number on the back cover, or leave the ISBN empty to save the book without one."
+     },
      "follow": null,
      "extra": null
     }
@@ -923,7 +926,7 @@
     {
      "status": 302,
      "type": null,
-     "location": "/admin/inventory/B49",
+     "location": "/admin/inventory/B48",
      "body": "",
      "follow": null,
      "extra": null
@@ -931,8 +934,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B50",
-     "body": "Found. Redirecting to /admin/inventory/50",
+     "location": "/admin/inventory/B49",
+     "body": "Found. Redirecting to /admin/inventory/49",
      "follow": null,
      "extra": null
     }
@@ -952,7 +955,7 @@
     {
      "status": 302,
      "type": null,
-     "location": "/admin/inventory/B51",
+     "location": "/admin/inventory/B50",
      "body": "",
      "follow": null,
      "extra": null
@@ -965,6 +968,14 @@
     {
      "status": 302,
      "type": null,
+     "location": "/admin/inventory/B51",
+     "body": "",
+     "follow": null,
+     "extra": null
+    },
+    {
+     "status": 302,
+     "type": null,
      "location": "/admin/inventory/B52",
      "body": "",
      "follow": null,
@@ -974,14 +985,6 @@
      "status": 302,
      "type": null,
      "location": "/admin/inventory/B53",
-     "body": "",
-     "follow": null,
-     "extra": null
-    },
-    {
-     "status": 302,
-     "type": null,
-     "location": "/admin/inventory/B54",
      "body": "",
      "follow": null,
      "extra": null
@@ -1032,6 +1035,14 @@
     {
      "status": 302,
      "type": null,
+     "location": "/admin/inventory/B54",
+     "body": "",
+     "follow": null,
+     "extra": null
+    },
+    {
+     "status": 302,
+     "type": null,
      "location": "/admin/inventory/B55",
      "body": "",
      "follow": null,
@@ -1044,7 +1055,12 @@
      "body": "",
      "follow": null,
      "extra": null
-    },
+    }
+   ],
+   "audit": []
+  },
+  "learning loop fields and price levels": {
+   "responses": [
     {
      "status": 302,
      "type": null,
@@ -1052,12 +1068,7 @@
      "body": "",
      "follow": null,
      "extra": null
-    }
-   ],
-   "audit": []
-  },
-  "learning loop fields and price levels": {
-   "responses": [
+    },
     {
      "status": 302,
      "type": null,
@@ -1113,6 +1124,35 @@
      "body": "",
      "follow": null,
      "extra": null
+    }
+   ],
+   "audit": []
+  },
+  "clearance reprices the other copies (scope all)": {
+   "responses": [
+    {
+     "status": 302,
+     "type": null,
+     "location": "/admin/inventory/B65",
+     "body": "",
+     "follow": null,
+     "extra": null
+    },
+    {
+     "status": 302,
+     "type": null,
+     "location": "/admin/inventory/B65",
+     "body": "",
+     "follow": null,
+     "extra": null
+    },
+    {
+     "status": 302,
+     "type": null,
+     "location": "/admin/inventory/B65",
+     "body": "",
+     "follow": null,
+     "extra": null
     },
     {
      "status": 302,
@@ -1123,56 +1163,19 @@
      "extra": null
     }
    ],
-   "audit": []
-  },
-  "clearance reprices the other copies (scope all)": {
-   "responses": [
-    {
-     "status": 302,
-     "type": null,
-     "location": "/admin/inventory/B66",
-     "body": "",
-     "follow": null,
-     "extra": null
-    },
-    {
-     "status": 302,
-     "type": null,
-     "location": "/admin/inventory/B66",
-     "body": "",
-     "follow": null,
-     "extra": null
-    },
-    {
-     "status": 302,
-     "type": null,
-     "location": "/admin/inventory/B66",
-     "body": "",
-     "follow": null,
-     "extra": null
-    },
-    {
-     "status": 302,
-     "type": null,
-     "location": "/admin/inventory/B66",
-     "body": "",
-     "follow": null,
-     "extra": null
-    }
-   ],
    "audit": [
     {
      "actor": "golden-admin@example.test",
      "action": "copy.reprice",
      "type": "book_copy",
-     "target": "C70",
+     "target": "C69",
      "detail": "price 5.00 -> 1.00 (clearance)"
     },
     {
      "actor": "golden-admin@example.test",
      "action": "copy.reprice",
      "type": "book_copy",
-     "target": "C71",
+     "target": "C70",
      "detail": "price 6.00 -> 1.00 (clearance)"
     }
    ]
@@ -1185,8 +1188,8 @@
      "location": null,
      "body": {
       "ok": true,
-      "copyId": "C74",
-      "bookId": "B67",
+      "copyId": "C73",
+      "bookId": "B66",
       "title": "Wanted golden",
       "requests": 1
      },
@@ -1196,8 +1199,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B67",
-     "body": "Found. Redirecting to /admin/inventory/67",
+     "location": "/admin/inventory/B66",
+     "body": "Found. Redirecting to /admin/inventory/66",
      "follow": null,
      "extra": null
     }
@@ -1209,16 +1212,16 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B68?requests=2",
-     "body": "Found. Redirecting to /admin/inventory/68?requests=2",
+     "location": "/admin/inventory/B67?requests=2",
+     "body": "Found. Redirecting to /admin/inventory/67?requests=2",
      "follow": null,
      "extra": null
     },
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/new?saved=77&location=Store&source=donation&binding=trade&condition=very_good&requests=1",
-     "body": "Found. Redirecting to /admin/inventory/new?saved=77&location=Store&source=donation&binding=trade&condition=very_good&requests=1",
+     "location": "/admin/inventory/new?saved=76&location=Store&source=donation&binding=trade&condition=very_good&requests=1",
+     "body": "Found. Redirecting to /admin/inventory/new?saved=76&location=Store&source=donation&binding=trade&condition=very_good&requests=1",
      "follow": null,
      "extra": null
     }
@@ -1257,8 +1260,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B70",
-     "body": "Found. Redirecting to /admin/inventory/70",
+     "location": "/admin/inventory/B69",
+     "body": "Found. Redirecting to /admin/inventory/69",
      "follow": {
       "status": 200,
       "page": {
@@ -1291,8 +1294,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B70",
-     "body": "Found. Redirecting to /admin/inventory/70",
+     "location": "/admin/inventory/B69",
+     "body": "Found. Redirecting to /admin/inventory/69",
      "follow": {
       "status": 200,
       "page": {
@@ -1328,14 +1331,14 @@
      "actor": "golden-admin@example.test",
      "action": "copy.move",
      "type": "book_copy",
-     "target": "C78",
+     "target": "C77",
      "detail": "from Store to Back room"
     },
     {
      "actor": "golden-admin@example.test",
      "action": "copy.move",
      "type": "book_copy",
-     "target": "C78",
+     "target": "C77",
      "detail": "from Back room to back room"
     }
    ]
@@ -1345,8 +1348,8 @@
     {
      "status": 303,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B71",
-     "body": "See Other. Redirecting to /admin/inventory/71",
+     "location": "/admin/inventory/B70",
+     "body": "See Other. Redirecting to /admin/inventory/70",
      "follow": {
       "status": 200,
       "page": {
@@ -1379,8 +1382,8 @@
     {
      "status": 303,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B71",
-     "body": "See Other. Redirecting to /admin/inventory/71",
+     "location": "/admin/inventory/B70",
+     "body": "See Other. Redirecting to /admin/inventory/70",
      "follow": {
       "status": 200,
       "page": {
@@ -1413,8 +1416,8 @@
     {
      "status": 303,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B71",
-     "body": "See Other. Redirecting to /admin/inventory/71",
+     "location": "/admin/inventory/B70",
+     "body": "See Other. Redirecting to /admin/inventory/70",
      "follow": {
       "status": 200,
       "page": {
@@ -1447,8 +1450,8 @@
     {
      "status": 303,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B71",
-     "body": "See Other. Redirecting to /admin/inventory/71",
+     "location": "/admin/inventory/B70",
+     "body": "See Other. Redirecting to /admin/inventory/70",
      "follow": {
       "status": 200,
       "page": {
@@ -1481,8 +1484,8 @@
     {
      "status": 303,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B71",
-     "body": "See Other. Redirecting to /admin/inventory/71",
+     "location": "/admin/inventory/B70",
+     "body": "See Other. Redirecting to /admin/inventory/70",
      "follow": {
       "status": 200,
       "page": {
@@ -1520,8 +1523,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B72",
-     "body": "Found. Redirecting to /admin/inventory/72",
+     "location": "/admin/inventory/B71",
+     "body": "Found. Redirecting to /admin/inventory/71",
      "follow": {
       "status": 200,
       "page": {
@@ -1554,8 +1557,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B73",
-     "body": "Found. Redirecting to /admin/inventory/73",
+     "location": "/admin/inventory/B72",
+     "body": "Found. Redirecting to /admin/inventory/72",
      "follow": {
       "status": 200,
       "page": {
@@ -1593,8 +1596,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B74",
-     "body": "Found. Redirecting to /admin/inventory/74",
+     "location": "/admin/inventory/B73",
+     "body": "Found. Redirecting to /admin/inventory/73",
      "follow": {
       "status": 200,
       "page": {
@@ -1627,8 +1630,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B74",
-     "body": "Found. Redirecting to /admin/inventory/74",
+     "location": "/admin/inventory/B73",
+     "body": "Found. Redirecting to /admin/inventory/73",
      "follow": {
       "status": 200,
       "page": {
@@ -1661,8 +1664,8 @@
     {
      "status": 303,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B74",
-     "body": "See Other. Redirecting to /admin/inventory/74",
+     "location": "/admin/inventory/B73",
+     "body": "See Other. Redirecting to /admin/inventory/73",
      "follow": {
       "status": 200,
       "page": {
@@ -1695,8 +1698,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B74",
-     "body": "Found. Redirecting to /admin/inventory/74",
+     "location": "/admin/inventory/B73",
+     "body": "Found. Redirecting to /admin/inventory/73",
      "follow": {
       "status": 200,
       "page": {
@@ -1729,8 +1732,8 @@
     {
      "status": 303,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B74",
-     "body": "See Other. Redirecting to /admin/inventory/74",
+     "location": "/admin/inventory/B73",
+     "body": "See Other. Redirecting to /admin/inventory/73",
      "follow": {
       "status": 200,
       "page": {
@@ -1763,8 +1766,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B74",
-     "body": "Found. Redirecting to /admin/inventory/74",
+     "location": "/admin/inventory/B73",
+     "body": "Found. Redirecting to /admin/inventory/73",
      "follow": {
       "status": 200,
       "page": {
@@ -1802,8 +1805,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B75?notice=status-kept",
-     "body": "Found. Redirecting to /admin/inventory/75?notice=status-kept",
+     "location": "/admin/inventory/B74?notice=status-kept",
+     "body": "Found. Redirecting to /admin/inventory/74?notice=status-kept",
      "follow": {
       "status": 200,
       "page": {
@@ -1836,8 +1839,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B76?notice=status-kept",
-     "body": "Found. Redirecting to /admin/inventory/76?notice=status-kept",
+     "location": "/admin/inventory/B75?notice=status-kept",
+     "body": "Found. Redirecting to /admin/inventory/75?notice=status-kept",
      "follow": {
       "status": 200,
       "page": {
@@ -1873,14 +1876,14 @@
      "actor": "golden-admin@example.test",
      "action": "copy.move",
      "type": "book_copy",
-     "target": "C83",
+     "target": "C82",
      "detail": "from Store to Shelf"
     },
     {
      "actor": "golden-admin@example.test",
      "action": "copy.move",
      "type": "book_copy",
-     "target": "C84",
+     "target": "C83",
      "detail": "from none to Shelf"
     }
    ]
@@ -1890,8 +1893,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B77",
-     "body": "Found. Redirecting to /admin/inventory/77",
+     "location": "/admin/inventory/B76",
+     "body": "Found. Redirecting to /admin/inventory/76",
      "follow": {
       "status": 200,
       "page": {
@@ -1924,8 +1927,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B77",
-     "body": "Found. Redirecting to /admin/inventory/77",
+     "location": "/admin/inventory/B76",
+     "body": "Found. Redirecting to /admin/inventory/76",
      "follow": {
       "status": 200,
       "page": {
@@ -1958,8 +1961,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B77",
-     "body": "Found. Redirecting to /admin/inventory/77",
+     "location": "/admin/inventory/B76",
+     "body": "Found. Redirecting to /admin/inventory/76",
      "follow": {
       "status": 200,
       "page": {
@@ -1992,8 +1995,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B77",
-     "body": "Found. Redirecting to /admin/inventory/77",
+     "location": "/admin/inventory/B76",
+     "body": "Found. Redirecting to /admin/inventory/76",
      "follow": {
       "status": 200,
       "page": {
@@ -2031,8 +2034,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B78",
-     "body": "Found. Redirecting to /admin/inventory/78",
+     "location": "/admin/inventory/B77",
+     "body": "Found. Redirecting to /admin/inventory/77",
      "follow": {
       "status": 200,
       "page": {
@@ -2065,8 +2068,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B78",
-     "body": "Found. Redirecting to /admin/inventory/78",
+     "location": "/admin/inventory/B77",
+     "body": "Found. Redirecting to /admin/inventory/77",
      "follow": {
       "status": 200,
       "page": {
@@ -2085,8 +2088,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/?80",
-     "body": "Found. Redirecting to /admin/inventory/80",
+     "location": "/admin/inventory/?79",
+     "body": "Found. Redirecting to /admin/inventory/79",
      "follow": null,
      "extra": null
     },
@@ -2101,8 +2104,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B80?notice=has-orders",
-     "body": "Found. Redirecting to /admin/inventory/81?notice=has-orders",
+     "location": "/admin/inventory/B79?notice=has-orders",
+     "body": "Found. Redirecting to /admin/inventory/80?notice=has-orders",
      "follow": {
       "status": 200,
       "page": {
@@ -2116,8 +2119,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B80",
-     "body": "Found. Redirecting to /admin/inventory/81",
+     "location": "/admin/inventory/B79",
+     "body": "Found. Redirecting to /admin/inventory/80",
      "follow": null,
      "extra": null
     }
@@ -2139,7 +2142,7 @@
      "actor": "golden-admin@example.test",
      "action": "book.delete",
      "type": "book",
-     "target": 80,
+     "target": 79,
      "detail": "last copy removed"
     },
     {
@@ -2155,8 +2158,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B81?notice=has-orders",
-     "body": "Found. Redirecting to /admin/inventory/83?notice=has-orders",
+     "location": "/admin/inventory/B80?notice=has-orders",
+     "body": "Found. Redirecting to /admin/inventory/82?notice=has-orders",
      "follow": {
       "status": 200,
       "page": {
@@ -2189,14 +2192,14 @@
      "actor": "golden-admin@example.test",
      "action": "book.delete",
      "type": "book",
-     "target": 82,
+     "target": 81,
      "detail": null
     },
     {
      "actor": "golden-admin@example.test",
      "action": "book.delete",
      "type": "book",
-     "target": 82,
+     "target": 81,
      "detail": null
     }
    ]
@@ -2206,12 +2209,46 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B82",
-     "body": "Found. Redirecting to /admin/inventory/84",
+     "location": "/admin/inventory/B81",
+     "body": "Found. Redirecting to /admin/inventory/83",
      "follow": {
       "status": 200,
       "page": {
        "error": "",
+       "notice": null,
+       "openCopies": 0
+      }
+     },
+     "extra": {
+      "copy": {
+       "status": "in_stock",
+       "price": "5.00",
+       "publisher_price": null,
+       "acquisition_cost": null,
+       "acquired_at": null,
+       "notes": null,
+       "location": "Store",
+       "source": "donation",
+       "condition": "very_good",
+       "suggested_price": null,
+       "suggested_level": null,
+       "price_basis": "manual",
+       "is_clearance": false,
+       "reserved_by_name": null,
+       "has_reserved_at": false,
+       "has_order": false
+      }
+     }
+    },
+    {
+     "status": 303,
+     "type": "text/plain; charset=utf-8",
+     "location": "/admin/inventory/B81",
+     "body": "See Other. Redirecting to /admin/inventory/83",
+     "follow": {
+      "status": 200,
+      "page": {
+       "error": "This reservation was already gone (the copy is now: In Store). Nothing was changed.",
        "notice": null,
        "openCopies": 0
       }
@@ -2279,40 +2316,6 @@
      "follow": {
       "status": 200,
       "page": {
-       "error": "This reservation was already gone (the copy is now: In Store). Nothing was changed.",
-       "notice": null,
-       "openCopies": 0
-      }
-     },
-     "extra": {
-      "copy": {
-       "status": "in_stock",
-       "price": "5.00",
-       "publisher_price": null,
-       "acquisition_cost": null,
-       "acquired_at": null,
-       "notes": null,
-       "location": "Store",
-       "source": "donation",
-       "condition": "very_good",
-       "suggested_price": null,
-       "suggested_level": null,
-       "price_basis": "manual",
-       "is_clearance": false,
-       "reserved_by_name": null,
-       "has_reserved_at": false,
-       "has_order": false
-      }
-     }
-    },
-    {
-     "status": 303,
-     "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B84",
-     "body": "See Other. Redirecting to /admin/inventory/86",
-     "follow": {
-      "status": 200,
-      "page": {
        "error": "This copy is reserved by reservation #4. Cancel or collect it from the reservation page (/admin/orders/4).",
        "notice": null,
        "openCopies": 0
@@ -2327,8 +2330,8 @@
     {
      "status": 302,
      "type": "text/plain; charset=utf-8",
-     "location": "/admin/inventory/B84",
-     "body": "Found. Redirecting to /admin/inventory/86",
+     "location": "/admin/inventory/B83",
+     "body": "Found. Redirecting to /admin/inventory/85",
      "follow": {
       "status": 200,
       "page": {
@@ -3311,7 +3314,7 @@
    "_id": "B46"
   },
   {
-   "isbn": "0143127551",
+   "isbn": "9780143127550",
    "title": "Isbn ten",
    "authors": "A. Writer",
    "publisher": null,
@@ -3332,27 +3335,6 @@
    "_id": "B47"
   },
   {
-   "isbn": null,
-   "title": "Isbn junk",
-   "authors": "A. Writer",
-   "publisher": null,
-   "published_year": null,
-   "description": "A description.",
-   "cover_url": null,
-   "categories": null,
-   "created_by": 1,
-   "binding": "trade",
-   "awards_checked_at": null,
-   "awards_check_state": null,
-   "cover_source_url": null,
-   "cover_fetch_failures": 0,
-   "cover_fetch_attempted_at": null,
-   "cover_removed_at": null,
-   "cover_origin": null,
-   "cover_checked_at": null,
-   "_id": "B48"
-  },
-  {
    "isbn": "9780070000650",
    "title": "Photo",
    "authors": "A. Writer",
@@ -3371,7 +3353,7 @@
    "cover_removed_at": null,
    "cover_origin": "photo",
    "cover_checked_at": null,
-   "_id": "B49"
+   "_id": "B48"
   },
   {
    "isbn": "9780070000667",
@@ -3392,7 +3374,7 @@
    "cover_removed_at": null,
    "cover_origin": "photo",
    "cover_checked_at": null,
-   "_id": "B50"
+   "_id": "B49"
   },
   {
    "isbn": "9780070000674",
@@ -3413,7 +3395,7 @@
    "cover_removed_at": null,
    "cover_origin": "isbn",
    "cover_checked_at": null,
-   "_id": "B51"
+   "_id": "B50"
   },
   {
    "isbn": "9780070000681",
@@ -3434,7 +3416,7 @@
    "cover_removed_at": null,
    "cover_origin": "form",
    "cover_checked_at": null,
-   "_id": "B52"
+   "_id": "B51"
   },
   {
    "isbn": "9780070000698",
@@ -3455,7 +3437,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B53"
+   "_id": "B52"
   },
   {
    "isbn": "9780070000704",
@@ -3476,7 +3458,7 @@
    "cover_removed_at": null,
    "cover_origin": "isbn",
    "cover_checked_at": null,
-   "_id": "B54"
+   "_id": "B53"
   },
   {
    "isbn": "9780070000735",
@@ -3497,7 +3479,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B55"
+   "_id": "B54"
   },
   {
    "isbn": "9780070000742",
@@ -3518,7 +3500,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B56"
+   "_id": "B55"
   },
   {
    "isbn": "9780070000759",
@@ -3539,7 +3521,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B57"
+   "_id": "B56"
   },
   {
    "isbn": "9780070000766",
@@ -3560,7 +3542,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B58"
+   "_id": "B57"
   },
   {
    "isbn": "9780070000773",
@@ -3581,7 +3563,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B59"
+   "_id": "B58"
   },
   {
    "isbn": "9780070000780",
@@ -3602,7 +3584,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B60"
+   "_id": "B59"
   },
   {
    "isbn": "9780070000797",
@@ -3623,7 +3605,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B61"
+   "_id": "B60"
   },
   {
    "isbn": "9780070000803",
@@ -3644,7 +3626,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B62"
+   "_id": "B61"
   },
   {
    "isbn": "9780070000810",
@@ -3665,7 +3647,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B63"
+   "_id": "B62"
   },
   {
    "isbn": "9780070000827",
@@ -3686,7 +3668,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B64"
+   "_id": "B63"
   },
   {
    "isbn": "9780070000834",
@@ -3707,7 +3689,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B65"
+   "_id": "B64"
   },
   {
    "isbn": "9780070000841",
@@ -3728,7 +3710,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B66"
+   "_id": "B65"
   },
   {
    "isbn": "9780070000858",
@@ -3749,7 +3731,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B67"
+   "_id": "B66"
   },
   {
    "isbn": "9780070000865",
@@ -3770,7 +3752,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B68"
+   "_id": "B67"
   },
   {
    "isbn": "9780070000872",
@@ -3791,7 +3773,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B69"
+   "_id": "B68"
   },
   {
    "isbn": "9780070000902",
@@ -3812,7 +3794,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B70"
+   "_id": "B69"
   },
   {
    "isbn": "9780070000919",
@@ -3833,7 +3815,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B71"
+   "_id": "B70"
   },
   {
    "isbn": "9780070000926",
@@ -3854,7 +3836,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B72"
+   "_id": "B71"
   },
   {
    "isbn": "9780070000933",
@@ -3875,7 +3857,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B73"
+   "_id": "B72"
   },
   {
    "isbn": "9780070000940",
@@ -3896,7 +3878,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B74"
+   "_id": "B73"
   },
   {
    "isbn": "9780070000957",
@@ -3917,7 +3899,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B75"
+   "_id": "B74"
   },
   {
    "isbn": null,
@@ -3938,7 +3920,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B76"
+   "_id": "B75"
   },
   {
    "isbn": "9780070000964",
@@ -3959,7 +3941,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B77"
+   "_id": "B76"
   },
   {
    "isbn": "9780070000971",
@@ -3980,7 +3962,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B78"
+   "_id": "B77"
   },
   {
    "isbn": "9780070000988",
@@ -4001,7 +3983,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B79"
+   "_id": "B78"
   },
   {
    "isbn": null,
@@ -4022,7 +4004,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B80"
+   "_id": "B79"
   },
   {
    "isbn": null,
@@ -4043,7 +4025,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B81"
+   "_id": "B80"
   },
   {
    "isbn": "9780070001053",
@@ -4064,7 +4046,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B82"
+   "_id": "B81"
   },
   {
    "isbn": "9780070001060",
@@ -4085,7 +4067,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B83"
+   "_id": "B82"
   },
   {
    "isbn": null,
@@ -4106,7 +4088,7 @@
    "cover_removed_at": null,
    "cover_origin": null,
    "cover_checked_at": null,
-   "_id": "B84"
+   "_id": "B83"
   }
  ],
  "copies": [
@@ -5733,33 +5715,6 @@
   {
    "book_id": "B57",
    "condition": "very_good",
-   "price": "5.00",
-   "status": "in_stock",
-   "acquired_at": null,
-   "notes": null,
-   "created_by": 1,
-   "acquisition_cost": null,
-   "reserved_by_name": null,
-   "reserved_by_email": null,
-   "reserved_by_phone": null,
-   "reserved_at": null,
-   "reminder_sent_at": null,
-   "cart_order_id": null,
-   "cart_added_at": null,
-   "publisher_price": null,
-   "location": "Store",
-   "source": "donation",
-   "suggested_price": null,
-   "suggested_level": null,
-   "price_basis": "manual",
-   "is_clearance": false,
-   "sold_at": null,
-   "sold_via": null,
-   "_id": "C61"
-  },
-  {
-   "book_id": "B58",
-   "condition": "very_good",
    "price": "4.00",
    "status": "in_stock",
    "acquired_at": null,
@@ -5782,10 +5737,10 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C62"
+   "_id": "C61"
   },
   {
-   "book_id": "B59",
+   "book_id": "B58",
    "condition": "very_good",
    "price": "6.00",
    "status": "in_stock",
@@ -5809,10 +5764,10 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C63"
+   "_id": "C62"
   },
   {
-   "book_id": "B60",
+   "book_id": "B59",
    "condition": "very_good",
    "price": null,
    "status": "in_stock",
@@ -5836,10 +5791,10 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C64"
+   "_id": "C63"
   },
   {
-   "book_id": "B61",
+   "book_id": "B60",
    "condition": "very_good",
    "price": "1.00",
    "status": "in_stock",
@@ -5863,12 +5818,39 @@
    "is_clearance": true,
    "sold_at": null,
    "sold_via": null,
+   "_id": "C64"
+  },
+  {
+   "book_id": "B61",
+   "condition": "very_good",
+   "price": "8.50",
+   "status": "in_stock",
+   "acquired_at": null,
+   "notes": null,
+   "created_by": 1,
+   "acquisition_cost": null,
+   "reserved_by_name": null,
+   "reserved_by_email": null,
+   "reserved_by_phone": null,
+   "reserved_at": null,
+   "reminder_sent_at": null,
+   "cart_order_id": null,
+   "cart_added_at": null,
+   "publisher_price": null,
+   "location": "Store",
+   "source": "donation",
+   "suggested_price": null,
+   "suggested_level": null,
+   "price_basis": "manual",
+   "is_clearance": false,
+   "sold_at": null,
+   "sold_via": null,
    "_id": "C65"
   },
   {
    "book_id": "B62",
    "condition": "very_good",
-   "price": "8.50",
+   "price": "3.00",
    "status": "in_stock",
    "acquired_at": null,
    "notes": null,
@@ -5895,33 +5877,6 @@
   {
    "book_id": "B63",
    "condition": "very_good",
-   "price": "3.00",
-   "status": "in_stock",
-   "acquired_at": null,
-   "notes": null,
-   "created_by": 1,
-   "acquisition_cost": null,
-   "reserved_by_name": null,
-   "reserved_by_email": null,
-   "reserved_by_phone": null,
-   "reserved_at": null,
-   "reminder_sent_at": null,
-   "cart_order_id": null,
-   "cart_added_at": null,
-   "publisher_price": null,
-   "location": "Store",
-   "source": "donation",
-   "suggested_price": null,
-   "suggested_level": null,
-   "price_basis": "manual",
-   "is_clearance": false,
-   "sold_at": null,
-   "sold_via": null,
-   "_id": "C67"
-  },
-  {
-   "book_id": "B64",
-   "condition": "very_good",
    "price": "1.00",
    "status": "in_stock",
    "acquired_at": null,
@@ -5944,10 +5899,10 @@
    "is_clearance": true,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C68"
+   "_id": "C67"
   },
   {
-   "book_id": "B65",
+   "book_id": "B64",
    "condition": "very_good",
    "price": "9.00",
    "status": "in_stock",
@@ -5971,10 +5926,37 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
+   "_id": "C68"
+  },
+  {
+   "book_id": "B65",
+   "condition": "very_good",
+   "price": "1.00",
+   "status": "in_stock",
+   "acquired_at": null,
+   "notes": null,
+   "created_by": 1,
+   "acquisition_cost": null,
+   "reserved_by_name": null,
+   "reserved_by_email": null,
+   "reserved_by_phone": null,
+   "reserved_at": null,
+   "reminder_sent_at": null,
+   "cart_order_id": null,
+   "cart_added_at": null,
+   "publisher_price": null,
+   "location": "Store",
+   "source": "donation",
+   "suggested_price": null,
+   "suggested_level": null,
+   "price_basis": "manual",
+   "is_clearance": true,
+   "sold_at": null,
+   "sold_via": null,
    "_id": "C69"
   },
   {
-   "book_id": "B66",
+   "book_id": "B65",
    "condition": "very_good",
    "price": "1.00",
    "status": "in_stock",
@@ -6001,7 +5983,7 @@
    "_id": "C70"
   },
   {
-   "book_id": "B66",
+   "book_id": "B65",
    "condition": "very_good",
    "price": "1.00",
    "status": "in_stock",
@@ -6028,7 +6010,7 @@
    "_id": "C71"
   },
   {
-   "book_id": "B66",
+   "book_id": "B65",
    "condition": "very_good",
    "price": "1.00",
    "status": "in_stock",
@@ -6057,7 +6039,7 @@
   {
    "book_id": "B66",
    "condition": "very_good",
-   "price": "1.00",
+   "price": "5.00",
    "status": "in_stock",
    "acquired_at": null,
    "notes": null,
@@ -6076,13 +6058,13 @@
    "suggested_price": null,
    "suggested_level": null,
    "price_basis": "manual",
-   "is_clearance": true,
+   "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
    "_id": "C73"
   },
   {
-   "book_id": "B67",
+   "book_id": "B66",
    "condition": "very_good",
    "price": "5.00",
    "status": "in_stock",
@@ -6164,33 +6146,6 @@
   },
   {
    "book_id": "B69",
-   "condition": "very_good",
-   "price": "5.00",
-   "status": "in_stock",
-   "acquired_at": null,
-   "notes": null,
-   "created_by": 1,
-   "acquisition_cost": null,
-   "reserved_by_name": null,
-   "reserved_by_email": null,
-   "reserved_by_phone": null,
-   "reserved_at": null,
-   "reminder_sent_at": null,
-   "cart_order_id": null,
-   "cart_added_at": null,
-   "publisher_price": null,
-   "location": "Store",
-   "source": "donation",
-   "suggested_price": null,
-   "suggested_level": null,
-   "price_basis": "manual",
-   "is_clearance": false,
-   "sold_at": null,
-   "sold_via": null,
-   "_id": "C77"
-  },
-  {
-   "book_id": "B70",
    "condition": "good",
    "price": "6.50",
    "status": "in_stock",
@@ -6214,10 +6169,10 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C78"
+   "_id": "C77"
   },
   {
-   "book_id": "B71",
+   "book_id": "B70",
    "condition": "very_good",
    "price": "5.00",
    "status": "in_stock",
@@ -6241,10 +6196,10 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C79"
+   "_id": "C78"
   },
   {
-   "book_id": "B72",
+   "book_id": "B71",
    "condition": "new",
    "price": "11.00",
    "status": "in_stock",
@@ -6268,10 +6223,10 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C80"
+   "_id": "C79"
   },
   {
-   "book_id": "B73",
+   "book_id": "B72",
    "condition": "new",
    "price": "3.00",
    "status": "in_stock",
@@ -6295,10 +6250,10 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C81"
+   "_id": "C80"
   },
   {
-   "book_id": "B74",
+   "book_id": "B73",
    "condition": "good",
    "price": "6.00",
    "status": "donated",
@@ -6322,10 +6277,10 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C82"
+   "_id": "C81"
   },
   {
-   "book_id": "B75",
+   "book_id": "B74",
    "condition": "good",
    "price": "7.00",
    "status": "sold",
@@ -6349,10 +6304,10 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C83"
+   "_id": "C82"
   },
   {
-   "book_id": "B76",
+   "book_id": "B75",
    "condition": "good",
    "price": "7.00",
    "status": "reserved",
@@ -6376,10 +6331,10 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C84"
+   "_id": "C83"
   },
   {
-   "book_id": "B77",
+   "book_id": "B76",
    "condition": "good",
    "price": "3.00",
    "status": "in_stock",
@@ -6400,6 +6355,33 @@
    "suggested_price": "4.00",
    "suggested_level": "4",
    "price_basis": "adjusted",
+   "is_clearance": false,
+   "sold_at": null,
+   "sold_via": null,
+   "_id": "C84"
+  },
+  {
+   "book_id": "B77",
+   "condition": "very_good",
+   "price": "5.00",
+   "status": "in_stock",
+   "acquired_at": null,
+   "notes": null,
+   "created_by": 1,
+   "acquisition_cost": null,
+   "reserved_by_name": null,
+   "reserved_by_email": null,
+   "reserved_by_phone": null,
+   "reserved_at": null,
+   "reminder_sent_at": null,
+   "cart_order_id": null,
+   "cart_added_at": null,
+   "publisher_price": null,
+   "location": "Store",
+   "source": "donation",
+   "suggested_price": null,
+   "suggested_level": null,
+   "price_basis": "manual",
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
@@ -6436,33 +6418,6 @@
    "book_id": "B79",
    "condition": "very_good",
    "price": "5.00",
-   "status": "in_stock",
-   "acquired_at": null,
-   "notes": null,
-   "created_by": 1,
-   "acquisition_cost": null,
-   "reserved_by_name": null,
-   "reserved_by_email": null,
-   "reserved_by_phone": null,
-   "reserved_at": null,
-   "reminder_sent_at": null,
-   "cart_order_id": null,
-   "cart_added_at": null,
-   "publisher_price": null,
-   "location": "Store",
-   "source": "donation",
-   "suggested_price": null,
-   "suggested_level": null,
-   "price_basis": "manual",
-   "is_clearance": false,
-   "sold_at": null,
-   "sold_via": null,
-   "_id": "C87"
-  },
-  {
-   "book_id": "B80",
-   "condition": "very_good",
-   "price": "5.00",
    "status": "reserved",
    "acquired_at": null,
    "notes": null,
@@ -6484,10 +6439,10 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C88"
+   "_id": "C87"
   },
   {
-   "book_id": "B81",
+   "book_id": "B80",
    "condition": "very_good",
    "price": "5.00",
    "status": "reserved",
@@ -6508,6 +6463,33 @@
    "suggested_price": null,
    "suggested_level": null,
    "price_basis": null,
+   "is_clearance": false,
+   "sold_at": null,
+   "sold_via": null,
+   "_id": "C88"
+  },
+  {
+   "book_id": "B81",
+   "condition": "very_good",
+   "price": "5.00",
+   "status": "in_stock",
+   "acquired_at": null,
+   "notes": null,
+   "created_by": 1,
+   "acquisition_cost": null,
+   "reserved_by_name": null,
+   "reserved_by_email": null,
+   "reserved_by_phone": null,
+   "reserved_at": null,
+   "reminder_sent_at": null,
+   "cart_order_id": null,
+   "cart_added_at": null,
+   "publisher_price": null,
+   "location": "Store",
+   "source": "donation",
+   "suggested_price": null,
+   "suggested_level": null,
+   "price_basis": "manual",
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
@@ -6544,33 +6526,6 @@
    "book_id": "B83",
    "condition": "very_good",
    "price": "5.00",
-   "status": "in_stock",
-   "acquired_at": null,
-   "notes": null,
-   "created_by": 1,
-   "acquisition_cost": null,
-   "reserved_by_name": null,
-   "reserved_by_email": null,
-   "reserved_by_phone": null,
-   "reserved_at": null,
-   "reminder_sent_at": null,
-   "cart_order_id": null,
-   "cart_added_at": null,
-   "publisher_price": null,
-   "location": "Store",
-   "source": "donation",
-   "suggested_price": null,
-   "suggested_level": null,
-   "price_basis": "manual",
-   "is_clearance": false,
-   "sold_at": null,
-   "sold_via": null,
-   "_id": "C91"
-  },
-  {
-   "book_id": "B84",
-   "condition": "very_good",
-   "price": "5.00",
    "status": "reserved",
    "acquired_at": null,
    "notes": null,
@@ -6592,7 +6547,7 @@
    "is_clearance": false,
    "sold_at": null,
    "sold_via": null,
-   "_id": "C92"
+   "_id": "C91"
   }
  ],
  "tokens": [
@@ -6897,225 +6852,219 @@
    "requests": 0
   },
   {
-   "token": "golden-token-078-abcdefghij",
+   "token": "golden-token-079-abcdefghij",
    "copy": "C52",
    "book": "B48",
    "requests": 0
   },
   {
-   "token": "golden-token-079-abcdefghij",
+   "token": "golden-token-080-abcdefghij",
    "copy": "C53",
    "book": "B49",
    "requests": 0
   },
   {
-   "token": "golden-token-080-abcdefghij",
+   "token": "golden-token-081-abcdefghij",
    "copy": "C54",
    "book": "B50",
    "requests": 0
   },
   {
-   "token": "golden-token-081-abcdefghij",
+   "token": "golden-token-082-abcdefghij",
    "copy": "C55",
    "book": "B51",
    "requests": 0
   },
   {
-   "token": "golden-token-082-abcdefghij",
+   "token": "golden-token-083-abcdefghij",
    "copy": "C56",
    "book": "B52",
    "requests": 0
   },
   {
-   "token": "golden-token-083-abcdefghij",
+   "token": "golden-token-084-abcdefghij",
    "copy": "C57",
    "book": "B53",
    "requests": 0
   },
   {
-   "token": "golden-token-084-abcdefghij",
+   "token": "golden-token-088-abcdefghij",
    "copy": "C58",
    "book": "B54",
    "requests": 0
   },
   {
-   "token": "golden-token-088-abcdefghij",
+   "token": "golden-token-089-abcdefghij",
    "copy": "C59",
    "book": "B55",
    "requests": 0
   },
   {
-   "token": "golden-token-089-abcdefghij",
+   "token": "golden-token-090-abcdefghij",
    "copy": "C60",
    "book": "B56",
    "requests": 0
   },
   {
-   "token": "golden-token-090-abcdefghij",
+   "token": "golden-token-091-abcdefghij",
    "copy": "C61",
    "book": "B57",
    "requests": 0
   },
   {
-   "token": "golden-token-091-abcdefghij",
+   "token": "golden-token-092-abcdefghij",
    "copy": "C62",
    "book": "B58",
    "requests": 0
   },
   {
-   "token": "golden-token-092-abcdefghij",
+   "token": "golden-token-093-abcdefghij",
    "copy": "C63",
    "book": "B59",
    "requests": 0
   },
   {
-   "token": "golden-token-093-abcdefghij",
+   "token": "golden-token-094-abcdefghij",
    "copy": "C64",
    "book": "B60",
    "requests": 0
   },
   {
-   "token": "golden-token-094-abcdefghij",
+   "token": "golden-token-095-abcdefghij",
    "copy": "C65",
    "book": "B61",
    "requests": 0
   },
   {
-   "token": "golden-token-095-abcdefghij",
+   "token": "golden-token-096-abcdefghij",
    "copy": "C66",
    "book": "B62",
    "requests": 0
   },
   {
-   "token": "golden-token-096-abcdefghij",
+   "token": "golden-token-097-abcdefghij",
    "copy": "C67",
    "book": "B63",
    "requests": 0
   },
   {
-   "token": "golden-token-097-abcdefghij",
+   "token": "golden-token-098-abcdefghij",
    "copy": "C68",
    "book": "B64",
    "requests": 0
   },
   {
-   "token": "golden-token-098-abcdefghij",
+   "token": "golden-token-099-abcdefghij",
    "copy": "C69",
    "book": "B65",
    "requests": 0
   },
   {
-   "token": "golden-token-099-abcdefghij",
-   "copy": "C70",
-   "book": "B66",
-   "requests": 0
-  },
-  {
    "token": "golden-token-100-abcdefghij",
-   "copy": "C71",
-   "book": "B66",
+   "copy": "C70",
+   "book": "B65",
    "requests": 0
   },
   {
    "token": "golden-token-101-abcdefghij",
-   "copy": "C72",
-   "book": "B66",
+   "copy": "C71",
+   "book": "B65",
    "requests": 0
   },
   {
    "token": "golden-token-102-abcdefghij",
-   "copy": "C73",
-   "book": "B66",
+   "copy": "C72",
+   "book": "B65",
    "requests": 0
   },
   {
    "token": "golden-token-103-abcdefghij",
-   "copy": "C74",
-   "book": "B67",
+   "copy": "C73",
+   "book": "B66",
    "requests": 1
   },
   {
    "token": "golden-token-104-abcdefghij",
-   "copy": "C75",
-   "book": "B67",
+   "copy": "C74",
+   "book": "B66",
    "requests": 0
   },
   {
    "token": "golden-token-105-abcdefghij",
-   "copy": "C76",
-   "book": "B68",
+   "copy": "C75",
+   "book": "B67",
    "requests": 2
   },
   {
    "token": "golden-token-106-abcdefghij",
-   "copy": "C77",
-   "book": "B69",
+   "copy": "C76",
+   "book": "B68",
    "requests": 1
   },
   {
    "token": "golden-token-109-abcdefghij",
+   "copy": "C77",
+   "book": "B69",
+   "requests": 0
+  },
+  {
+   "token": "golden-token-110-abcdefghij",
    "copy": "C78",
    "book": "B70",
    "requests": 0
   },
   {
-   "token": "golden-token-110-abcdefghij",
+   "token": "golden-token-111-abcdefghij",
    "copy": "C79",
    "book": "B71",
    "requests": 0
   },
   {
-   "token": "golden-token-111-abcdefghij",
+   "token": "golden-token-112-abcdefghij",
    "copy": "C80",
    "book": "B72",
    "requests": 0
   },
   {
-   "token": "golden-token-112-abcdefghij",
+   "token": "golden-token-113-abcdefghij",
    "copy": "C81",
    "book": "B73",
    "requests": 0
   },
   {
-   "token": "golden-token-113-abcdefghij",
+   "token": "golden-token-114-abcdefghij",
    "copy": "C82",
    "book": "B74",
    "requests": 0
   },
   {
-   "token": "golden-token-114-abcdefghij",
-   "copy": "C83",
-   "book": "B75",
+   "token": "golden-token-115-abcdefghij",
+   "copy": "C84",
+   "book": "B76",
    "requests": 0
   },
   {
-   "token": "golden-token-115-abcdefghij",
+   "token": "golden-token-116-abcdefghij",
    "copy": "C85",
    "book": "B77",
    "requests": 0
   },
   {
-   "token": "golden-token-116-abcdefghij",
+   "token": "golden-token-117-abcdefghij",
    "copy": "C86",
    "book": "B78",
    "requests": 0
   },
   {
-   "token": "golden-token-117-abcdefghij",
-   "copy": "C87",
-   "book": "B79",
-   "requests": 0
-  },
-  {
    "token": "golden-token-122-abcdefghij",
-   "copy": "C90",
-   "book": "B82",
+   "copy": "C89",
+   "book": "B81",
    "requests": 0
   },
   {
    "token": "golden-token-123-abcdefghij",
-   "copy": "C91",
-   "book": "B83",
+   "copy": "C90",
+   "book": "B82",
    "requests": 0
   }
  ],
@@ -7123,22 +7072,22 @@
   {
    "title": "Wanted golden",
    "status": "matched",
-   "copy": "C74"
+   "copy": "C73"
   },
   {
    "title": "Wanted A",
    "status": "matched",
-   "copy": "C76"
+   "copy": "C75"
   },
   {
    "title": "Wanted B",
    "status": "matched",
-   "copy": "C77"
+   "copy": "C76"
   },
   {
    "title": "Wanted A2",
    "status": "matched",
-   "copy": "C76"
+   "copy": "C75"
   }
  ]
 }

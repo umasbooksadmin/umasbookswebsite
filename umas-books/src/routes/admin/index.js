@@ -27,6 +27,7 @@ router.use(require("./inventoryCover")); // the Cover card: replace, rotate, cro
 router.use(require("./inventoryFindCover")); // the Cover card: "Find a cover" (Open Library candidates, the admin picks)
 router.use(require("./awards"));
 router.use(require("./coverReview")); // before reports: /admin/reports/covers-to-check is not a report slug
+router.use(require("./duplicateBooks")); // before reports: /admin/reports/possible-duplicate-books is not a report slug
 router.use(require("./reports"));
 router.use(require("./forum"));
 router.use(require("./pricing"));
