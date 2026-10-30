@@ -178,6 +178,9 @@ test("guest orders are attached to an account with the same email only once that
   const r = await v.post(`/verify-email/${raw}`, { _csrf: token });
   assert.equal(r.status, 302);
   assert.equal((await pool.query("SELECT user_id FROM orders WHERE id = $1", [g.order.id])).rows[0].user_id, account.id, "attached once confirmed");
+  // L4: the emailed no-account (manage) link stops working once the order is the account's; the page and cancel are 404
+  assert.equal((await visitor().get(`/cart/guest/manage/${g.manage}`)).status, 404, "the old manage link no longer opens");
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM guest_order_tokens WHERE order_id = $1 AND purpose = 'manage' AND expires_at > now()", [g.order.id])).rows[0].n, 0);
   // it now belongs to the account: the account page lists it and the account's own cancel works
   const v2 = visitor();
   await signIn(v2, account);
