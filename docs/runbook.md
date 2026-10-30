@@ -3788,3 +3788,38 @@ re-added columns (it neither shows nor edits them); they only hold the data. To 
 deleted book loses its row; clearing the test data clears it with the books). Once you are sure the French is not wanted
 back (Sharon decides), a developer can drop it with a new migration (`DROP TABLE IF EXISTS book_french_backup;`). The
 nightly database backups keep a copy of the table until they age out.
+
+## ar) Genre spelling clean-up (migration 109): the backup table and how to restore
+
+**What the deploy did.** Migration 109 tidied the English genres (`books.categories`) of the books already saved, with the
+same rules the app now applies on every save, scan and edit (`src/lib/genreClean.js`): curly apostrophes become straight
+ones, a stray `§` (or `*`, `.`, `;`... ) at the start or end of a genre goes, a genre that is a known one (the fixed list
+and the managed genres of Admin > Genres) takes its own spelling and capitals ("art & Design" becomes "Art & Design"),
+"Chidren's Fiction" and "Childrens Fiction" become "Children's Fiction" (the only two typos corrected, because only
+they are certain), duplicates and empty parts go. Other genres are only cleaned, never guessed. Only `books.categories`
+of books that really change was written: no other column, copy or price, and nothing was deleted.
+
+**Where to see it.** Before changing a book the migration copied its old genres into the table `book_genre_cleanup_backup`
+(`book_id`, `categories_before`, `saved_at`). **Admin > Admin activity** has one line (action `books.genre_spelling_tidied`,
+by "migration 109"): *Genre spelling tidied on N books. Old values kept in table book_genre_cleanup_backup. No book, copy or
+price was deleted.* To see exactly which books changed and how, Render dashboard > `umas-books` > **Shell**, `psql "$DATABASE_URL"`:
+`SELECT b.id, b.title, k.categories_before, b.categories FROM book_genre_cleanup_backup k JOIN books b ON b.id = k.book_id ORDER BY b.id;`
+
+**Restore (only if a change was wrong).** Paste in the same `psql` (it puts back the old genres of the books that still hold
+what the migration wrote, so a genre edited since is never overwritten; safe to run twice). To restore one book only, add
+`AND b.id = 123`:
+
+<!-- restore-genre-spelling:start -->
+```sql
+UPDATE books b
+   SET categories = k.categories_before
+  FROM book_genre_cleanup_backup k
+ WHERE b.id = k.book_id
+   AND b.categories IS DISTINCT FROM k.categories_before;
+```
+<!-- restore-genre-spelling:end -->
+
+It answers `UPDATE <n>`. (It restores every book of the table, including one whose genres were edited after the deploy; to
+spare those, restore single books with `AND b.id = 123` after looking at the query above.) The backup table is small, holds
+no personal data and follows the books (a deleted book loses its row). Once Sharon is happy, a developer can drop it with a
+new migration (`DROP TABLE IF EXISTS book_genre_cleanup_backup;`).

@@ -26,6 +26,8 @@
 // Books have English genres only (Sharon, 2026-10-28): no French genre is computed, kept or written here.
 
 const config = require("./config");
+const { buildKnown, canonicalGenres } = require("./genreClean");
+const { STATIC_KNOWN_GENRES } = require("./bookLookup");
 
 const APOSTROPHES = /[‘’‛ʼ′`´]/g;
 
@@ -186,20 +188,29 @@ function clearRulesCache(pool) {
   if (pool) caches.delete(pool);
 }
 
-// The save paths: a book saved with `genre` (English) as typed. With NO stored rule nothing changes (the managed list
-// alone never rewrites a book on its own). Otherwise the genres go through the rules; a rules problem never stops a
+// The save paths: a book saved with `genre` (English) as typed. With stored rules the genres go through them; then,
+// always, each genre is cleaned and takes the spelling of the known genre (the fixed list + the managed genres of
+// Admin > Genres): "Children's Fiction§" -> "Children's Fiction", "art & design" -> "Art & Design"
+// (lib/genreClean.js, the very same as migration 109 did for the books already saved). A rules problem never stops a
 // save. -> { genre }
 async function applyRulesToBook(pool, genre) {
+  if (!genre) return { genre };
+  let out = genre;
+  let managedNames = [];
   try {
-    const { rules, hasRules } = await loadRules(pool);
-    if (!hasRules || !genre) return { genre };
-    const r = rewriteGenres(genre, rules);
-    if (!r.changed) return { genre };
-    return { genre: r.en };
+    const { rules, hasRules, managed } = await loadRules(pool);
+    managedNames = managed;
+    if (hasRules) {
+      const r = rewriteGenres(genre, rules);
+      if (r.changed) out = r.en;
+    }
   } catch (err) {
     console.error("Genre rules not applied:", err.message);
-    return { genre };
   }
+  if (!out) return { genre: out };
+  const known = new Map(STATIC_KNOWN_GENRES);
+  for (const [k, v] of buildKnown({ common: [], managed: managedNames })) known.set(k, v);
+  return { genre: canonicalGenres(out, known) };
 }
 
 module.exports = {

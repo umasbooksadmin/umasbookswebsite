@@ -75,6 +75,7 @@ const TABLES = {
   copy_intake_tokens: "shop", // one-time save tokens of the Add Book form (they follow the copies)
   curated_collection_books: "shop", // which books are in a curated collection (they follow the books)
   book_french_backup: "shop", // migration 107's copy of the old French book descriptions / genres (follows the books)
+  book_genre_cleanup_backup: "shop", // migration 109's copy of the genres it tidied (follows the books)
   // people
   users: "people", // non-admins only
   event_signups: "people",
@@ -311,6 +312,7 @@ function buildPlan({ includeContent = false, keepMembers = false } = {}, have = 
   del("copy_intake_tokens");
   del("curated_collection_books");
   del("book_french_backup");
+  del("book_genre_cleanup_backup");
   del("price_reprice_items");
   del("price_reprice_runs");
   del("genre_run_changes");

@@ -6,6 +6,7 @@
 const config = require("./config");
 const { readBoundedJson } = require("./boundedBody");
 const { createInflight } = require("./inflight");
+const { buildKnown, cleanGenreName } = require("./genreClean");
 
 function normalizeIsbn(isbn) {
   return (isbn || "").replace(/[^0-9Xx]/g, "").toUpperCase();
@@ -65,6 +66,10 @@ const COMMON_GENRES = [
 
 // Books have English genres only (Sharon, 2026-10-28): there is no French list and no French translation of a genre.
 
+// The known genres of the fixed list (lib/genreClean.js buildKnown). The save paths add the managed genres of
+// Admin > Genres on top (lib/genreRules.js applyRulesToBook).
+const STATIC_KNOWN_GENRES = buildKnown({ common: COMMON_GENRES });
+
 // A book can reasonably match several of these (e.g. both "Fantasy" and
 // "Young Adult Fiction") — return every one that appears, most-generic
 // first, capped so a noisy subject list doesn't produce a huge string.
@@ -78,7 +83,8 @@ function pickGenres(names) {
   const matches = COMMON_GENRES.filter((genre) => lower.some((n) => n.includes(genre.toLowerCase())));
   if (matches.length) return matches.slice(0, MAX_GENRES).join(", ");
 
-  return clean.reduce((shortest, n) => (n.length < shortest.length ? n : shortest));
+  // A subject name from a source can carry a curly apostrophe or a stray character: cleaned like every saved genre.
+  return cleanGenreName(clean.reduce((shortest, n) => (n.length < shortest.length ? n : shortest))) || null;
 }
 
 async function fetchJsonOnce(url, timeoutMs) {
@@ -478,4 +484,4 @@ async function searchByTitleAuthor(title, author) {
   });
 }
 
-module.exports = { normalizeIsbn, isValidIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, mergeBooks, attributeSources, pickGenres, isbnCoverUrl, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES };
+module.exports = { normalizeIsbn, isValidIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, mergeBooks, attributeSources, pickGenres, isbnCoverUrl, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES, STATIC_KNOWN_GENRES };
