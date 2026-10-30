@@ -176,7 +176,7 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
   // and, when the admin is linking one, the accounts matching her email search.
   const { rows: unmatched } = await pool.query(
     `SELECT id, payer_email, amount_cents, paid_at, unmatched_reason, unmatched_at
-     FROM membership_payments WHERE user_id IS NULL AND unmatched_at IS NOT NULL ORDER BY paid_at DESC LIMIT 100`
+     FROM membership_payments WHERE user_id IS NULL AND unmatched_at IS NOT NULL AND reversed_at IS NULL ORDER BY paid_at DESC LIMIT 100`
   );
   const linkPaymentId = parseId(req.query.linkPayment);
   const linkQ = String(req.query.linkQ || "").trim().slice(0, 100);
