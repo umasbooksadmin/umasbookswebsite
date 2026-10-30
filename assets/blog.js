@@ -71,6 +71,9 @@
       var i = 0;
       function draw() {
         var l = lang(), list = posts().slice(0, n || 5);
+        // The posts feed has not answered yet: leave the box empty (assets/blog.css paints the placeholder and holds the space).
+        if (window.UMAS_POSTS_LOADING) { el.innerHTML = ""; el.setAttribute("aria-busy", "true"); return; }
+        el.removeAttribute("aria-busy");
         if (!list.length) { el.innerHTML = '<p class="blog-empty">' + esc(UI[l].empty) + "</p>"; return; }
         i = (i + list.length) % list.length;
         var multi = list.length > 1;

@@ -64,6 +64,15 @@
 .wn-head h2 { font-size: clamp(34px, 3.6vw, 46px); text-transform: uppercase; letter-spacing: 0.02em; line-height: 1; }
 .wn-head p { font-size: clamp(18px, 1.6vw, 22px); color: var(--ink); margin: 10px 0 0; }
 .wn-carousel { position: relative; padding: 0 60px; }
+/* Until the slides arrive (aria-busy, set in the page and removed by assets/blog.js) the box already has the height of a drawn slide, plus a
+   pale placeholder where the picture will be, so the sections below do not jump (the phone layout shift of 0.3-0.4 before this).
+   Two columns: the picture is 7:5 and 1.35 / 2.35 of the width inside the section's padding; stacked (phones): the picture is the full
+   width and about 365px of text, dots and gaps come under it. */
+.wn-carousel[aria-busy="true"] { min-height: calc((min(100vw, 1240px) - 220px) * 0.4103 + 38px); }
+.wn-carousel[aria-busy="true"]::before {
+  content: ""; display: block; background: #f3ece2;
+  width: calc((100% - 120px - 36px) * 1.35 / 2.35); aspect-ratio: 7 / 5; max-width: 100%;
+}
 .wn-stage { min-height: 1px; }
 .wn-slide { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 36px; align-items: center; }
 .wn-img { aspect-ratio: 7 / 5; background: #f3ece2; overflow: hidden; display: flex; align-items: center; justify-content: center; }
@@ -95,6 +104,8 @@
 @media (max-width: 820px) {
   .wn { padding: 32px 16px 28px; }
   .wn-carousel { padding: 0 0 4px; }
+  .wn-carousel[aria-busy="true"] { min-height: calc((100vw - 32px) * 0.7143 + 365px); }
+  .wn-carousel[aria-busy="true"]::before { width: 100%; }
   .wn-slide { grid-template-columns: minmax(0, 1fr); gap: 18px; }
   .wn-arrow { top: 30%; transform: none; width: 36px; height: 36px; }
   .wn-arrow.prev { left: 8px; }
