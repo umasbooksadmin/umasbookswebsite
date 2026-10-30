@@ -630,7 +630,7 @@ to open it in Excel: `docs/runbook.md`, section af.
 The nightly workflow uploads one complete dump (image bytes included, login
 sessions left out) to a private **Backblaze B2** bucket
 (`<bucket>/store-backups/full/umas_books_full_<UTC timestamp>.dump.age`, encrypted client-side with `age`; plain `.dump` while `BACKUP_AGE_RECIPIENT` is unset; plus a
-copy under `store-backups/monthly/` on the 1st of each month). Nothing is
+copy under `store-backups/monthly/` on the 1st of each month, or the next night if that run failed). Nothing is
 committed to the code repository. B2 speaks the S3 protocol, so the workflow
 uses the standard AWS CLI pointed at B2's endpoint. The upload is required:
 if any setting below is missing, or the upload fails, the job fails and sends

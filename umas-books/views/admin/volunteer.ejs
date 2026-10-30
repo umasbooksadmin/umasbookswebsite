@@ -1,5 +1,9 @@
 <%- include('../partials/admin_header', { title: 'Volunteer Shifts', active: active, pageTitle: 'Volunteer Shifts', mainWide: view === 'week' }) %>
 
+<% if (typeof error !== "undefined" && error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<%- include('../partials/admin_bad_ranges', { rows: badRanges, noun: 'volunteer shift', path: '/admin/volunteer-shifts', editable: false }) %>
+<%# What was typed in a refused form is shown back in it (display only). %>
+<% const ov = typeof formOverlay !== "undefined" && formOverlay ? formOverlay : null; %>
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
 <% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
@@ -34,25 +38,26 @@
         <% } else { %>
           <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
             <div class="calendar-day-number"><%= day.day %></div>
-            <details class="calendar-pill calendar-add-pill">
+            <% const nv = ov && ov.newDate === day.dateKey ? ov.values : null; %>
+            <details class="calendar-pill calendar-add-pill"<%= nv ? ' open' : '' %>>
               <summary>+ Add shift</summary>
               <div class="calendar-pill-body">
-                <form class="stack" method="post" action="/admin/volunteer-shifts">
+                <form class="stack" method="post" action="/admin/volunteer-shifts" data-saving-text="Saving&hellip;">
                   <%- include('../partials/csrf_field') %>
                   <input type="hidden" name="view" value="<%= view %>">
                   <input type="hidden" name="month" value="<%= view === 'month' ? currentMonth : '' %>">
                   <input type="hidden" name="week" value="<%= view === 'week' ? currentWeek : '' %>">
                   <input type="hidden" name="date" value="<%= day.dateKey %>">
                   <label for="role-new-<%= day.dateKey %>">Role</label>
-                  <input id="role-new-<%= day.dateKey %>" name="role" type="text" required placeholder="Shop Floor" list="v-role-suggestions">
+                  <input id="role-new-<%= day.dateKey %>" name="role" type="text" required placeholder="Shop Floor" list="v-role-suggestions" value="<%= nv ? nv.role : '' %>">
                   <label for="start-new-<%= day.dateKey %>">Start time</label>
-                  <input id="start-new-<%= day.dateKey %>" name="startTime" type="time" required>
+                  <input id="start-new-<%= day.dateKey %>" name="startTime" type="time" required value="<%= nv ? nv.startTime : '' %>">
                   <label for="end-new-<%= day.dateKey %>">End time</label>
-                  <input id="end-new-<%= day.dateKey %>" name="endTime" type="time" required>
+                  <input id="end-new-<%= day.dateKey %>" name="endTime" type="time" required value="<%= nv ? nv.endTime : '' %>">
                   <label for="repeat-new-<%= day.dateKey %>">Repeat weekly, this many times (including this one)</label>
-                  <input id="repeat-new-<%= day.dateKey %>" name="repeatWeeks" type="number" min="1" max="52" value="1">
+                  <input id="repeat-new-<%= day.dateKey %>" name="repeatWeeks" type="number" min="1" max="52" value="<%= nv ? nv.repeatWeeks : '1' %>">
                   <label for="notes-new-<%= day.dateKey %>">Notes (optional)</label>
-                  <textarea id="notes-new-<%= day.dateKey %>" name="notes"></textarea>
+                  <textarea id="notes-new-<%= day.dateKey %>" name="notes"><%= nv ? nv.notes : '' %></textarea>
                   <div><button class="btn btn-small" type="submit">Add shift</button></div>
                 </form>
               </div>

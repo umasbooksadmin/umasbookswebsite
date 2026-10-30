@@ -6,6 +6,8 @@ const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
 const { sanitizeHtml } = require("../../lib/sanitizeHtml");
 const frenchText = require("../../lib/frenchText");
+const { redirectWithFlash, takePageFlash } = require("../../lib/postRedirect");
+const { LIMITS, lengthProblem } = require("../../lib/adminForm");
 
 const { validateIdParams } = require("../../middleware/idParams");
 const { parseId, clean } = require("../../lib/validation");
@@ -48,7 +50,16 @@ function announcementBackQuery(req) {
   return announcementBack(req.body.backQuery);
 }
 
+// The first field over its limit, as a sentence (null when all fit): nothing is cut off silently.
+function announcementTooLong(title, body, french) {
+  return lengthProblem([
+    ["The title", title, LIMITS.title], ["The content", body, LIMITS.richText],
+    ["The French title", french.title_fr, LIMITS.title], ["The French content", french.body_fr, LIMITS.richText],
+  ]);
+}
+
 router.get("/admin/announcements", requireAdmin, async (req, res) => {
+  const flash = takePageFlash(req, res, "adminAnnouncements") || {};
   const status = ANNOUNCEMENT_STATUSES.includes(req.query.status) ? req.query.status : "all";
   const category = ANNOUNCEMENT_CATEGORIES.includes(req.query.category) ? req.query.category : "";
   const q = clean(req.query.q, 100);
@@ -109,6 +120,7 @@ router.get("/admin/announcements", requireAdmin, async (req, res) => {
     allCount,
     events,
     editing,
+    flashError: flash.error || null,
     categories: ANNOUNCEMENT_CATEGORIES,
     filters: { status, category, q, dateRange, pinnedOnly, sort },
   });
@@ -127,12 +139,15 @@ router.post("/admin/announcements", requireAdmin, async (req, res) => {
 
   if (!title || !body) return res.redirect(`/admin/announcements${backQuery}`);
 
-  const imageFile = req.files && req.files.image && req.files.image[0];
-  const imageUrl = imageFile ? await processAnnouncementImage(imageFile) : null;
   // The optional French version (title, summary, content): "" is stored as NULL = no French for that part; the
   // content passes the same sanitising as the English one.
   const french = frenchText.readFrench("announcement", req.body);
   if (french.excerpt_fr) french.excerpt_fr = french.excerpt_fr.slice(0, 200);
+  const tooLong = announcementTooLong(title, body, french);
+  if (tooLong) return redirectWithFlash(req, res, `/admin/announcements${backQuery}`, "adminAnnouncements", { error: tooLong });
+
+  const imageFile = req.files && req.files.image && req.files.image[0];
+  const imageUrl = imageFile ? await processAnnouncementImage(imageFile) : null;
 
   await pool.query(
     `INSERT INTO announcements (title, excerpt, body, category, status, published_at, image_url, is_pinned, expires_at, event_id, created_by,
@@ -184,11 +199,14 @@ router.post("/admin/announcements/:id", requireAdmin, async (req, res) => {
 
   if (!title || !body) return res.redirect(`/admin/announcements${backQuery}`);
 
+  const french = frenchText.readFrench("announcement", req.body);
+  if (french.excerpt_fr) french.excerpt_fr = french.excerpt_fr.slice(0, 200);
+  const tooLong = announcementTooLong(title, body, french);
+  if (tooLong) return redirectWithFlash(req, res, `/admin/announcements${backQuery}`, "adminAnnouncements", { error: tooLong });
+
   const imageFile = req.files && req.files.image && req.files.image[0];
   const newImageUrl = imageFile ? await processAnnouncementImage(imageFile) : null;
   const clearImage = !imageFile && req.body.removeImage === "on";
-  const french = frenchText.readFrench("announcement", req.body);
-  if (french.excerpt_fr) french.excerpt_fr = french.excerpt_fr.slice(0, 200);
 
   await pool.query(
     `UPDATE announcements SET title=$1, excerpt=$2, body=$3, category=$4, status=$5, published_at=$6,

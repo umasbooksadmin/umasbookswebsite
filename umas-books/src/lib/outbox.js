@@ -189,8 +189,37 @@ function errorText(err) {
   return scrubPersonalData((err && err.message) || String(err)).slice(0, 1000);
 }
 
+// Sends that are running right now (SMTP exchange plus the "sent" bookkeeping), so a graceful shutdown can wait for
+// them (waitForInFlightSends) instead of closing the database under a mail that already left: its row would stay
+// pending, the lease would expire and the worker would send the same mail a second time.
+const inFlightSends = new Set();
+let stopped = false;
+
+// From the start of a shutdown: the worker claims no more rows (the unsent ones are handed back, see processOutbox).
+function stopSending() { stopped = true; }
+
+// Resolves once every running send has finished, or after maxMs (whichever is first); true when none is left.
+async function waitForInFlightSends(maxMs = 10 * 1000) {
+  if (!inFlightSends.size) return true;
+  let timer;
+  const limit = new Promise((resolve) => { timer = setTimeout(() => resolve(false), maxMs); });
+  try {
+    return await Promise.race([Promise.allSettled([...inFlightSends]).then(() => true), limit]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // One claimed row: send it and record the outcome. Resolves true when sent.
-async function sendClaimed(pool, row) {
+function sendClaimed(pool, row) {
+  const work = sendClaimedNow(pool, row);
+  inFlightSends.add(work);
+  const forget = () => inFlightSends.delete(work);
+  work.then(forget, forget);
+  return work;
+}
+
+async function sendClaimedNow(pool, row) {
   const h = row.headers || {};
   try {
     await mailer.sendMail({
@@ -405,6 +434,12 @@ async function processOutbox(pool, { limit = BATCH_SIZE } = {}) {
   const batch = await claimDue(pool, limit);
   let consecutiveFailures = 0;
   for (let i = 0; i < batch.length; i++) {
+    if (stopped) {
+      // Shutting down: do not start another send; hand the unattempted rows back for the next process.
+      const rest = batch.slice(i).map((r) => r.id);
+      await pool.query("UPDATE email_outbox SET next_try_at = now() WHERE id = ANY($1::bigint[])", [rest]).catch(() => {});
+      break;
+    }
     if (await sendClaimed(pool, batch[i])) {
       summary.sent++;
       consecutiveFailures = 0;
@@ -492,6 +527,6 @@ async function listOutboxFor(db, email) {
 
 module.exports = {
   enqueueEmail, enqueueThrottled, sendEmail, deliverNow, processOutbox, alertFailedEmails, alertStuckEmails, retryNow, markFailedHandled,
-  purgeOutbox, eraseOutboxFor, listOutboxFor, expireStaleTokenMail, getThrottleCounts, resetThrottleCounts,
+  purgeOutbox, eraseOutboxFor, listOutboxFor, expireStaleTokenMail, getThrottleCounts, resetThrottleCounts, stopSending, waitForInFlightSends,
   MAX_ATTEMPTS, BACKOFF_MINUTES, TOKEN_KINDS, TOKEN_LIFETIME_MINUTES, THROTTLED_KINDS, THROTTLE,
 };

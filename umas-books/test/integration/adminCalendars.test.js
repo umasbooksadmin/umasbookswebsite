@@ -57,15 +57,18 @@ test("events: a capacity or price that is not a sensible number saves nothing an
   const u = h.uniq();
   for (const [capacity, price] of [["abc", ""], ["99999999999", ""], ["-3", ""], ["1e3", ""], ["", "abc"], ["", "99999999999"], ["", "1e3"], ["", "-1"]]) {
     const r = await h.post("/admin/events", { title: `Numbers ${u}`, date: DAY, startTime: "12:00", capacity, price });
-    assert.equal(r.res.status, 302, `${capacity}/${price}`);
+    assert.equal(r.res.status, 200, `${capacity}/${price}`);
+    assert.match(r.text, /role="alert" class="error-box"/, `${capacity}/${price}: refused with a message, not saved`);
   }
   assert.equal((await h.q("SELECT 1 FROM events WHERE title = $1", [`Numbers ${u}`])).length, 0);
   const ok = await h.post("/admin/events", { title: `Numbers ${u}`, date: DAY, startTime: "12:00", capacity: "0", price: "4,50" });
   assert.equal(ok.res.status, 302);
   const [row] = await h.q("SELECT capacity, price FROM events WHERE title = $1", [`Numbers ${u}`]);
   assert.deepEqual([row.capacity, Number(row.price)], [0, 4.5]);
-  const bad = await h.post(`/admin/events/${(await h.q("SELECT id FROM events WHERE title = $1", [`Numbers ${u}`]))[0].id}`, { title: `Numbers ${u}`, startsAt: `${DAY}T12:00`, capacity: "99999999999" });
-  assert.equal(bad.res.status, 302);
+  const bad = await h.post(`/admin/events/${(await h.q("SELECT id FROM events WHERE title = $1", [`Numbers ${u}`]))[0].id}?month=${MONTH}`, { title: `Numbers ${u}`, startsAt: `${DAY}T12:00`, capacity: "99999999999" });
+  assert.equal(bad.res.status, 200);
+  assert.match(bad.text, /Capacity must be a whole number between 0 and 100000/);
+  assert.match(bad.text, /value="99999999999"/, "what was typed is kept in the form");
   assert.equal((await h.q("SELECT capacity FROM events WHERE title = $1", [`Numbers ${u}`]))[0].capacity, 0, "the bad edit changed nothing");
 });
 

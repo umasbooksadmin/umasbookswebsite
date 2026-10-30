@@ -16,6 +16,8 @@
   const statusLabels = { draft: 'Draft', scheduled: 'Scheduled', published: 'Published', archived: 'Archived', trash: 'Trash' };
 %>
 
+<% if (typeof flashError !== "undefined" && flashError) { %><div class="error-box" role="alert"><%= flashError %></div><% } %>
+
 <div class="ann-tabs">
   <a href="/admin/announcements?<%= announcementsQs({ status: 'all' }) %>" class="<%= filters.status === 'all' ? 'is-active' : '' %>">All (<%= allCount %>)</a>
   <a href="/admin/announcements?<%= announcementsQs({ status: 'published' }) %>" class="<%= filters.status === 'published' ? 'is-active' : '' %>">Published (<%= counts.published %>)</a>
@@ -163,7 +165,7 @@
   <div class="ann-panel">
     <div class="card">
       <div class="section-title"><%= editing ? 'Edit Announcement' : 'Create New Announcement' %></div>
-      <form class="stack" method="post" action="<%= editing ? '/admin/announcements/' + editing.id : '/admin/announcements' %>" enctype="multipart/form-data">
+      <form class="stack" method="post" action="<%= editing ? '/admin/announcements/' + editing.id : '/admin/announcements' %>" enctype="multipart/form-data" data-saving-text="Saving&hellip; please wait">
         <%- include('../partials/csrf_field') %>
         <input type="hidden" name="backQuery" value="<%= currentQs %>">
 

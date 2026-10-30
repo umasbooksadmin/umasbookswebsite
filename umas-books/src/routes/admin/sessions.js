@@ -8,6 +8,7 @@ const { seatsTakenExpr } = require("../../lib/classCapacity");
 const frenchText = require("../../lib/frenchText");
 const { setFlash, takeFlash } = require("../../lib/flash");
 const { parseMoney, parseWholeNumber } = require("../../lib/validation");
+const { LIMITS, lengthProblem, timeRangeProblem, typedButInvalid, createOnce, DUPLICATE_WINDOW_SECONDS, findReversedRanges } = require("../../lib/adminForm");
 
 const { validateIdParams } = require("../../middleware/idParams");
 
@@ -61,7 +62,8 @@ async function renderSessions(res, calendarQuery, { error = null, notice = null,
   }
 
   const weeks = range.buildWeeks(groupByDate(classes, "starts_at"));
-  res.render("admin/sessions", { active: "sessions", fr: frenchText, notice, error, formOverlay: overlay, weeks, signupsByClass, dropinByClass, programTypes: PROGRAM_TYPES, view: range.view, ...range.nav });
+  const badRanges = await findReversedRanges(pool, "classes");
+  res.render("admin/sessions", { active: "sessions", fr: frenchText, notice, error, formOverlay: overlay, badRanges, weeks, signupsByClass, dropinByClass, programTypes: PROGRAM_TYPES, view: range.view, ...range.nav });
 }
 
 // A refused form answers with a redirect back to the calendar (Post/Redirect/Get):
@@ -94,7 +96,13 @@ router.post("/admin/sessions", requireAdmin, async (req, res) => {
   const dropinPrice = dropinCheck.value ?? null;
   const programType = PROGRAM_TYPES.includes(req.body.programType) ? req.body.programType : null;
 
-  const inputError = capacityCheck.error || dropinCheck.error;
+  const startsAt = date && startTime ? parseLocalDateTime(date, startTime) : null;
+  const endsAt = endTime ? parseLocalDateTime(date, endTime) : null;
+  const inputError = capacityCheck.error || dropinCheck.error
+    || lengthProblem([["The title", title, LIMITS.title], ["The location", location, LIMITS.line], ["The description", description, LIMITS.text]])
+    || (title && date && startTime && !startsAt ? "That date or start time is not a real date and time. Nothing was saved." : null)
+    || (typedButInvalid(endTime, endsAt) ? "That end time is not a real time. Nothing was saved." : null)
+    || timeRangeProblem(startsAt, endsAt, "A session");
   if (inputError) {
     return refuseAndRedirect(req, res, req.body, {
       error: inputError,
@@ -105,14 +113,17 @@ router.post("/admin/sessions", requireAdmin, async (req, res) => {
     });
   }
 
-  if (title && date && startTime) {
-    const startsAt = parseLocalDateTime(date, startTime);
-    const endsAt = endTime ? parseLocalDateTime(date, endTime) : null;
-    if (!startsAt) return res.redirect("/admin/sessions");
-    await pool.query(
-      `INSERT INTO classes (title, description, location, starts_at, ends_at, capacity, dropin_price, program_type, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [title, description, location, startsAt, endsAt, capacity, dropinPrice, programType, req.session.user.id]
+  if (title && startsAt) {
+    // The same form arriving twice in a minute (a double click) makes one session.
+    await createOnce(
+      pool, `class:${title}|${startsAt.toISOString()}`,
+      `SELECT 1 FROM classes WHERE title = $1 AND starts_at = $2 AND created_at > now() - interval '${DUPLICATE_WINDOW_SECONDS} seconds'`,
+      [title, startsAt],
+      (client) => client.query(
+        `INSERT INTO classes (title, description, location, starts_at, ends_at, capacity, dropin_price, program_type, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [title, description, location, startsAt, endsAt, capacity, dropinPrice, programType, req.session.user.id]
+      )
     );
   }
   const backQuery = calendarBackQuery(req.body);
@@ -137,11 +148,15 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
       error,
       overlay: {
         classId: id,
-        values: { title, title_fr: french.title_fr || "", description: description || "", location: location || "", programType: programType || "", capacity: asTyped(req.body.capacity), dropinPrice: asTyped(req.body.dropinPrice) },
+        values: { title, title_fr: french.title_fr || "", description: description || "", location: location || "", startsAt: asTyped(req.body.startsAt), endsAt: asTyped(req.body.endsAt), programType: programType || "", capacity: asTyped(req.body.capacity), dropinPrice: asTyped(req.body.dropinPrice) },
       },
     });
   };
-  const inputError = capacityCheck.error || dropinCheck.error;
+  const inputError = capacityCheck.error || dropinCheck.error
+    || lengthProblem([["The title", title, LIMITS.title], ["The French title", french.title_fr, LIMITS.title], ["The location", location, LIMITS.line], ["The description", description, LIMITS.text]])
+    || (typedButInvalid(req.body.startsAt, startsAt) ? "That start is not a real date and time. Nothing was saved." : null)
+    || (typedButInvalid(req.body.endsAt, endsAt) ? "That end is not a real date and time. Nothing was saved." : null)
+    || timeRangeProblem(startsAt, endsAt, "A session");
   if (inputError) return refuse(inputError);
 
   let problem = null;

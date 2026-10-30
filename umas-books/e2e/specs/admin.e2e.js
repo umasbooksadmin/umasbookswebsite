@@ -297,6 +297,7 @@ s.test("A9f (must) the page title (Back link and heading) is on the left and ful
 });
 
 s.manual("A9h (must) the suggested publisher's price from ISBNdb on Add Book (shown only for New, never filled until \"Use this price\")", "needs a real ISBNdb key and spends paid ISBNdb requests");
+s.manual("A9i a stuck lookup or save never freezes the scan page", "needs a real slow or dropped phone connection; the time limits are covered by test/unit/scanIntake.test.js");
 s.test("A9d Location, Source, Binding and Condition are the last values used (also after a reload); the first time they are Store, Donation, the last binding and Very Good (nothing is saved)", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory/new");
   await ctx.page.waitForSelector("#isbn[data-scan-active]");
@@ -440,6 +441,7 @@ s.test("A18 (must) the retired Sell in shop address sends you to the Till (nothi
 const REPORTS = ["Inventory on hand", "Aging stock", "Sales over time", "Sell-through by genre", "Membership", "Intake log", "Accounts", "Accounting export", "Book lookup sources used"];
 
 s.manual("A19f Inventory CSV: the Download all inventory button and the nightly email", "the nightly email and the Backblaze copy need GitHub Actions, the mailbox and Backblaze; the download itself is covered by test/integration/inventoryExport.test.js");
+s.manual("A19g big CSV downloads log no warning", "needs a few thousand copies and the Render logs; covered by test/unit/streamSink.test.js");
 
 s.test("A19 (must) the Reports page lists the reports (nine) and each opens with tables", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/reports");
@@ -1047,6 +1049,10 @@ s.manual("A30b create, sign up for, edit and delete an event", "publishes a publ
 s.manual("A31b create a session and check a drop-in seat can be reserved", "changes the real sessions calendar; do by hand");
 s.manual("A32b add a meeting with minutes, then delete it", "changes what members see; do by hand");
 s.manual("A33b add a weekly repeating shift, then delete it", "changes what volunteers see; do by hand");
+s.manual("A33f an end before the start is refused on events, sessions, shifts and charity votes, with the typed values kept", "refused forms are covered by test/integration/adminFormSafety.test.js; the look of the message and the kept values is checked by hand");
+s.manual("A33g old rows with an end before the start are listed in a notice", "needs a bad row, which the forms can no longer create; covered by test/integration/adminFormSafety.test.js");
+s.manual("A33h double-clicking Add never adds twice", "a real double click on a real browser; the server side is covered by test/integration/adminFormSafety.test.js");
+s.manual("A33i very long text is refused, not cut", "covered by test/integration/adminFormSafety.test.js; pasting 5,000 characters by hand checks the message");
 s.test("A34c (must) Announcements editor has the French version section: the French status, a Translate to French button, the French title, content and summary", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/announcements");
   const page = ctx.page;
@@ -1060,6 +1066,7 @@ s.test("A34c (must) Announcements editor has the French version section: the Fre
 s.manual("A30c (must) an event's French version: Translate to French, Save, and /fr/events shows it", "changes the real events calendar and uses the paid AI button (counts toward the daily cap); do by hand");
 s.manual("A31c a session's French title and the French drop-in seat line", "changes the real sessions calendar and uses the AI button; do by hand");
 s.manual("A36c charity: the French description and question", "changes the members' vote text and uses the AI button; do by hand");
+s.manual("A36d charity votes refuse a close date before the opening or a date that does not exist", "covered by test/integration/adminFormSafety.test.js");
 s.manual("A34b publish, schedule, pin, archive and delete announcements", "changes what members see; do by hand");
 s.test("A35c (must) Blog form: Save with no content shows a message instead of doing nothing, and a title plus content is accepted by the browser", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/blog");
