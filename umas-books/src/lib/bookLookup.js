@@ -258,13 +258,16 @@ async function exactIsbnCover(rawIsbn, { fetchImpl = (...a) => fetch(...a), sign
   const urls = isbnCoverUrls(rawIsbn);
   if (!urls.length) return { url: null, state: "none" };
   const probe = async (url) => {
+    const deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort(), timeoutMs);
     try {
-      const timeout = AbortSignal.timeout(timeoutMs);
-      const res = await fetchImpl(url, { method: "HEAD", signal: signal ? AbortSignal.any([signal, timeout]) : timeout, headers: { "User-Agent": "UmasBooksInventory/1.0" } });
+      const res = await fetchImpl(url, { method: "HEAD", signal: signal ? AbortSignal.any([signal, deadline.signal]) : deadline.signal, headers: { "User-Agent": "UmasBooksInventory/1.0" } });
       if (res.ok) return "yes";
       return res.status === 404 ? "no" : "error";
     } catch {
       return "error";
+    } finally {
+      clearTimeout(timer);
     }
   };
   const answers = await Promise.all(urls.map(probe));
