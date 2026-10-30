@@ -137,3 +137,24 @@ test("checkCover: a different picture, no catalog cover, no ISBN and a failed lo
   assert.equal((await checkCover({ isbn: null }, {})).state, "no-isbn");
   assert.equal((await checkCover(book, { lookupByIsbn: async () => null })).state, "unavailable");
 });
+
+// ---------------------------------------------------------------- scan with no cover -> save -> fill (Sharon, 2026-10-30)
+
+test("scan finds no cover -> save -> fillBookGaps (real findCoverUrl): no other edition's cover is ever added", async () => {
+  // The catalog knows the book but has no cover; a title search WOULD offer a picture (cover_i 999), the cover server 404s.
+  handler = (u) => {
+    if (u.includes("/api/volumes/brief/")) return json({ records: { "/books/OL1M": { isbns: [FLW], data: { title: "The French Lieutenant's Woman" } } } });
+    if (u.includes("search.json")) return json({ docs: [{ title: "Another book", cover_i: 999 }] });
+    return json({}, 404);
+  };
+  const writes = [];
+  const pool = { query: async (sql, params) => { if (sql.startsWith("SELECT")) return { rows: [{ description: "d", cover_url: null, cover_removed_at: null }] }; writes.push(params); return { rows: [] }; } };
+  // hints as the save sends them: the scan screen showed no cover, so no coverUrl hint
+  await fillBookGaps(pool, 1, { isbn: FLW, title: "The French Lieutenant's Woman", author: "John Fowles" }, { generateBookDescription: async () => null });
+  assert.deepEqual(searchCalls(), [], "no title search");
+  assert.ok(!calls.some((u) => u.includes("/b/id/")), "no numbered (title-search) picture was fetched");
+  for (const w of writes) {
+    assert.equal(w[1], null, "no cover stored");
+    assert.ok(w[2] === null || w[2].includes(`/b/isbn/${FLW}-`), "at most the exact-ISBN address is kept for the background job");
+  }
+});
