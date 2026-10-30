@@ -80,7 +80,10 @@ const TOKEN_LIFETIME_MINUTES = {
 const THROTTLED_KINDS = new Set(["verification", "signup_attempt", "password_reset", "book_request_confirm", "book_request_list", "guest_reservation"]);
 const THROTTLE = {
   intervalMinutes: 10, // at most 1 mail per (recipient, kind) per this many minutes
-  perRecipientPerDay: 5, // and at most this many throttled-kind mails per recipient per 24 h
+  perRecipientPerDay: 5, // and at most this many throttled-kind mails (verification, password reset, ...) per recipient per 24 h
+  // guest_reservation has its OWN daily budget and counts only its own kind: an anonymous visitor typing someone's
+  // address must not use up that person's 5 verification / password-reset mails, and vice versa.
+  guestReservationPerRecipientPerDay: 3,
   // Shop-wide ceiling per kind per hour: a flood of DIFFERENT addresses cannot
   // make Gmail (about 2000 a day) refuse the order confirmations. Trade-off: a
   // determined flood can use the ceiling up and delay genuine signups for an
@@ -142,16 +145,18 @@ async function enqueueThrottled(db, msg, { mode, limits } = {}) {
   try {
     if (own) await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [`mailthrottle:${String(msg.to).toLowerCase()}`]);
+    const ownBudget = msg.kind === "guest_reservation";
+    const budgetKinds = ownBudget ? [msg.kind] : [...THROTTLED_KINDS].filter((k) => k !== "guest_reservation");
     const { rows: [r] } = await client.query(
       `SELECT count(*) FILTER (WHERE kind = $2 AND created_at > now() - ($3 * interval '1 minute'))::int AS recent,
               count(*)::int AS day
        FROM email_outbox
        WHERE lower(to_email) = lower($1) AND kind = ANY($4::text[]) AND created_at > now() - interval '1 day'`,
-      [msg.to, msg.kind, t.intervalMinutes, [...THROTTLED_KINDS]]
+      [msg.to, msg.kind, t.intervalMinutes, budgetKinds]
     );
     let reason = null;
     if (mode !== "skipInterval" && r.recent >= 1) reason = "interval";
-    else if (r.day >= t.perRecipientPerDay) reason = "daily";
+    else if (r.day >= (ownBudget ? t.guestReservationPerRecipientPerDay : t.perRecipientPerDay)) reason = "daily";
     if (!reason) {
       const cap = globalCap(msg.kind, limits);
       if (Number.isFinite(cap)) {

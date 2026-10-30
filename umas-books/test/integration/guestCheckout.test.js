@@ -42,6 +42,9 @@ async function guestReserve({ copyIds = [], classIds = [], v, lang, name = "Gail
   return { r, order, v: visitor, email, mail, confirm: mail && confirmLink(mail.text), manage: mail && manageLink(mail.text) };
 }
 
+// L1: every limit refuses a guest with this ONE sentence (it must not reveal anything about an address).
+const NEUTRAL_REFUSAL = /We cannot hold these books right now: too many reservations are waiting to be confirmed\. Please try again in a little while, or create an account\./;
+
 const hoursFromNow = (d) => (new Date(d).getTime() - Date.now()) / 3600000;
 
 test("the cart offers 'continue as a guest' next to log in / create an account; the guest form asks name, email, optional phone", async () => {
@@ -281,7 +284,8 @@ test("at most 10 books held at once per email (any case), unconfirmed holds incl
   const third = await guestReserve({ copyIds: [copies[10]], email: ` ${email.replace("guest", "GUEST")} ` });
   assert.equal(third.order, null);
   assert.equal(third.r.seeOther, "/cart/guest");
-  assert.match(third.r.text, /We can hold at most 10 books at a time for one email address/);
+  assert.match(third.r.text, NEUTRAL_REFUSAL);
+  assert.doesNotMatch(third.r.text, /We can hold at most|There are already|counting its other/, "L1: no hint about the address's reservations");
   assert.match(third.r.text, /value="Gail Guest"/);
   assert.equal(await h.copyStatus(copies[10]), "in_stock");
   // releasing one book's worth makes room again
@@ -298,7 +302,8 @@ test("at most 3 open reservations per email address; the per-IP limit still appl
   for (let i = 0; i < 3; i++) assert.ok((await guestReserve({ copyIds: [await h.copy()], email })).order);
   const fourth = await guestReserve({ copyIds: [await h.copy()], email });
   assert.equal(fourth.order, null);
-  assert.match(fourth.r.text, /There are already 3 open reservations for this email address/);
+  assert.match(fourth.r.text, NEUTRAL_REFUSAL);
+  assert.doesNotMatch(fourth.r.text, /We can hold at most|There are already|open reservations for this email/, "L1: no hint about the address's reservations");
   // one connection: the 11th reservation attempt in an hour is refused by the existing limiter
   const v = h.visitor();
   let last;
