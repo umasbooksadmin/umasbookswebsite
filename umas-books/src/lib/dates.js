@@ -42,9 +42,15 @@ const { formatDate, formatDateTime, formatTime, formatDateLong } = forLocale(LOC
 function parseLocalDateTime(dateOrDateTime, time) {
   if (typeof dateOrDateTime !== "string" || !dateOrDateTime) return null;
   const text = time ? `${dateOrDateTime}T${time}` : dateOrDateTime;
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(text)) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(text);
+  if (!m) return null;
   const d = new Date(text); // no offset in the string => process timezone => Paris
-  return Number.isNaN(d.getTime()) ? null : d;
+  if (Number.isNaN(d.getTime())) return null;
+  // new Date() rolls an impossible day over (2026-02-30 becomes 2 March, 24:00
+  // becomes the next midnight): only a date that reads back the same is real.
+  const [year, month, day, hour, minute] = m.slice(1, 6).map(Number);
+  if (d.getFullYear() !== year || d.getMonth() + 1 !== month || d.getDate() !== day || d.getHours() !== hour || d.getMinutes() !== minute) return null;
+  return d;
 }
 
 // The same Paris wall-clock time on each of `weeks` consecutive weeks.

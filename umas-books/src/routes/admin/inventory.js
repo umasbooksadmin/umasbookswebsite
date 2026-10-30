@@ -10,6 +10,7 @@ const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { applyRulesToBook } = require("../../lib/genreRules");
 const { genreFilterOptions } = require("../../lib/genreAdmin");
 const { generateBookDescription } = require("../../lib/bookDescription");
+const { drainingSink } = require("../../lib/streamSink");
 const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeBinding, conditionLabel, resolveCopyPricing, normalizeGenres, normalizeLocation, uniqueLocations, locationKey, parseScan, isbnVariants } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
 const { matchRequestsForBook } = require("../../lib/bookRequests");
@@ -195,7 +196,7 @@ router.get("/admin/inventory/export.csv", requireAdmin, async (req, res) => {
     "Content-Disposition": `attachment; filename="inventory${perBook ? "_books" : ""}_${day}.csv"`,
     "Cache-Control": "no-store",
   });
-  const sink = (text) => (res.write(text) ? undefined : new Promise((resolve) => res.once("drain", resolve)));
+  const sink = drainingSink(res);
   const result = await (perBook ? writeBooksCsv : writeCopiesCsv)(pool, sink);
   await audit(req, { action: "inventory.csv", targetType: "inventory", detail: `${perBook ? "per book" : "per copy"}: ${result.rows} rows` });
   res.end();
@@ -226,7 +227,7 @@ router.get("/admin/inventory/results.csv", requireAdmin, async (req, res) => {
     "Content-Disposition": `attachment; filename="umas-inventory${perBook ? "-books" : ""}-filtered-${day}.csv"`,
     "Cache-Control": "no-store",
   });
-  const sink = (text) => (res.write(text) ? undefined : new Promise((resolve) => res.once("drain", resolve)));
+  const sink = drainingSink(res);
   const result = await (perBook ? writeBooksCsv : writeCopiesCsv)(pool, sink, { filter });
   await audit(req, { action: "inventory.csv", targetType: "inventory", detail: `filtered ${perBook ? "per book" : "per copy"}: ${result.rows} rows${nlSpec ? ", sentence search " + specParam(nlSpec).slice(0, 200) : filterQueryString(filters) ? ", search " + filterQueryString(filters).slice(0, 200) : ""}` });
   res.end();

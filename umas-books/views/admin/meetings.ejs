@@ -1,5 +1,8 @@
 <%- include('../partials/admin_header', { title: 'Meetings', active: active, pageTitle: 'Meetings', mainWide: view === 'week' }) %>
 
+<% if (typeof error !== "undefined" && error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<%# What was typed in a refused form is shown back in it (display only). %>
+<% const ov = typeof formOverlay !== "undefined" && formOverlay ? formOverlay : null; %>
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
 <% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
@@ -27,23 +30,24 @@
         <% } else { %>
           <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
             <div class="calendar-day-number"><%= day.day %></div>
-            <details class="calendar-pill calendar-add-pill">
+            <% const nv = ov && ov.newDate === day.dateKey ? ov.values : null; %>
+            <details class="calendar-pill calendar-add-pill"<%= nv ? ' open' : '' %>>
               <summary>+ Add meeting</summary>
               <div class="calendar-pill-body">
-                <form class="stack" method="post" action="/admin/meetings">
+                <form class="stack" method="post" action="/admin/meetings" data-saving-text="Saving&hellip;">
                   <%- include('../partials/csrf_field') %>
                   <input type="hidden" name="view" value="<%= view %>">
                   <input type="hidden" name="month" value="<%= view === 'month' ? currentMonth : '' %>">
                   <input type="hidden" name="week" value="<%= view === 'week' ? currentWeek : '' %>">
                   <input type="hidden" name="date" value="<%= day.dateKey %>">
                   <label for="title-new-<%= day.dateKey %>">Title</label>
-                  <input id="title-new-<%= day.dateKey %>" name="title" type="text" required placeholder="Board Meeting">
+                  <input id="title-new-<%= day.dateKey %>" name="title" type="text" required placeholder="Board Meeting" value="<%= nv ? nv.title : '' %>">
                   <label for="time-new-<%= day.dateKey %>">Time</label>
-                  <input id="time-new-<%= day.dateKey %>" name="time" type="time" required>
+                  <input id="time-new-<%= day.dateKey %>" name="time" type="time" required value="<%= nv ? nv.time : '' %>">
                   <label for="loc-new-<%= day.dateKey %>">Location (optional)</label>
-                  <input id="loc-new-<%= day.dateKey %>" name="location" type="text" placeholder="Uma's Books, back room">
+                  <input id="loc-new-<%= day.dateKey %>" name="location" type="text" placeholder="Uma's Books, back room" value="<%= nv ? nv.location : '' %>">
                   <label for="agenda-new-<%= day.dateKey %>">Agenda (optional)</label>
-                  <textarea id="agenda-new-<%= day.dateKey %>" name="agenda"></textarea>
+                  <textarea id="agenda-new-<%= day.dateKey %>" name="agenda"><%= nv ? nv.agenda : '' %></textarea>
                   <div><button class="btn btn-small" type="submit">Schedule</button></div>
                 </form>
               </div>

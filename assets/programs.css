@@ -16,7 +16,7 @@
   font-size: clamp(36px, 9.5vw, 74px); font-weight: 600; line-height: 1.02; letter-spacing: -0.01em;
   margin-top: 18px; color: #26351f;
 }
-.pg-dropin .pg-title { color: #9a6a24; } /* was #b0772e: 3.77:1 on --cream; this is 4.67:1 (WCAG AA) */
+.pg-dropin .pg-title { color: #926422; } /* was #b0772e (3.77:1), then #9a6a24 (4.14:1 on --cream-alt #f5f0e6); this is 4.54:1 there and 4.67:1 on --cream (WCAG AA) */
 .pg-script { font-family: var(--font-script); font-size: 50px; line-height: 1; margin: 6px 0 16px; color: var(--maroon); }
 .pg-dropin .pg-script { color: #33472c; }
 .pg-script-row { display: flex; align-items: center; justify-content: center; margin: 6px 0 16px; }
