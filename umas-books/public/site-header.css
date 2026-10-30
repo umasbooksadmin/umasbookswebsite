@@ -121,6 +121,10 @@ header.mkt-header .h-tool svg { width: 22px; height: 22px; }
 header.mkt-header .h-tool:hover { color: var(--maroon); }
 header.mkt-header .h-tool.fav svg { color: var(--maroon); }
 header.mkt-header .h-tools form { margin: 0; display: flex; }
+/* The cart's number badge (views/partials/mkt_chrome_header.ejs, filled by assets/site.js and public/cart-add.js). Only the phone
+   header needs it: from 641px up the link's own label already reads "Cart (n)". */
+header.mkt-header .h-cart { position: relative; }
+header.mkt-header .h-cart-badge { display: none; }
 header.mkt-header .langtoggle { display: inline-flex; align-items: center; gap: 4px; margin-top: 0; }
 header.mkt-header .langtoggle button {
   position: relative;
@@ -240,6 +244,13 @@ header.mkt-header .langtoggle span { color: var(--line); }
   header.mkt-header .h-tool { justify-content: center; align-items: center; }
   header.mkt-header .h-tool span.label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; font-size: 13px; }
   header.mkt-header .h-tool svg { width: 22px; height: 22px; }
+  /* On the icon's top right corner, inside the 44px tap area; it takes no room, so nothing moves when it appears. */
+  header.mkt-header .h-cart-badge {
+    display: flex; align-items: center; justify-content: center; position: absolute; top: 2px; right: 0;
+    box-sizing: border-box; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+    background: var(--maroon); color: #fff; font: 700 11px/1 var(--font-nunito, system-ui, sans-serif); letter-spacing: 0;
+  }
+  header.mkt-header .h-cart-badge[hidden] { display: none; }
   header.mkt-header .h-tools > noscript { display: block; order: 5; flex: 0 0 100%; }
   header.mkt-header .h-noscript { max-width: none; padding: 2px 0 4px; }
   header.mkt-header .langtoggle { order: 4; margin: 0; gap: 0; }

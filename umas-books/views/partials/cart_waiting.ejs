@@ -1,0 +1,17 @@
+<%# Shown on the log-in and sign-up pages when the session's cart has something in it (2026-10-27 review H4: a guest who adds a book
+    and then reaches the sign-in page used to see a bare form). The cart is kept through log-in and sign-up; and a guest does not need
+    an account to reserve (guest checkout, src/lib/guestOrders.js, GET /cart/guest), so that is offered too, except in preview mode
+    where nothing can be reserved yet (the guest form would only send them back to the cart). Uses res.locals.cartCount and
+    cartHasBooks (src/app.js). -%>
+<% if (locals.cartCount > 0) { %>
+<div role="status" class="notice-box cart-waiting" id="cart-waiting">
+  <p class="cart-waiting-title"><strong><%= locals.cartHasBooks ? tr('Your books are waiting in your cart', 'Vos livres vous attendent dans votre panier') : tr('Your cart is waiting for you', 'Votre panier vous attend') %></strong></p>
+  <% if (locals.preview) { %>
+  <p><%= tr('Online reservations open when we launch. Your cart is kept, whether or not you log in.', 'Les réservations en ligne ouvriront au lancement. Votre panier est conservé, que vous vous connectiez ou non.') %></p>
+  <p class="cart-waiting-links"><a class="tap-link" href="/cart"><%= tr('View your cart', 'Voir votre panier') %></a></p>
+  <% } else { %>
+  <p><%= tr('Your cart is kept when you log in or create an account. You can also reserve without an account: no password needed.', 'Votre panier est conservé quand vous vous connectez ou créez un compte. Vous pouvez aussi réserver sans compte, sans mot de passe.') %></p>
+  <p class="cart-waiting-links"><a class="btn btn-small" href="/cart/guest"><%= tr('Reserve as a guest', 'Réserver en tant qu’invité') %></a> <a class="tap-link" href="/cart"><%= tr('View your cart', 'Voir votre panier') %></a></p>
+  <% } %>
+</div>
+<% } %>

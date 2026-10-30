@@ -1781,6 +1781,31 @@ s.test("G104 (must) a book with several copies fits a 320 px wide screen with no
   }
 });
 
+s.test("G105 (must) the home page does not jump on a phone while What's New loads (layout shift under 0.1, the slider box is no longer busy afterwards)", async (ctx) => {
+  await ctx.page.setViewport({ width: 375, height: 740, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+  await ctx.page.evaluateOnNewDocument(() => { window.__cls = 0; new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: "layout-shift", buffered: true }); });
+  await ctx.goto("/", "networkidle2");
+  await new Promise((r) => setTimeout(r, 800));
+  const m = await ctx.page.evaluate(() => ({ cls: window.__cls, busy: document.getElementById("home-wn").getAttribute("aria-busy") }));
+  assert.ok(m.cls < 0.1, `layout shift ${m.cls}`);
+  assert.equal(m.busy, null, "the slider is drawn");
+});
+
+s.manual("G106 (must) cart waiting notice on the log-in and sign-up pages, with the guest checkout offered", "needs a cart filled by the same browser session, then the sign-in pages; do by hand (also covered by test/integration/cartFollowups.test.js)");
+
+s.test("G107 (must) the cart icon has a number badge that is hidden while the cart is empty (phone header)", async (ctx) => {
+  await ctx.page.setViewport({ width: 375, height: 740, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+  await ctx.goto("/books.html", "networkidle2");
+  const m = await ctx.page.evaluate(() => { const b = document.querySelector("a.h-cart [data-cart-badge]"); return b ? { hidden: b.hidden, label: b.getAttribute("aria-hidden") } : null; });
+  assert.ok(m, "the badge is in the cart link");
+  assert.equal(m.label, "true", "the badge is not read out (the link already says Cart (n))");
+  assert.equal(typeof (await ctx.page.evaluate(() => window.UmasShowCartCount)), "function");
+});
+
+s.manual("G108 (must) the cart on a small phone: title in whole lines, price and Remove under it, no sideways scrolling", "needs books in the cart; the numbers are checked by test/integration/cartFollowups.test.js, the look by eye");
+
+s.manual("G109 (must) 'from' price and the choose button on book cards", "needs a book with copies at different prices (admin); also covered by test/integration/cartFollowups.test.js");
+
 s.test("G-FR55 FR check (membership): the form and the payment step are in French", { lang: "fr" }, async (ctx) => {
   await joinPage(ctx);
   const text = await ctx.text();

@@ -101,7 +101,11 @@ if (_sameAs.length) jsonLd.sameAs = _sameAs;
       <p data-i18n="home.wn.sub">Latest news, upcoming events, book recommendations and more.</p>
       <a class="wn-viewall" href="blog.html"><span data-i18n="home.wn.viewall">View All Posts</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
     </div>
-    <div class="wn-carousel" id="home-wn" aria-roledescription="carousel"></div>
+    <%# aria-busy: the slider is drawn by public/page-home.js once the posts feed has answered. Until then assets/blog.css reserves
+        its space (and paints a pale placeholder), so nothing below it jumps when the slides arrive (phone layout shift, 2026-10-27 review H3).
+        Without JavaScript nothing will ever fill it, so the reserved space is dropped. %>
+    <div class="wn-carousel" id="home-wn" aria-roledescription="carousel" aria-busy="true"></div>
+    <noscript><style>.wn-carousel { min-height: 0 !important; } .wn-carousel::before { display: none !important; }</style></noscript>
   </section>
 
   <section class="member-band member-row">

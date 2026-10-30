@@ -119,15 +119,15 @@ test("the public lists say what each book's icon does: one copy or identical cop
   const buy = Object.fromEntries(books.map((b) => [b.title, b.buy]));
   assert.deepEqual(buy["Card One Copy"], { copyId: copy["Card One Copy"][0] });
   assert.deepEqual(buy["Card Twin Copies"], { copyId: Math.min(...copy["Card Twin Copies"]) }, "identical copies: the oldest one is added");
-  assert.deepEqual(buy["Card Choice"], { choose: true }, "different price and grade: choose on the book page");
-  assert.deepEqual(buy["Card Same Price Other Grade"], { choose: true }, "same price, other grade: still a choice");
+  assert.deepEqual(buy["Card Choice"], { choose: true, from: 3 }, "different price and grade: choose on the book page, from the lowest price");
+  assert.deepEqual(buy["Card Same Price Other Grade"], { choose: true }, "same price, other grade: still a choice, but no \"from\" (one price)");
   assert.deepEqual(buy["Card Clearance Twin"], { choose: true }, "a clearance copy is shown differently on the book page: a choice");
   assert.equal(buy["Card Unpriced"], null, "an unpriced copy is ask-in-the-shop: no icon");
   assert.deepEqual(buy["Card Unpriced Plus One"], { copyId: copy["Card Unpriced Plus One"][1] }, "only the priced copy counts");
   assert.ok(!("Card Reserved" in buy) && !("Card Sold" in buy), "reserved and sold books are not in the lists at all");
   // the other lists carry the same field
   const search = await (await v.get("/api/books/search?q=Card%20Choice&paged=1")).json();
-  assert.deepEqual(search.books.find((b) => b.title === "Card Choice").buy, { choose: true });
+  assert.deepEqual(search.books.find((b) => b.title === "Card Choice").buy, { choose: true, from: 3 });
   const col = await (await v.get("/api/collections/card-shelf/books?limit=48")).json();
   assert.deepEqual(col.books.find((b) => b.title === "Card One Copy").buy, { copyId: copy["Card One Copy"][0] });
   const favs = await (await v.get(`/api/books/by-ids?ids=${id["Card Reserved"]},${id["Card Sold"]},${id["Card Twin Copies"]}`)).json();

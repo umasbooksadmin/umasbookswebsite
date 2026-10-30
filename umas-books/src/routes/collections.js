@@ -37,7 +37,7 @@ function createCollectionsRouter({ marketingCsp }) {
     res.set("Content-Security-Policy", marketingCsp);
     setMarketingSeoLocals(req, res, `/collections/${collection.slug}`);
     // buy: the card's cart icon (lib/cardCart.js); extras: the genre and the reason under the card (lib/collections.js bookExtras).
-    Object.assign(res.locals, { collection, collectionTitle: title, collectionDescription: description, bannerAlt, books: books.map((b) => ({ ...b, buy: cardBuy(b.buy_copy_id), extras: bookExtras(b, req.lang) })), moreOffset: total > books.length ? books.length : null, coverSrcset, bannerSrcset });
+    Object.assign(res.locals, { collection, collectionTitle: title, collectionDescription: description, bannerAlt, books: books.map((b) => ({ ...b, buy: cardBuy(b.buy_copy_id, b.buy_from_price), extras: bookExtras(b, req.lang) })), moreOffset: total > books.length ? books.length : null, coverSrcset, bannerSrcset });
     // The cards' cart icons (lib/cardCart.js): a signed-in person's own form and "in your cart"; a guest's page stays the same for everyone.
     await setCardCartLocals(pool, req, res);
     renderMarketing(req, res, next, "marketing/collection");

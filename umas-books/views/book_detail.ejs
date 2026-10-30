@@ -133,7 +133,7 @@
           </div>
         </a>
         <%# The price line is outside the link (it carries the cart icon, partials/card_cart.ejs); the link still covers the whole card (style.css .book-card::after). %>
-        <% if (b.min_price != null) { %><div class="book-card-meta book-card-priceline"><span class="book-card-price"><%= eur(b.min_price) %></span><%- include('partials/card_cart', { b }).trim() %></div><% } %>
+        <% if (b.min_price != null) { %><div class="book-card-meta book-card-priceline"><span class="book-card-price"><%- include('partials/card_price', { price: b.min_price, buy: b.buy }).trim() %></span><%- include('partials/card_cart', { b }).trim() %></div><% } %>
       </div>
     <% }) %>
   </div>

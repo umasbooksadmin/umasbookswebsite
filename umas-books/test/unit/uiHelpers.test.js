@@ -151,7 +151,7 @@ function serverCard(b, lang, cardCart) {
   const { frenchTypography } = require("../../src/lib/frenchTypography");
   const file = path.join(ROOT, "views", "marketing", "partials", "book_card.ejs");
   const html = ejs.render(fs.readFileSync(file, "utf8"), {
-    b, lang, tr: (en, fr) => (lang === "fr" ? fr : en), eur: (n) => formatEuro(n, lang), coverSrcset: serverCoverSrcset,
+    b, lang, tr: (en, fr, params = {}) => (lang === "fr" ? fr : en).replace(/\{(\w+)\}/g, (m, k) => (k in params ? params[k] : m)), eur: (n) => formatEuro(n, lang), coverSrcset: serverCoverSrcset,
     bookText: (t, l) => bookText(t, lang, l), favName: (t, l) => favName(t, lang, l), cartName: (k, t, l) => cartName(k, t, lang, l),
     ...(cardCart ? { cardCart, csrfToken: "TOKEN" } : {}),
   }, { filename: file, views: [path.join(ROOT, "views")] });
@@ -171,6 +171,7 @@ test("collection.ejs's card (book_card.ejs) and the Browse card (ui.js bookCardH
     { id: 15, title: "L'Étranger", authors: "Albert Camus", cover_url: null, min_price: 12 },                                              // an apostrophe (curly in French)
     { id: 16, title: "One Copy", authors: "C", cover_url: null, min_price: 5, buy: { copyId: 41 } },                                        // the cart icon adds copy 41
     { id: 17, title: "L'Choice \"x\" & y", authors: "C", cover_url: null, min_price: 3, buy: { choose: true } },                            // the cart icon opens the book page
+    { id: 18, title: "Two Prices", authors: "C", cover_url: null, min_price: 3.5, buy: { choose: true, from: 3.5 } },                       // "from €3.50" and the choose icon
   ];
   for (const lang of ["en", "fr"]) {
     const ui = loadUi(lang);
@@ -193,4 +194,21 @@ test("the server's cart icon for one session: a POST form to /cart/add with the 
   assert.doesNotMatch(guest, /_csrf|TOKEN/, "a guest's page prints no token (no session is created for it)");
   assert.match(guest, /<form class="bk-cart-add" method="get" action="\/books\/16" data-copy-id="41"><button/, "a signed-out visitor: the script adds to the session cart; without it, the book page");
   assert.doesNotMatch(guest, /\/login|returnTo/, "no detour through the login page any more (guest checkout, 2026-10-28)");
+});
+
+// H11 (2026-10-27 review): a book whose copies differ in price says "from <lowest>" on its card, and its choose button has its own icon.
+test("a choice with different prices says 'from' (EN) / 'dès' (FR) with the lowest price; one price just prints it; the choose icon is not the add icon", () => {
+  for (const [lang, from, plain] of [["en", "from €3.50", "€7.50"], ["fr", "dès 3,50\u00a0€", "7,50\u00a0€"]]) {
+    const ui = loadUi(lang);
+    const choice = ui.bookCardHtml({ ...FULL, buy: { choose: true, from: 3.5 } }, true);
+    assert.ok(choice.includes(`<div class="p">${from}<span class="bk-cart"`), `${lang}: ${from}`);
+    assert.equal(ui.cardPrice({ ...FULL, buy: { choose: true } }), plain, `${lang}: a choice at one price: the price`);
+    assert.equal(ui.cardPrice({ ...FULL, buy: { copyId: 41 } }), plain, `${lang}: one copy: the price`);
+    assert.equal(ui.cardPrice({ ...FULL, buy: null }), plain, `${lang}: nothing to buy: the price`);
+    assert.match(ui.favoriteCardHtml({ ...FULL, buy: { choose: true, from: 3.5 } }), new RegExp(`<span class="book-card-price">${from}</span>`), `${lang}: the Favorites card too`);
+    const addIcon = /<path d="M13\.3 9\.6v4M11\.3 11\.6h4"\/>/; // the plus of the add icon
+    const chooseLink = /<a class="bk-cart-btn bk-cart-choose"[^>]*>(<svg[\s\S]*?<\/svg>)/.exec(choice)[1];
+    assert.doesNotMatch(chooseLink, addIcon, `${lang}: the choose link does not use the add icon`);
+    assert.match(ui.bookCardHtml({ ...FULL, buy: { copyId: 41 } }, true), new RegExp(addIcon.source), `${lang}: the add button keeps it`);
+  }
 });
