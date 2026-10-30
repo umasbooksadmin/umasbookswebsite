@@ -60,18 +60,19 @@ test("September: the files exist, the CSV is the admin export's own, boundaries 
   const csv = read(d, "accounting_2026-09.csv");
   // same function as Admin > Reports > Accounting export
   const admin = await accounting.accountingExportReport(pool, { from: "2026-09-01", to: "2026-09-30" });
-  assert.equal(csv, reports.toCsv(admin.sections[0], { locale: "fr" }));
+  assert.equal(csv, reports.toCsv(admin.sections[0]));
   assert.ok(csv.startsWith("\uFEFF"), "UTF-8 BOM");
   assert.ok(csv.includes("\r\n") && !/[^\r]\n/.test(csv), "CRLF");
-  assert.match(csv.split("\r\n")[0], /^\uFEFF"Date";"Category"/);
-  assert.match(csv, /;12,50;|;10,00;/, "decimal comma");
+  assert.match(csv.split("\r\n")[0], /^\uFEFFDate\|Category/);
+  assert.match(csv, /\|12\.50\||\|10\.00\|/, "decimal point");
+  assert.ok(!csv.includes('"') && !csv.includes(";"), "no quotes, no semicolons");
   assert.equal(r.stats.accountingRows, admin.sections[0].rows.length);
   const totals = await accounting.salesTotals(pool, "2026-09-01", "2026-09-30");
   assert.equal(r.stats.totalCents, totals.totalCents);
   // 7.00 (00:30 on 1 Sept Paris) + 10 + 2.50 + 20 (till) + 30 (membership) - 0.50 (cash short) + 8 (reservation, cash); the 9.00 sale is October
   assert.equal(r.stats.totalCents, 700 + 1000 + 250 + 2000 + 3000 - 50 + 800);
-  assert.doesNotMatch(csv, /"2026-10-01"/);
-  assert.match(csv, /"2026-09-01";"Books used";"Cash"/);
+  assert.doesNotMatch(csv, /2026-10-01/);
+  assert.match(csv, /2026-09-01\|Books used\|Cash/);
 });
 
 test("the refund is a negative row in October, not in September", async () => {
@@ -80,22 +81,22 @@ test("the refund is a negative row in October, not in September", async () => {
   const oct = read(d, "accounting_2026-10.csv");
   assert.doesNotMatch(sep, /Remboursement/);
   assert.match(oct, /Remboursement/);
-  assert.match(oct, /"2026-10-03";[^\r\n]*;-1;-8,00;/);
-  assert.match(oct, /"2026-10-01";"Books used";"Cash";1;9,00;/); // the 00:30 Paris sale
+  assert.match(oct, /2026-10-03\|[^\r\n]*\|-1\|-8\.00\|/);
+  assert.match(oct, /2026-10-01\|Books used\|Cash\|1\|9\.00\|/); // the 00:30 Paris sale
   assert.equal(r.stats.refunds, 1);
 });
 
 test("till days: one row per day, float, counted, difference, totals, receipt range, closed", async () => {
   const { d, r } = await run(["--month", "2026-09"]);
   const lines = read(d, "till_days_2026-09.csv").replace(/^\uFEFF/, "").split("\r\n").filter(Boolean);
-  assert.equal(lines[0], ax.TILL_HEADER.map((h) => `"${h}"`).join(";"));
+  assert.equal(lines[0], ax.TILL_HEADER.join("|"));
   assert.equal(lines.length, 1 + 2, "1 and 10 September (the 30 September 22:30Z sale is 1 October in Paris)");
-  const by = Object.fromEntries(lines.slice(1).map((l) => [l.split(";")[0].replace(/"/g, ""), l.split(";")]));
+  const by = Object.fromEntries(lines.slice(1).map((l) => [l.split("|")[0], l.split("|")]));
   assert.deepEqual(Object.keys(by), ["2026-09-01", "2026-09-10"]);
   const ten = by["2026-09-10"];
-  assert.deepEqual(ten.slice(1, 8), ["50,00", "62,00", "62,50", "-0,50", "12,50", "20,00", "32,50"]);
-  assert.deepEqual(ten.slice(8), ["2", "1", '"2026-0002"', '"2026-0004"', '"yes"', "0,00", "0,00"]); // ... cash refunds, then the admin-button cash (last column)
-  assert.equal(by["2026-09-01"][12], '"no"');
+  assert.deepEqual(ten.slice(1, 8), ["50.00", "62.00", "62.50", "-0.50", "12.50", "20.00", "32.50"]);
+  assert.deepEqual(ten.slice(8), ["2", "1", "2026-0002", "2026-0004", "yes", "0.00", "0.00"]); // ... cash refunds, then the admin-button cash (last column)
+  assert.equal(by["2026-09-01"][12], "no");
   assert.equal(r.stats.unclosedDays, 1, "1 September has a sale and no closing");
   const summary = read(d, "summary_2026-09.txt");
   assert.match(summary, /Till sales: 3/);
@@ -115,7 +116,7 @@ test("no personal data in any file, though the seed has names, emails and a phon
       for (const p of PII) assert.ok(!text.includes(p), `${f} contains ${p}`);
     }
     const csv = read(d, `accounting_${month}.csv`).replace(/^\uFEFF/, "");
-    assert.deepEqual(csv.split("\r\n")[0].split(";").map((c) => c.replace(/"/g, "")), ax.ACCOUNTING_HEADER);
+    assert.deepEqual(csv.split("\r\n")[0].split("|"), ax.ACCOUNTING_HEADER);
   }
 });
 
@@ -149,7 +150,7 @@ test("year mode: the whole year, a different financial year start, and the file 
   const { d, r } = await run(["--year", "2026"]);
   assert.deepEqual(fs.readdirSync(d).sort(), ["accounting_2026-full-year.csv", "email_body.txt", "summary_2026-full-year.txt", "till_days_2026-full-year.csv"]);
   const admin = await accounting.accountingExportReport(pool, { from: "2026-01-01", to: "2026-12-31" });
-  assert.equal(read(d, "accounting_2026-full-year.csv"), reports.toCsv(admin.sections[0], { locale: "fr" }));
+  assert.equal(read(d, "accounting_2026-full-year.csv"), reports.toCsv(admin.sections[0]));
   assert.equal(r.stats.accountingRows, admin.sections[0].rows.length);
   // a financial year starting in October 2026 contains the October rows only
   const fy = await run(["--year", "2026", "--fiscal-start-month", "10"]);

@@ -2,7 +2,7 @@ const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
-const { REPORTS, GROUPS, getReport, runReport, toCsv, formatCell, validDay, wantsFrenchCsv } = require("../../lib/reports");
+const { REPORTS, GROUPS, getReport, runReport, toCsv, formatCell, validDay } = require("../../lib/reports");
 const { parseTypeFilter, FILTER_LABELS } = require("../../lib/accountTypes");
 
 const router = express.Router();
@@ -85,7 +85,6 @@ router.post("/admin/reports/lookup-sources/test-credit-alert", requireAdmin, asy
 router.get("/admin/reports/:slug", requireAdmin, async (req, res) => {
   let slug = String(req.params.slug || "");
   let wantsCsv = req.query.format === "csv" || req.query.format === "csv-fr";
-  const french = wantsFrenchCsv(req.query);
   if (slug.endsWith(".csv")) {
     slug = slug.slice(0, -4);
     wantsCsv = true;
@@ -98,14 +97,14 @@ router.get("/admin/reports/:slug", requireAdmin, async (req, res) => {
   if (wantsCsv) {
     // ?table=<section key> picks which table of the report to download.
     const section = result.sections.find((s) => s.key === (req.query.table || report.csvTable)) || result.sections[0];
-    await audit(req, { action: "report.csv", targetType: "report", detail: french ? `${slug} (French Excel)` : slug });
+    await audit(req, { action: "report.csv", targetType: "report", detail: slug });
     const range = report.usesRange ? `-${result.range.from}_${result.range.to}` : "";
     res.set({
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="umas-books-${slug}-${section.key}${range}${report.usesPeriod ? `-${require("../../lib/lookupSourcesReport").parsePeriod(req.query.period, require("../../lib/reports").todayParis()).key}` : ""}${french ? "-fr" : ""}.csv"`,
+      "Content-Disposition": `attachment; filename="umas-books-${slug}-${section.key}${range}${report.usesPeriod ? `-${require("../../lib/lookupSourcesReport").parsePeriod(req.query.period, require("../../lib/reports").todayParis()).key}` : ""}.csv"`,
       "Cache-Control": "no-store",
     });
-    return res.send(toCsv(section, { locale: french ? "fr" : "en" }));
+    return res.send(toCsv(section));
   }
 
   // The Accounts report lists every account's email address: viewing the page

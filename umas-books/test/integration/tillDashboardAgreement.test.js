@@ -17,7 +17,7 @@ async function exportRows(from, to) {
   const res = await fetch(`${h.app.base}/admin/reports/accounting?from=${from}&to=${to}&format=csv`, { headers: { cookie: h.jar.header(), "x-forwarded-for": h.ip } });
   assert.equal(res.status, 200);
   const text = Buffer.from(await res.arrayBuffer()).toString("utf8").replace(/^\uFEFF/, "").trim();
-  return text.split("\r\n").slice(1).map((l) => l.split(",").map((c) => c.replace(/^"|"$/g, ""))).map(([date, category, method, count, total]) => ({ date, category, method, count: Number(count), cents: Math.round(Number(total) * 100) }));
+  return text.split("\r\n").slice(1).map((l) => l.split("|")).map(([date, category, method, count, total]) => ({ date, category, method, count: Number(count), cents: Math.round(Number(total) * 100) }));
 }
 const sumCents = (rows, pred = () => true) => rows.filter(pred).reduce((a, r) => a + r.cents, 0);
 

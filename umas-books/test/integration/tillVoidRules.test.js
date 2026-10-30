@@ -113,8 +113,8 @@ test("every void is listed: Needs attention (admin), End of day and its CSV show
   assert.match(day.text, /dropped on the floor/);
 
   const csv = await h.get("/admin/till/day?format=csv");
-  assert.match(csv.text, /"Voided by","Voided at \(Paris\)"/);
-  const line = csv.text.split("\r\n").find((l) => l.startsWith(`${s.saleId},`));
+  assert.match(csv.text, /Voided by\|Voided at \(Paris\)/);
+  const line = csv.text.split("\r\n").find((l) => l.startsWith(`${s.saleId}|`));
   assert.match(line, /Visible Vera/);
   assert.match(line, /dropped on the floor/);
   const audit = (await h.audit("till.void")).filter((a) => a.target_id === s.saleId);

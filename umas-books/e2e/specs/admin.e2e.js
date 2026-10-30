@@ -1274,7 +1274,8 @@ s.manual("A72 the admin menu is grouped and the Till pill is only filled on the 
 s.manual("A74 destructive buttons ask for confirmation (delete book/copy/event, remove sign-up, deactivate, make admin, close the day, void)", "the browser confirm dialog is left to a person; an automated test checks every destructive admin form carries data-confirm");
 s.manual("A75 the Add Book form focuses ISBN, shows no Manual review alert when blank, has a sticky Save bar", "layout check; the markup is covered by an automated test");
 s.manual("A76 the receipt is in French with a gapless number, and ANNUL\u00c9 when voided", "selling is left for you to do by hand; covered by an automated test");
-s.manual("A77 French Excel export opens in columns with decimal commas; refunds are negative rows; the mapping page edits accounts", "needs French Excel; the content is covered by an automated test");
+s.manual("A77 Pipe-format accounting export opens in Excel in columns with decimal points; refunds are negative rows; the mapping page edits accounts", "needs Excel; the content is covered by an automated test");
+s.manual("A77b Every download uses the pipe format (| delimiter, no quotes, decimal point)", "needs Excel; the format is covered by test/integration/csvPipeAllProducers.test.js");
 s.manual("A90 (must) a price changed under a card sale: new total shown, nothing recorded, restart", "needs a card sale and a second browser tab changing the price");
 s.manual("A91 (must) the card was charged but the sale is refused: red box, Record card sale, Record anyway", "needs a card sale and a change made while the card screen is open");
 s.manual("A92 (must) a sale on a closed day is refused; an admin reopens the day with a reason and closes it again", "closing is one-way (see A65), so it is left for you to do by hand");

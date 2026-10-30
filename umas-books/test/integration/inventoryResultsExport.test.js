@@ -10,10 +10,10 @@ async function get(p, user = h.admin) {
   return { res, text: Buffer.from(await res.arrayBuffer()).toString("utf8") };
 }
 const rowsOf = (text) => text.split("\r\n").slice(1).filter(Boolean);
-const copyIds = (text) => rowsOf(text).map((l) => Number(l.split(";")[13])).sort((a, b) => a - b);
+const copyIds = (text) => rowsOf(text).map((l) => Number(l.split("|")[13])).sort((a, b) => a - b);
 // Book ids the on-screen list shows (links to /admin/inventory/<id>).
 const listedBookIds = (html) => [...new Set([...html.matchAll(/href="\/admin\/inventory\/(\d+)"/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
-const bookIdsOfCopies = (text) => [...new Set(rowsOf(text).map((l) => Number(l.split(";")[15])))].sort((a, b) => a - b);
+const bookIdsOfCopies = (text) => [...new Set(rowsOf(text).map((l) => Number(l.split("|")[15])))].sort((a, b) => a - b);
 
 before(async () => {
   await h.start();
@@ -46,7 +46,7 @@ test("each filter alone and combined: the download holds the same books as the s
       if (csvBooks) assert.deepEqual(csvBooks, screen.filter((id) => csvBooks.includes(id)), f);
     } else assert.ok(screen.every((id) => bookIdsOfCopies(csv.text).includes(id)), f);
     const perBook = await get(`/admin/inventory/results.csv?${f}&books=1`);
-    const ids = rowsOf(perBook.text).map((l) => Number(l.split(";")[0])).sort((a, b) => a - b);
+    const ids = rowsOf(perBook.text).map((l) => Number(l.split("|")[0])).sort((a, b) => a - b);
     if (screen.length < 200) assert.deepEqual(ids, screen, `${f} per book`);
   }
 });
@@ -54,8 +54,8 @@ test("each filter alone and combined: the download holds the same books as the s
 test("copy-level filters list only the copies that match (in stock); no filter lists every copy", async () => {
   const { text: loc } = await get("/admin/inventory/results.csv?location=storage&q=RX%20split");
   assert.equal(rowsOf(loc).length, 1);
-  assert.match(loc, /"Storage"/);
-  assert.ok(!/"Shelf A"/.test(loc) && !/"Sold"/.test(loc));
+  assert.match(loc, /\|Storage\|/);
+  assert.ok(!/\|Shelf A\|/.test(loc) && !/\|Sold\|/.test(loc));
   const { text: all } = await get("/admin/inventory/results.csv?q=RX%20split");
   assert.equal(rowsOf(all).length, 3);
 });
@@ -66,13 +66,13 @@ test("more than 200 matches: the download holds all of them", async () => {
   assert.equal((await get("/admin/inventory/results.csv?q=RXBULK&books=1")).text.split("\r\n").filter(Boolean).length, 231);
 });
 
-test("same format as the full export: header, BOM, decimal comma, formula guard; file name has date and 'filtered'", async () => {
+test("same format as the full export: header, BOM, decimal point, formula guard; file name has date and 'filtered'", async () => {
   const full = await get("/admin/inventory/export.csv");
   const part = await get("/admin/inventory/results.csv?q=RX%20formula");
   assert.ok(part.text.startsWith("﻿"));
   assert.equal(part.text.split("\r\n")[0], full.text.split("\r\n")[0]);
-  assert.match(part.text, /"'=RX formula"/);
-  assert.match(part.text, /;7,00;/);
+  assert.match(part.text, /\|'=RX formula\|/);
+  assert.match(part.text, /\|7\.00\|/);
   assert.match(part.res.headers.get("content-disposition"), /attachment; filename="umas-inventory-filtered-\d{4}-\d\d-\d\d\.csv"/);
   // a row is byte-identical to the same copy's row in the full export
   const line = rowsOf(part.text)[0];

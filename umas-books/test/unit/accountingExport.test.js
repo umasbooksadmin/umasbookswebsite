@@ -93,14 +93,14 @@ test("parisParts at the spring-forward and fall-back instants", () => {
 });
 
 test("assertNoPersonalData: exact header, no email, no phone-like number; ordinary figures pass", () => {
-  const ok = "﻿" + ax.ACCOUNTING_HEADER.map((h) => `"${h}"`).join(";") + "\r\n" +
-    '"2026-09-10";"Books used";"Cash";2;10,00;"Ventes livres, espèces, 2026-09-10";"530";"707";"CA"\r\n';
+  const ok = "﻿" + ax.ACCOUNTING_HEADER.join("|") + "\r\n" +
+    "2026-09-10|Books used|Cash|2|10.00|Ventes livres, espèces, 2026-09-10|530|707|CA\r\n";
   assert.doesNotThrow(() => ax.assertNoPersonalData("t", ok, ax.ACCOUNTING_HEADER));
   assert.throws(() => ax.assertNoPersonalData("t", ok.replace("Journal", "Buyer email"), ax.ACCOUNTING_HEADER), /not the expected list/);
-  assert.throws(() => ax.assertNoPersonalData("t", ok + '"x@example.org"\r\n', ax.ACCOUNTING_HEADER), /email/);
-  assert.throws(() => ax.assertNoPersonalData("t", ok + '"05 63 12 34 56"\r\n', ax.ACCOUNTING_HEADER), /phone/);
-  assert.throws(() => ax.assertNoPersonalData("t", ok + '"+33 6 12 34 56 78"\r\n', ax.ACCOUNTING_HEADER), /phone/);
-  assert.throws(() => ax.assertNoPersonalData("t", ok + '"0612345678"\r\n', ax.ACCOUNTING_HEADER), /phone/);
+  assert.throws(() => ax.assertNoPersonalData("t", ok + "x@example.org\r\n", ax.ACCOUNTING_HEADER), /email/);
+  assert.throws(() => ax.assertNoPersonalData("t", ok + "05 63 12 34 56\r\n", ax.ACCOUNTING_HEADER), /phone/);
+  assert.throws(() => ax.assertNoPersonalData("t", ok + "+33 6 12 34 56 78\r\n", ax.ACCOUNTING_HEADER), /phone/);
+  assert.throws(() => ax.assertNoPersonalData("t", ok + "0612345678\r\n", ax.ACCOUNTING_HEADER), /phone/);
   assert.doesNotThrow(() => ax.assertNoPersonalData("t", "Receipt numbers: 2026-0001 to 2026-0412\r\nTotal 12 345,67 EUR 2026-10-01"));
 });
 

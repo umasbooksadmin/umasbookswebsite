@@ -179,11 +179,11 @@ test("the CSV: attachment, header row, counts, no personal data, logged in the a
   assert.match(res.headers.get("content-type"), /text\/csv/);
   assert.match(res.headers.get("content-disposition"), /attachment; filename="umas-books-lookup-sources-sources-all\.csv"/);
   const body = await res.text();
-  assert.match(body, /"Source","Asked","Supplied the title","Only filled missing fields"/);
-  assert.match(body, /"Google Books",150,/);
+  assert.match(body, /Source\|Asked\|Supplied the title\|Only filled missing fields/);
+  assert.match(body, /Google Books\|150\|/);
   assert.doesNotMatch(body, /@/);
   const daily = await (await fetch(`${app.base}${URL}?format=csv&table=daily&period=all`, { headers: { cookie: adminJar.header(), "x-forwarded-for": "10.79.1.1" } })).text();
-  assert.match(daily, /"Day \(Paris\)","Source"/);
+  assert.match(daily, /Day \(Paris\)\|Source/);
   assert.equal(daily.trim().split("\r\n").length, 1 + 5, "every daily row");
   const { rows } = await pool.query("SELECT 1 FROM admin_audit_log WHERE action = 'report.csv' AND detail = 'lookup-sources'");
   assert.ok(rows.length >= 1);

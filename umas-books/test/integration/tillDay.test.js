@@ -78,8 +78,8 @@ test("end of day CSV: BOM, one row per sale, no customer data; audited, not cach
   assert.equal(res.headers.get("cache-control"), "no-store");
   const body = Buffer.from(await res.arrayBuffer()).toString("utf8"); // keeps the BOM (fetch text() drops it)
   assert.ok(body.startsWith("\uFEFF"));
-  assert.match(body, /"Sale","Time \(Paris\)","Payment method"/);
-  assert.match(body, /"voided"/);
+  assert.match(body, /Sale\|Time \(Paris\)\|Payment method/);
+  assert.match(body, /\|voided\|/);
   assert.doesNotMatch(body, /@/);
   assert.equal((await h.audit("till.day_csv")).length, 1);
 });
@@ -100,7 +100,7 @@ test("a past day with sales that was never closed shows in Needs attention until
 
 // ---------- accounting export ----------
 
-const csvRows = (text) => text.replace(/^\uFEFF/, "").trim().split("\r\n").slice(1).map((l) => l.split(","));
+const csvRows = (text) => text.replace(/^\uFEFF/, "").trim().split("\r\n").slice(1).map((l) => l.split("|"));
 async function exportCsv(from, to) {
   const res = await fetch(`${h.app.base}/admin/reports/accounting?from=${from}&to=${to}&format=csv`, { headers: { cookie: h.jar.header(), "x-forwarded-for": h.ip } });
   return { res, text: Buffer.from(await res.arrayBuffer()).toString("utf8") };
@@ -143,9 +143,9 @@ test("accounting export: categories and methods, no personal data, voided exclud
   assert.match(res.headers.get("content-type"), /text\/csv/);
   assert.equal(res.headers.get("cache-control"), "no-store");
   assert.ok(text.startsWith("\uFEFF"));
-  assert.match(text, /^\uFEFF"Date","Category","Payment method","Count","Total \(EUR\)","Libellé","Compte débit","Compte crédit","Journal"/);
-  assert.doesNotMatch(text, /@|Secret|secret|Total"/, "no emails, names, and no totals row in the import file");
-  const rows = csvRows(text).map((r) => r.slice(0, 5).map((c) => c.replace(/"/g, "")));
+  assert.match(text, /^\uFEFFDate\|Category\|Payment method\|Count\|Total \(EUR\)\|Libellé\|Compte débit\|Compte crédit\|Journal/);
+  assert.doesNotMatch(text, /@|Secret|secret|\|Total\|/, "no emails, names, and no totals row in the import file");
+  const rows = csvRows(text).map((r) => r.slice(0, 5));
   const get = (cat, method) => rows.find((r) => r[1] === cat && r[2] === method);
   assert.deepEqual(get("Books used", "Cash"), [D, "Books used", "Cash", "3", "15.00"]);
   assert.deepEqual(get("Merchandise", "Cash"), [D, "Merchandise", "Cash", "2", "15.00"]);
@@ -182,13 +182,13 @@ test("accounting export: Paris day boundaries at 23:59 / 00:00, and across both 
   for (const [at] of cases) await insertTillSale({ at, lines: [{ cat: "merchandise", qty: 1, cents: 100 }] });
   const { text } = await exportCsv("2032-01-01", "2032-12-31");
   const byDay = {};
-  for (const r of csvRows(text)) byDay[r[0].replace(/"/g, "")] = Number(r[3]);
+  for (const r of csvRows(text)) byDay[r[0]] = Number(r[3]);
   const expected = {};
   for (const [, day] of cases) expected[day] = (expected[day] || 0) + 1;
   assert.deepEqual(byDay, expected);
   // the range itself is in Paris days: a one-day range holds exactly that day's sales
   const one = await exportCsv("2032-03-28", "2032-03-28");
-  assert.deepEqual(csvRows(one.text).map((r) => r[0].replace(/"/g, "")), ["2032-03-28"]);
+  assert.deepEqual(csvRows(one.text).map((r) => r[0]), ["2032-03-28"]);
   assert.equal(csvRows(one.text)[0][3], "2");
 });
 

@@ -131,27 +131,30 @@ test("accounting export: refunds are negative rows on the refund day, accounts a
   const { res, text } = await exportRows();
   assert.equal(res.status, 200);
   const lines = text.replace(/^\uFEFF/, "").split("\r\n").filter(Boolean);
-  assert.equal(lines[0], '"Date","Category","Payment method","Count","Total (EUR)","Libellé","Compte débit","Compte crédit","Journal"');
-  const refund = lines.filter((l) => /,-1,-9\.00,/.test(l));
+  assert.equal(lines[0], 'Date|Category|Payment method|Count|Total (EUR)|Libellé|Compte débit|Compte crédit|Journal');
+  const refund = lines.filter((l) => /\|-1\|-9\.00\|/.test(l));
   assert.equal(refund.length, 1, lines.join("\n"));
-  assert.ok(refund[0].startsWith(`"${day}"`), "dated at the refund");
-  assert.match(refund[0], /"Remboursement livres d'occasion, HelloAsso/);
-  const original = lines.filter((l) => /,1,9\.00,/.test(l) && l.includes("HelloAsso") && !l.startsWith(`"${day}"`));
+  assert.ok(refund[0].startsWith(`${day}|`), "dated at the refund");
+  assert.match(refund[0], /\|Remboursement livres d'occasion, HelloAsso/);
+  const original = lines.filter((l) => /\|1\|9\.00\|/.test(l) && l.includes("HelloAsso") && !l.startsWith(`${day}|`));
   assert.equal(original.length, 1, "the original row stays on its own day");
-  assert.match(original[0], /,"511","707","BQ"$/);
+  assert.match(original[0], /\|511\|707\|BQ$/);
   const over = lines.filter((l) => l.includes("Cash over/short"));
   assert.equal(over.length, 1);
-  assert.match(over[0], /"Cash over",0,2\.00,.*"530","758","OD"$/);
+  assert.match(over[0], /\|Cash over\|0\|2\.00\|.*\|530\|758\|OD$/);
   // the float (50.00) never shows up as revenue
-  assert.ok(!lines.some((l) => /,50\.00,/.test(l)), "opening float is not revenue");
-  const cash = lines.filter((l) => l.includes('"Cash",') && l.includes("Books used"));
-  assert.ok(cash.length && cash.every((l) => /"530","707","CA"$/.test(l)));
+  assert.ok(!lines.some((l) => /\|50\.00\|/.test(l)), "opening float is not revenue");
+  const cash = lines.filter((l) => l.includes("|Cash|") && l.includes("Books used"));
+  assert.ok(cash.length && cash.every((l) => /\|530\|707\|CA$/.test(l)));
 
+  // the old French-Excel link still works and gives the very same pipe file
   const fr = await exportRows("&locale=fr");
-  assert.match(fr.res.headers.get("content-disposition"), /-fr\.csv/);
+  assert.doesNotMatch(fr.res.headers.get("content-disposition"), /-fr\.csv/);
+  assert.equal(fr.text, text);
   assert.ok(fr.text.startsWith("\uFEFF"));
-  assert.match(fr.text, /"Cash over";0;2,00;/);
-  assert.match(fr.text, /;-1;-9,00;/, "negative refund row with decimal comma");
+  assert.match(fr.text, /\|Cash over\|0\|2\.00\|/);
+  assert.match(fr.text, /\|-1\|-9\.00\|/, "negative refund row with decimal point");
+  assert.ok(!fr.text.includes('"') && !fr.text.includes(";"), "no quotes, no semicolons");
 });
 
 test("accounting mapping page: edit is validated, saved, audited and used by the export", async () => {
@@ -174,20 +177,21 @@ test("accounting mapping page: edit is validated, saved, audited and used by the
   assert.match(log[0].detail, /Books used \/ Cash: 530\|707\|CA -> 530\|7071\|CA/);
   const book = await h.seedBook(`Map ${h.uniq()}`);
   await h.sale([h.book(await h.seedCopy(book.id, { price: 4 }))]);
-  assert.match((await exportRows()).text, /Books used","Cash",\d+,[\d.]+,"[^"]*","530","7071","CA"/);
+  assert.match((await exportRows()).text, /Books used\|Cash\|\d+\|[\d.]+\|[^|]*\|530\|7071\|CA/);
   const anon = await fetch(`${h.app.base}/admin/reports/accounting/mapping`, { redirect: "manual" });
   assert.equal(anon.status, 302);
 });
 
-test("end of day offers the French Excel download and the till CSV follows the dialect", async () => {
+test("end of day offers one CSV download (no French Excel variant) and the till CSV is in the pipe format", async () => {
   const d = await h.get("/admin/till/day");
-  assert.match(decode(d.text), /format=csv&locale=fr"[^>]*>Download for French Excel/);
+  assert.doesNotMatch(decode(d.text), /French Excel/);
+  assert.match(decode(d.text), /format=csv"[^>]*>Download CSV/);
   const fr = await fetch(`${h.app.base}/admin/till/day?day=${today()}&format=csv&locale=fr`, { headers: { cookie: h.jar.header(), "x-forwarded-for": h.ip } });
   const t = Buffer.from(await fr.arrayBuffer()).toString("utf8");
-  assert.ok(t.startsWith("\uFEFF\"Sale\";\"Time (Paris)\";"));
-  assert.match(t, /;\d+,\d\d;/);
+  assert.ok(t.startsWith("\uFEFFSale|Time (Paris)|"));
+  assert.match(t, /\|\d+\.\d\d\|/);
   const neutral = Buffer.from(await (await fetch(`${h.app.base}/admin/till/day?day=${today()}&format=csv`, { headers: { cookie: h.jar.header(), "x-forwarded-for": h.ip } })).arrayBuffer()).toString("utf8");
-  assert.match(neutral, /^\uFEFF"Sale","Time \(Paris\)",/);
+  assert.equal(neutral, t, "the old locale=fr link gives the same file");
 });
 
 test("order page shows the language in words, add-book form: no alert on a blank form, ISBN focused, sticky Save bar", async () => {

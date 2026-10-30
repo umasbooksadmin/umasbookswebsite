@@ -8,9 +8,9 @@
 // user). NO PERSONAL DATA: no buyer or reservation-holder name, email or phone,
 // no order or user id; a reserved copy is just status "Reserved".
 //
-// One dialect, the one the accounting export uses for French Excel (reports.js
-// csvDialect("fr")): UTF-8 BOM, semicolon separator, decimal comma, CRLF line
-// ends, text always quoted, a text cell starting with = + - @ tab or CR gets a
+// One format for every CSV (see reports.js csvCell): UTF-8 BOM, "|" separator, no
+// quote marks, decimal point, CRLF line ends; "|" inside a value becomes "/", line
+// breaks become a space, and a text cell starting with = + - @ tab or CR gets a
 // leading apostrophe. Dates are ISO (YYYY-MM-DD, Paris days).
 //
 // Streamed: rows are read in batches by id (keyset pagination, so the
@@ -19,9 +19,9 @@
 
 const { SITE_TIME_ZONE } = require("./tz");
 const { STATUSES, SOURCES, bindingLabel, conditionLabel } = require("./inventory");
-const { csvCell, csvDialect, csvDecimal, formatCell } = require("./reports");
+const { csvCell, CSV_SEP, formatCell } = require("./reports");
 
-const DIALECT = csvDialect("fr");
+const DIALECT = { sep: CSV_SEP }; // kept as an export for tests/scripts
 const BATCH = 2000;
 
 const COPY_COLUMNS = [
@@ -132,16 +132,15 @@ function bookRow(r) {
 }
 
 function csvHeader(columns) {
-  return columns.map((c) => csvCell(c.label)).join(DIALECT.sep);
+  return columns.map((c) => csvCell(c.label)).join(CSV_SEP);
 }
 
 // Same cell rules as reports.js toCsv().
 function csvLine(columns, row) {
   return columns.map((c) => {
     const cell = formatCell(row[c.key], c.type, { csv: true });
-    if (c.type === "text" || c.type === "date") return csvCell(cell);
-    return c.type === "int" ? cell : csvDecimal(cell, DIALECT);
-  }).join(DIALECT.sep);
+    return c.type === "text" || c.type === "date" ? csvCell(cell) : cell;
+  }).join(CSV_SEP);
 }
 
 // ---------- streaming ----------

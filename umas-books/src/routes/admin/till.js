@@ -18,7 +18,7 @@ const { audit } = require("../../lib/audit");
 const { expireStaleReservations } = require("../../lib/reservations");
 const till = require("../../lib/till");
 const { getCardProvider } = require("../../lib/cardPayments");
-const { todayParis, validDay, csvCell, csvDialect, csvDecimal, wantsFrenchCsv } = require("../../lib/reports");
+const { todayParis, validDay, csvCell, CSV_SEP } = require("../../lib/reports");
 const { formatDateTime, formatTime, forLocale, LOCALES } = require("../../lib/dates");
 const { formatEuro } = require("../../lib/money");
 const { SELLER_LINES } = require("../../lib/orderEmail");
@@ -336,18 +336,16 @@ router.get("/admin/till/day", requireTillOrAdmin, async (req, res) => {
   const catLabel = (k) => k === "books_used" ? "Books used" : k === "books_new" ? "Books new" : k === till.SEAT_CATEGORY ? "Class seats" : (till.OTHER_CATEGORIES.find((c) => c.value === k) || {}).label || k;
 
   if (req.query.format === "csv" || req.query.format === "csv-fr") {
-    const french = wantsFrenchCsv(req.query);
-    const d = csvDialect(french ? "fr" : "en");
-    await audit(req, { action: "till.day_csv", targetType: "till_day", detail: french ? `${day} (French Excel)` : day });
-    const head = ["Sale", "Time (Paris)", "Payment method", "Status", "Total (EUR)", "Items", "Card reference", "Void reason", "Voided by", "Voided at (Paris)"].map(csvCell).join(d.sep);
+    await audit(req, { action: "till.day_csv", targetType: "till_day", detail: day });
+    const head = ["Sale", "Time (Paris)", "Payment method", "Status", "Total (EUR)", "Items", "Card reference", "Void reason", "Voided by", "Voided at (Paris)"].map(csvCell).join(CSV_SEP);
     const lines = sales.map((s) => [
-      s.id, csvCell(formatTime(s.created_at)), csvCell(s.payment_method), csvCell(s.status), csvDecimal(money(s.total_cents), d),
+      s.id, csvCell(formatTime(s.created_at)), csvCell(s.payment_method), csvCell(s.status), money(s.total_cents),
       csvCell(s.summary), csvCell(s.card_reference), csvCell(s.void_reason),
       csvCell(s.status === "voided" ? s.voided_by_name : ""), csvCell(s.status === "voided" && s.voided_at ? formatTime(s.voided_at) : ""),
-    ].join(d.sep));
+    ].join(CSV_SEP));
     res.set({
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="umas-books-till-${day}${french ? "-fr" : ""}.csv"`,
+      "Content-Disposition": `attachment; filename="umas-books-till-${day}.csv"`,
       "Cache-Control": "no-store",
     });
     return res.send("\uFEFF" + [head, ...lines].join("\r\n") + "\r\n");

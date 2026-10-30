@@ -405,7 +405,7 @@ test("manual 'Books (other)' is relabelled and stays 'Other' in the accounting e
   assert.equal(r.status, 200);
   const day = parisDay();
   const csv = await (await fetch(`${h.app.base}/admin/reports/accounting?from=${day}&to=${day}&format=csv`, { headers: { cookie: h.jar.header(), "x-forwarded-for": h.ip } })).text();
-  assert.match(csv, /"?Other"?,"?Cash"?/);
+  assert.match(csv, /Other\|Cash/);
   assert.doesNotMatch(csv, /Books other/);
 });
 

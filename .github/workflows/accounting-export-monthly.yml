@@ -4,7 +4,7 @@ name: Monthly accounting export
 # 30 days (nightly) and 2 years (monthly). On the 1st of each month at 07:00 Paris time this
 # produces the accounting files of the PREVIOUS Paris month with the app's own accounting
 # code (umas-books/src/lib/accounting.js, the same as Admin > Reports > Accounting export):
-#   accounting_YYYY-MM.csv  the accounting export (French Excel CSV)
+#   accounting_YYYY-MM.csv  the accounting export (CSV: | separated, no quotes, decimal point)
 #   till_days_YYYY-MM.csv   the till's end-of-day summary, one row per day
 #   summary_YYYY-MM.txt     totals by account and method, counts, receipt range, days not closed
 # and (1) emails the two CSVs, (2) stores all three in Backblaze under
