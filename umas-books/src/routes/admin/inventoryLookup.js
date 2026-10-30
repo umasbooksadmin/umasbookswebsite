@@ -83,6 +83,7 @@ router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.que
     : found && {
         title: found.title, author: found.author, publisher: found.publisher, publishedYear: found.publishedYear,
         description: found.description, coverUrl: found.coverUrl, genre: found.genre, binding: found.binding || null,
+        coverOrigin: found.coverUrl ? "isbn" : null, // the catalog's cover for this exact ISBN (the record's own, or Open Library's by ISBN)
       };
 
   // The preview's cover and the price suggestion are independent too, and neither may hold the

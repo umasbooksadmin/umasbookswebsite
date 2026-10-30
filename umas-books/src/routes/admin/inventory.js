@@ -24,7 +24,7 @@ const { serverTiming } = require("../../lib/timing");
 const { aiAdminLimiter, AI_LIMIT_MESSAGE } = require("../../middleware/rateLimits");
 const { clean } = require("../../lib/validation");
 const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR } = require("../../lib/aiLimits");
-const { findCoverUrl } = require("../../lib/bookFill");
+const { findCoverUrl, coverOriginOf } = require("../../lib/bookFill");
 const { COVER_ERRORS, COVER_NOTICES } = require("../../lib/coverEdit");
 const { isStoredImageUrl } = require("../../lib/imageStore");
 const { variantUrl } = require("../../lib/imageVariants");
@@ -441,7 +441,7 @@ router.post("/admin/inventory/lookup", requireAdmin, photoLookupLimiter, async (
 
   // The catalog gives an Open Library address: copy the cover to our own server now
   // so the preview (and the saved book) never load it from there (lib/coverStore.js).
-  if (book.coverUrl) book = { ...book, coverUrl: (await prepareCover(book.coverUrl)).cover };
+  if (book.coverUrl) book = { ...book, coverUrl: (await prepareCover(book.coverUrl)).cover, coverOrigin: "isbn" }; // a catalog cover is only ever for the exact ISBN
 
   await lookupDone(req, res, { book, error, location, source });
 });
@@ -461,6 +461,7 @@ router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
     location: d.location,
     locationQueried: d.locationQueried,
     queried: d.queried,
+    firstUse: fastScan.firstUseValues(), // what "Reset choices" goes back to
     source: d.source,
     sources: SOURCES,
     locations: await getLocations(),
@@ -628,7 +629,7 @@ router.post("/admin/inventory/:id", requireAdmin, bookEditLimiter, async (req, r
     // A cover removed on purpose (Cover card, migration 098) is not looked up again by saving the details.
     const { rows: [current] } = await pool.query("SELECT cover_url, cover_removed_at FROM books WHERE id = $1", [id]);
     // How the cover was chosen (migration 111): a photo, an address that differs from the stored one (typed), or found by ISBN.
-    let coverOrigin = coverPhoto ? "photo" : (coverUrl && !(current && coverUrl === current.cover_url) ? "form" : null);
+    let coverOrigin = coverPhoto ? "photo" : (coverUrl && !(current && coverUrl === current.cover_url) ? coverOriginOf(coverUrl) : null);
     const coverRemoved = Boolean(current && current.cover_removed_at);
     const typedCover = coverUrl;
     [description, coverUrl] = await Promise.all([

@@ -45,6 +45,7 @@ global.fetch = async (url, init = {}) => {
   }
   if (u.startsWith("https://openlibrary.org/")) return new Response(JSON.stringify({ docs: [] }), { status: 200 });
   if (u.startsWith("https://covers.openlibrary.org/")) {
+    if (init.method === "HEAD") return new Response(null, { status: 404 }); // the exact-ISBN cover check is not a cover download
     calls.cover += 1;
     await sleep(delays.cover, init.signal);
     return new Response(png, { status: 200, headers: { "content-type": "image/png" } });

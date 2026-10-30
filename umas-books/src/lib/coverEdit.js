@@ -47,6 +47,8 @@ const COVER_ERRORS = {
   "not-stored": { status: 409, message: "This cover is an old web address that is not saved on our server, so it cannot be rotated or cropped. Use Replace cover photo, or Remove cover." },
   changed: { status: 409, message: "The cover was changed a moment ago, so nothing was done. Check the picture below and try again." },
   busy: { status: 429, message: "Too many cover changes in a short time. Please wait a minute and try again. Nothing was changed." },
+  "pick-failed": { status: 502, message: "That cover could not be downloaded from Open Library right now. Nothing was changed. Try another one, or try again in a minute." },
+  "bad-pick": { status: 400, message: "That cover choice is not valid. Nothing was changed." },
   failed: { status: 500, message: "The picture could not be processed. Nothing was changed. Please try again or choose another photo." },
 };
 const COVER_NOTICES = {
@@ -54,6 +56,7 @@ const COVER_NOTICES = {
   cropped: "Cover cropped.",
   replaced: "Cover photo replaced.",
   removed: "Cover removed. The book now shows “No cover”.",
+  chosen: "Cover chosen from Open Library and saved.",
   "no-change": "The selection was the whole picture, so nothing was changed.",
 };
 

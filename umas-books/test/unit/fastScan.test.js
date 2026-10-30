@@ -60,3 +60,8 @@ test("the last copy an admin saved is the starting point; the query wins; Store,
   assert.deepEqual([partial.location, partial.source, partial.binding, partial.condition], ["Store", "donation", firstUseBinding(), "very_good"]);
   assert.deepEqual(formDefaults({}, {}), formDefaults({}));
 });
+
+test("firstUseValues: what 'Reset choices' goes back to is what a first-ever form shows", () => {
+  const f = require("../../src/lib/fastScan").firstUseValues();
+  assert.deepEqual(f, { location: "Store", source: "donation", binding: firstUseBinding(), condition: "very_good" });
+});

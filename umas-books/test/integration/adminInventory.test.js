@@ -83,6 +83,7 @@ global.fetch = async (url, init = {}) => {
     if (u.includes("/search.json")) return jsonRes({ docs: openLibrary.search });
   }
   if (u.startsWith("https://covers.openlibrary.org/")) {
+    if (init && init.method === "HEAD") return new Response(null, { status: 404 }); // the exact-ISBN cover check of the lookup: none here, not a download
     coverCalls.push(u);
     if (coverFails) return new Response("gone", { status: 404 });
     return new Response(coverJpeg, { status: 200, headers: { "content-type": "image/jpeg" } });

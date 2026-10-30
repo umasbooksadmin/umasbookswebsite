@@ -1,6 +1,7 @@
 // Admin > Reports > Covers to check (lib/coverReview.js): books whose cover may be another edition's picture.
 //
-//   GET  /admin/reports/covers-to-check            the list (50 per page, ?page=N)
+//   GET  /admin/reports/covers-to-check            the list (50 per page, ?page=N); ?view=missing lists the books with no cover
+//                                                  (each with a Find a cover button, routes/admin/inventoryFindCover.js)
 //   POST /admin/reports/covers-to-check/:id/check  ask the catalog about this one ISBN; a match marks the book checked
 //   POST /admin/reports/covers-to-check/:id/ok     the owner says "the cover is fine"
 //
@@ -14,7 +15,7 @@ const { coverEditLimiter } = require("../../middleware/rateLimits");
 const { validateIdParams } = require("../../middleware/idParams");
 const { audit } = require("../../lib/audit");
 const { setFlash, takeFlash } = require("../../lib/flash");
-const { listCoversToCheck, checkCover } = require("../../lib/coverReview");
+const { listCoversToCheck, listMissingCovers, coverCounts, checkCover } = require("../../lib/coverReview");
 
 const router = express.Router();
 validateIdParams(router, "id");
@@ -29,11 +30,12 @@ const limiter = coverEditLimiter({
 });
 
 router.get(BASE, requireAdmin, async (req, res) => {
-  const list = await listCoversToCheck(pool, req.query.page);
+  const view = req.query.view === "missing" ? "missing" : "check";
+  const [list, counts] = await Promise.all([view === "missing" ? listMissingCovers(pool, req.query.page) : listCoversToCheck(pool, req.query.page), coverCounts(pool)]);
   res.render("admin/reports/covers_to_check", {
     active: "reports", title: "Covers to check", pageTitle: "Covers to check",
-    pageSub: "Books whose cover may be another edition's picture. Nothing here changes a cover.",
-    ...list, flash: takeFlash(req, "covers-to-check"),
+    pageSub: view === "missing" ? "Books with no cover. Use Find a cover on each." : "Books whose cover may be another edition's picture. Nothing here changes a cover.",
+    view, counts, ...list, flash: takeFlash(req, "covers-to-check"),
   });
 });
 

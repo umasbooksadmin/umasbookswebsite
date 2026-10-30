@@ -100,3 +100,6 @@
 
 /* The ISBNdb price suggestion under the publisher's price field (public/scan-intake.js): .btn would otherwise override [hidden]. */
 .isbndb-price [hidden] { display: none !important; }
+.scan-reset-choices { margin: 0; }
+.scan-link-button { background: none; border: 0; padding: 0; font: inherit; color: var(--maroon-dark); text-decoration: underline; cursor: pointer; min-height: 32px; }
+.scan-link-button:focus-visible { outline: 3px solid var(--maroon-dark); outline-offset: 2px; }

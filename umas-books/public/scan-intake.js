@@ -101,7 +101,7 @@
   // The fields a lookup fills, as form field name -> key in the lookup answer.
   var FILL_FIELDS = {
     title: "title", author: "author", publisher: "publisher", publishedYear: "publishedYear",
-    genre: "genre", description: "description", coverUrl: "coverUrl",
+    genre: "genre", description: "description", coverUrl: "coverUrl", coverOrigin: "coverOrigin",
   };
 
   // What to put in the form for a lookup answer: every field the volunteer has
@@ -137,6 +137,15 @@
     var key = state.hint ? resolveBindingKey(state.hint.key, state.available || []) : "";
     if (key) return { value: key, helper: helper + (key !== state.current ? " (selected for you; change it if wrong)" : "") };
     return { value: state.baseline == null ? state.current : state.baseline, helper: helper };
+  }
+
+  // Is the binding select "chosen by a person" when the page starts (so a lookup never replaces it)? Yes when the address carried
+  // one, or when one remembered from the last book was put in it. After a saved book it is always chosen: the next book keeps it.
+  function bindingStartsChosen(state) { return Boolean(state.fromServer || state.remembered); }
+
+  // The choices that stay for the next book after a save (never the ISBN, title, author, price, notes or cover).
+  function choicesToKeep(values) {
+    return { location: values.location, condition: values.condition, binding: values.binding, source: values.source };
   }
 
   // The status line for a lookup answer: { kind: found | notfound | stocked, text }.
@@ -279,20 +288,30 @@
     var started = false; // true once the page has finished its own set-up: later changes are a person's choices
     function remember(key, sel, fromServer, resolve) {
       var saved = resolve(recall(key));
-      if (!fromServer && saved !== null && optionValues(sel).indexOf(saved) !== -1) sel.value = saved;
+      var applied = !fromServer && saved !== null && optionValues(sel).indexOf(saved) !== -1;
+      if (applied) sel.value = saved;
       // Only a choice made by a person is stored (below, and when a book is saved): the starting value is not.
       sel.addEventListener("change", function (e) { if (e.isTrusted || started) store(key, sel.value || "-"); });
+      return applied;
     }
+    // The page's own starting values (the HTML attributes, which a script's .value never changes): "Reset choices" goes back to them.
+    function startingValue(sel) { for (var k = 0; k < sel.options.length; k++) if (sel.options[k].defaultSelected) return sel.options[k].value; return sel.options.length ? sel.options[0].value : ""; }
+    // "Reset choices" goes back to what a first-ever form shows (the server says which: data-first-*), else to the page's own starting values.
+    function firstUse(name, fallback) { var v = rootEl.getAttribute("data-first-" + name); return v === null ? fallback : v; }
+    var startBinding = firstUse("binding", startingValue(bindingSel)), startCondition = firstUse("condition", startingValue(conditionSel)), startSource = firstUse("source", startingValue(sourceSel));
+    var startLocation = firstUse("location", locationInput.defaultValue || "");
     var isSet = function (n) { return rootEl.getAttribute("data-" + n + "-set") === "1"; };
     var keepAsIs = function (v) { return v === "-" ? "" : (v || null); };
-    remember(BINDING_STORE_NAME, bindingSel, isSet("binding"), function (v) { return v === "-" ? "" : (v ? (resolveBindingKey(v, availableBindings) || null) : null); });
+    var bindingRemembered = remember(BINDING_STORE_NAME, bindingSel, isSet("binding"), function (v) { return v === "-" ? "" : (v ? (resolveBindingKey(v, availableBindings) || null) : null); });
     remember(SOURCE_STORE_NAME, sourceSel, isSet("source"), keepAsIs);
     remember(CONDITION_STORE_NAME, conditionSel, isSet("condition"), keepAsIs);
     conditionSel.dispatchEvent(new Event("change", { bubbles: true })); // the price control follows a remembered condition
     started = true;
     // The binding select is "touched" once a person picks something (or the address carried a value): from then on a
     // lookup only shows the catalog's binding as text. Untouched, a lookup selects it; baseline is where it goes back to.
-    var bindingTouched = isSet("binding");
+    // A binding remembered from the last book counts as chosen: the catalog's answer is then only shown as text ("Open Library
+    // says: ...") and never replaces it. Only "Reset choices" makes the catalog's binding select itself again.
+    var bindingTouched = bindingStartsChosen({ fromServer: isSet("binding"), remembered: bindingRemembered });
     var bindingBaseline = bindingSel.value;
     bindingSel.addEventListener("change", function () { bindingTouched = true; }); // the script itself never fires "change" on this select
 
@@ -301,6 +320,8 @@
       var el = form.elements[name];
       if (el) el.addEventListener("input", function () { touched[name] = true; });
     });
+    // A cover address typed by hand is no longer "the catalog's cover for this ISBN" (the hidden coverOrigin).
+    if (form.elements.coverUrl && form.elements.coverOrigin) form.elements.coverUrl.addEventListener("input", function () { form.elements.coverOrigin.value = ""; });
 
     // ---- filling the form
     function fillForm(result) {
@@ -446,7 +467,7 @@
       savedEl.hidden = false;
     }
 
-    var CLEAR_FIELDS = ["isbn", "title", "author", "publisher", "publishedYear", "genre", "coverUrl", "description", "publisherPrice", "copyNotes"];
+    var CLEAR_FIELDS = ["isbn", "title", "author", "publisher", "publishedYear", "genre", "coverUrl", "coverOrigin", "description", "publisherPrice", "copyNotes"];
     function resetForm(keep) {
       form.reset();
       CLEAR_FIELDS.forEach(function (name) { var el = form.elements[name]; if (el) el.value = ""; });
@@ -454,7 +475,7 @@
       locationInput.value = keep.location;
       conditionSel.value = keep.condition;
       bindingSel.value = keep.binding;
-      bindingTouched = false; bindingBaseline = keep.binding;
+      bindingTouched = true; bindingBaseline = keep.binding; // the binding of the book just saved is kept for the next one
       setIsbnLetters(false, false);
       sourceSel.value = keep.source;
       var photo = form.elements.coverPhoto; if (photo) photo.value = "";
@@ -477,12 +498,27 @@
       el.value = t;
     }
 
+    // ---- "Reset choices": forget the remembered binding, condition, location and source of this device
+    var resetChoices = form.querySelector("[data-scan-reset-choices]");
+    var resetWrap = form.querySelector("[data-scan-reset-wrap]");
+    if (resetWrap) resetWrap.hidden = false; // without JavaScript nothing is remembered, so there is nothing to reset
+    if (resetChoices) resetChoices.addEventListener("click", function () {
+      bindingSel.value = startBinding; conditionSel.value = startCondition; sourceSel.value = startSource; locationInput.value = startLocation;
+      bindingTouched = false; bindingBaseline = startBinding;
+      bindingHint.textContent = "";
+      conditionSel.dispatchEvent(new Event("change", { bubbles: true })); // the price control follows the condition (this also stores it, so the forgetting comes last)
+      store(BINDING_STORE_NAME, ""); store(SOURCE_STORE_NAME, ""); store(CONDITION_STORE_NAME, ""); store(LOCATION_STORE_NAME, "");
+      var note = document.getElementById("scan-reset-note");
+      if (note) note.textContent = "Choices reset to the first-use values: binding, condition, location and source.";
+      focusIsbn();
+    });
+
     function saveInPlace(submitter) {
       if (saving) return;
       if (inFlight) { setStatus("loading", "Wait for the lookup to finish, then save."); return; }
       if (!form.reportValidity()) return;
       saving = true;
-      var keep = { location: locationInput.value, condition: conditionSel.value, binding: bindingSel.value, source: sourceSel.value };
+      var keep = choicesToKeep({ location: locationInput.value, condition: conditionSel.value, binding: bindingSel.value, source: sourceSel.value });
       var savedIsbnValue = isbn.value;
       var fd = new FormData(form);
       fd.set("fast", "1");
@@ -585,7 +621,7 @@
 
   return {
     isbnDigits: isbnDigits, isCompleteIsbn: isCompleteIsbn, createScanWatcher: createScanWatcher, createRequestGuard: createRequestGuard, shouldRefocusIsbn: shouldRefocusIsbn,
-    wantsIsbndbPrice: wantsIsbndbPrice, isbndbPriceMessage: isbndbPriceMessage, planFill: planFill, resolveBindingKey: resolveBindingKey, chooseBinding: chooseBinding, lookupStatus: lookupStatus,
+    wantsIsbndbPrice: wantsIsbndbPrice, isbndbPriceMessage: isbndbPriceMessage, planFill: planFill, resolveBindingKey: resolveBindingKey, chooseBinding: chooseBinding, bindingStartsChosen: bindingStartsChosen, choicesToKeep: choicesToKeep, lookupStatus: lookupStatus,
     keyboardInset: keyboardInset, FILL_FIELDS: FILL_FIELDS, init: init,
   };
 });

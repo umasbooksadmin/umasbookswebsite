@@ -16,7 +16,8 @@ const record = (title) => ({ records: { r: { isbns: [ISBN], data: { title, autho
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 // A fetch that never answers on its own, only when its signal aborts.
 const hang = (_url, init) => new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(new Error("aborted"))));
-const counting = (impl) => { const f = async (...a) => { f.calls += 1; return impl(f.calls, ...a); }; f.calls = 0; return f; };
+// The exact-ISBN cover check (a HEAD to covers.openlibrary.org) is answered "no cover" and not counted: these tests count the catalog requests.
+const counting = (impl) => { const f = async (...a) => { if (a[1] && a[1].method === "HEAD") return new Response(null, { status: 404 }); f.calls += 1; return impl(f.calls, ...a); }; f.calls = 0; return f; };
 
 test("a hung catalog gives 'slow' after the deadline, not a long wait; the other sources are not needed", async () => {
   const fetchImpl = counting((n, url, init) => hang(url, init));
