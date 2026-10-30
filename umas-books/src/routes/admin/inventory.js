@@ -626,12 +626,16 @@ router.post("/admin/inventory/:id", requireAdmin, bookEditLimiter, async (req, r
     if (coverPhoto) coverUrl = await processCoverPhoto(coverPhoto);
 
     // A cover removed on purpose (Cover card, migration 098) is not looked up again by saving the details.
-    const { rows: [current] } = await pool.query("SELECT cover_removed_at FROM books WHERE id = $1", [id]);
+    const { rows: [current] } = await pool.query("SELECT cover_url, cover_removed_at FROM books WHERE id = $1", [id]);
+    // How the cover was chosen (migration 111): a photo, an address that differs from the stored one (typed), or found by ISBN.
+    let coverOrigin = coverPhoto ? "photo" : (coverUrl && !(current && coverUrl === current.cover_url) ? "form" : null);
     const coverRemoved = Boolean(current && current.cover_removed_at);
+    const typedCover = coverUrl;
     [description, coverUrl] = await Promise.all([
       description || generateBookDescription({ title, author, publisher, publishedYear }),
-      coverUrl || (coverRemoved ? null : findCoverUrl({ isbn, title, author })),
+      coverUrl || (coverRemoved ? null : findCoverUrl({ isbn })), // exact ISBN only, never a title search
     ]);
+    if (!typedCover && coverUrl) coverOrigin = "isbn";
     const cover = await prepareCover(coverUrl);
     try {
       await pool.query(
@@ -639,9 +643,11 @@ router.post("/admin/inventory/:id", requireAdmin, bookEditLimiter, async (req, r
                 description=$6, cover_url=$7, categories=$8, binding=$9,
                 cover_removed_at = CASE WHEN $7::text IS NULL AND $11::text IS NULL THEN cover_removed_at ELSE NULL END,
                 cover_source_url = COALESCE($11, cover_source_url),
+                cover_origin = COALESCE($12, cover_origin),
+                cover_checked_at = CASE WHEN $12::text IS NULL THEN cover_checked_at ELSE NULL END,
                 cover_fetch_failures = CASE WHEN $11::text IS NULL THEN cover_fetch_failures ELSE 0 END, updated_at=now()
          WHERE id = $10`,
-        [isbn || null, title, author, publisher, publishedYear, description, cover.cover, genre, normalizeBinding(req.body.binding), id, cover.source]
+        [isbn || null, title, author, publisher, publishedYear, description, cover.cover, genre, normalizeBinding(req.body.binding), id, cover.source, cover.cover || cover.source ? coverOrigin : null]
       );
     } catch (err) {
       if (err.code !== "23505") throw err;

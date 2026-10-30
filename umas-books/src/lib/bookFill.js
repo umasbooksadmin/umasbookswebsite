@@ -11,27 +11,20 @@
 // Books have no French description or French genre (Sharon, 2026-10-28): nothing French is ever written here; the
 // French site shows the English description (the books table has no French columns since migration 108).
 
-const { lookupByIsbn, searchByTitleAuthor, isbnCoverUrl } = require("./bookLookup");
+const { lookupByIsbn, isbnCoverUrl, isValidIsbn, normalizeIsbn } = require("./bookLookup");
 const { prepareCover } = require("./coverStore");
 const { generateBookDescription } = require("./bookDescription");
 
-// Best-effort cover address for a book saved without one: the ISBN first (most
-// precise), then a title/author search.
-async function findCoverUrl({ isbn, title, author }) {
-  if (isbn) {
-    const byIsbn = await lookupByIsbn(isbn);
-    if (byIsbn && byIsbn.coverUrl) return byIsbn.coverUrl;
-  }
-  if (title) {
-    const candidates = await searchByTitleAuthor(title, author);
-    const withCover = candidates.find((c) => c.coverUrl);
-    if (withCover) return withCover.coverUrl;
-  }
-  // Open Library's own cover for the ISBN, when the catalog records had none ("default=false": a 404 when there is none,
-  // so a placeholder is never stored). prepareCover keeps the address for the 5-minute cover job if the download fails.
-  const byIsbnCover = isbnCoverUrl(isbn);
-  if (byIsbnCover) return byIsbnCover;
-  return null;
+// The cover address for a book saved without one, ONLY from that exact ISBN (its ISBN-10 or ISBN-13 form):
+//   1. the catalog record of that ISBN (lookupByIsbn asks Open Library / BnF by ISBN), or
+//   2. Open Library's own cover for the ISBN-13 ("default=false": a 404 when there is none, so a placeholder is never stored).
+// There is NO title/author search any more: it returned another edition's picture, or another book's (the French Lieutenant's
+// Woman, 2026-10-30). No exact cover means no cover: the owner adds her own photo. null for a missing or invalid ISBN.
+async function findCoverUrl({ isbn }) {
+  if (!isbn || !isValidIsbn(normalizeIsbn(isbn))) return null;
+  const byIsbn = await lookupByIsbn(isbn);
+  if (byIsbn && byIsbn.coverUrl) return byIsbn.coverUrl;
+  return isbnCoverUrl(isbn);
 }
 
 // hints: { isbn, title, author, publisher, publishedYear, description, coverUrl }
@@ -51,9 +44,11 @@ async function fillBookGaps(pool, bookId, hints = {}, deps = {}) {
 
   const [description, coverAddress] = await Promise.all([
     needDescription ? (hints.description || describe({ title: hints.title, author: hints.author, publisher: hints.publisher, publishedYear: hints.publishedYear })) : null,
-    needCover ? (hints.coverUrl || findCover({ isbn: hints.isbn, title: hints.title, author: hints.author })) : null,
+    needCover ? (hints.coverUrl || findCover({ isbn: hints.isbn })) : null,
   ]);
   const cover = needCover ? await prepare(coverAddress) : { cover: null, source: null };
+  // How the cover was chosen (migration 111): the address came with the form (catalog preview or typed) or was found by ISBN.
+  const origin = needCover && (cover.cover || cover.source) ? (hints.coverUrl ? "form" : "isbn") : null;
 
   if (!description && !cover.cover && !cover.source) return { filled: false };
   await pool.query(
@@ -61,9 +56,10 @@ async function fillBookGaps(pool, bookId, hints = {}, deps = {}) {
             cover_url = COALESCE(cover_url, $2),
             cover_source_url = CASE WHEN cover_url IS NULL AND $3::text IS NOT NULL THEN $3 ELSE cover_source_url END,
             cover_fetch_failures = CASE WHEN cover_url IS NULL AND $3::text IS NOT NULL THEN 0 ELSE cover_fetch_failures END,
+            cover_origin = CASE WHEN cover_url IS NULL AND ($2::text IS NOT NULL OR $3::text IS NOT NULL) THEN $5 ELSE cover_origin END,
             updated_at = now()
      WHERE id = $4`,
-    [description, cover.cover, cover.source, bookId]
+    [description, cover.cover, cover.source, bookId, origin]
   );
   return { filled: true, description: Boolean(description), cover: Boolean(cover.cover) };
 }

@@ -1,0 +1,60 @@
+<%- include('../../partials/admin_header', { title: title, active: active, pageTitle: pageTitle, pageSub: pageSub }) %>
+
+<% if (flash && flash.error) { %><div class="error-box" role="alert"><%= flash.error %></div><% } %>
+<% if (flash && flash.notice) { %>
+  <div class="notice-box" role="status">
+    <%= flash.notice %>
+    <% if (flash.catalogCover) { %> <a href="<%= flash.catalogCover %>" target="_blank" rel="noopener">See the catalog's picture</a><% } %>
+  </div>
+<% } %>
+
+<div class="card">
+  <p class="small">Before covers were tied to the exact ISBN, a book with no cover for its own ISBN could be given the first picture of a title search: another edition, or even another book. We can't tell from the data which covers are wrong, so these <strong><%= total %></strong> books (covers from a numbered picture, saved before we recorded how a cover was chosen) are listed for a quick look. Books in stock come first.</p>
+  <p class="muted small"><strong>Check this book</strong> asks the catalog about that one ISBN (one request per press, never automatic). If it holds the same picture, the book is marked checked. Otherwise you are told what it found; the cover is never changed here. Use the book's page (Cover card) to replace it with your own photo or remove it.</p>
+</div>
+
+<div class="card">
+  <% if (!rows.length) { %>
+    <p>Nothing to check.</p>
+  <% } else { %>
+  <div class="table-scroll">
+  <table class="ann-table">
+    <thead><tr><th scope="col">Cover</th><th scope="col">Title</th><th scope="col">ISBN</th><th scope="col">Copies</th><th scope="col">Actions</th></tr></thead>
+    <tbody>
+      <% rows.forEach(function (b) { %>
+        <tr>
+          <td><img src="<%= b.cover_url %>" alt="Current cover of <%= b.title %>" width="60" loading="lazy"></td>
+          <td><a href="/admin/inventory/<%= b.id %>"><strong><%= b.title %></strong></a><% if (b.authors) { %><div class="muted small"><%= b.authors %></div><% } %></td>
+          <td><%= b.isbn || 'none' %></td>
+          <td><%= b.in_stock %> in stock<% if (b.copies !== b.in_stock) { %> (<%= b.copies %> in all)<% } %></td>
+          <td>
+            <div style="display:flex; flex-wrap:wrap; gap:6px;">
+              <a class="btn btn-outline btn-small" href="/admin/inventory/<%= b.id %>#cover">Edit book</a>
+              <% if (b.isbn) { %>
+              <form method="post" action="/admin/reports/covers-to-check/<%= b.id %>/check">
+                <%- include('../../partials/csrf_field') %>
+                <button class="btn btn-outline btn-small" type="submit">Check this book</button>
+              </form>
+              <% } %>
+              <form method="post" action="/admin/reports/covers-to-check/<%= b.id %>/ok">
+                <%- include('../../partials/csrf_field') %>
+                <button class="btn btn-small" type="submit">Cover is fine</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  </div>
+  <% if (pages > 1) { %>
+    <p class="muted small">
+      Page <%= page %> of <%= pages %>
+      <% if (page > 1) { %> · <a href="?page=<%= page - 1 %>">Previous</a><% } %>
+      <% if (page < pages) { %> · <a href="?page=<%= page + 1 %>">Next</a><% } %>
+    </p>
+  <% } %>
+  <% } %>
+</div>
+
+<%- include('../../partials/admin_footer') %>
