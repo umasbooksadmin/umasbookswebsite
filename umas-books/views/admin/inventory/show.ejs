@@ -218,6 +218,7 @@
               <select id="status-<%= c.id %>" name="status">
                 <% statuses.forEach(opt => { %><option value="<%= opt.value %>" <%= opt.value === c.status ? 'selected' : '' %>><%= opt.label %></option><% }) %>
               </select>
+              <% if (c.status !== 'sold') { %><p class="muted small" id="status-note-<%= c.id %>">Choosing &ldquo;Sold&rdquo; here only changes the status and records the date. It does not record a sale, so the copy will not appear in the Sales report or the Accounting export. To record a sale, sell it at the till.</p><% } %>
               <label for="location-<%= c.id %>">Location</label>
               <input id="location-<%= c.id %>" name="location" type="text" list="location-options" maxlength="40" value="<%= c.location || '' %>" placeholder="Not placed yet" autocomplete="off">
               <label for="source-<%= c.id %>">Source</label>

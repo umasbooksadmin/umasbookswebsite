@@ -109,6 +109,9 @@ function updateCopy(pool, bookId, copyId, input, priced) {
     }
     const startsReservation = newStatus === "reserved" && stored.status !== "reserved";
     const endsReservation = stored.status === "reserved" && newStatus !== "reserved";
+    // Marked Sold by hand: the date is recorded (the inventory export's "Date sold"), but NO sale record is made (no
+    // shop_sales / till row), so the copy stays out of the Sales report and the Accounting export. Sell it at the till.
+    const becomesSold = newStatus === "sold" && stored.status !== "sold";
     // The suggestion shown with the form (if any) is kept; otherwise what was
     // stored stays. A price chosen as "Clearance" marks the copy as clearance;
     // any other price change clears the mark.
@@ -126,10 +129,12 @@ function updateCopy(pool, bookId, copyId, input, priced) {
               reserved_by_phone = CASE WHEN $16::boolean THEN NULL ELSE reserved_by_phone END,
               reminder_sent_at = CASE WHEN $16::boolean OR $17::boolean THEN NULL ELSE reminder_sent_at END,
               reserved_at = CASE WHEN $16::boolean THEN NULL WHEN $17::boolean THEN now() ELSE reserved_at END,
+              sold_at = CASE WHEN $18::boolean THEN now() ELSE sold_at END,
+              sold_via = CASE WHEN $18::boolean THEN 'edit' ELSE sold_via END,
               updated_at=now()
        WHERE id = $8 AND book_id = $9`,
       [condition, newStatus, price, publisherPrice, acquisitionCost, acquiredAt, notes, copyId, bookId, location, source,
-        learning.suggestedPrice, learning.suggestedLevel, learning.priceBasis, isClearance, endsReservation, startsReservation]
+        learning.suggestedPrice, learning.suggestedLevel, learning.priceBasis, isClearance, endsReservation, startsReservation, becomesSold]
     );
     return { before: stored, keptStatus };
   });

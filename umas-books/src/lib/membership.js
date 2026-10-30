@@ -149,12 +149,29 @@ async function alertUnmatchedPayments(pool) {
 // run the grant, in one transaction. Resolves { ok, reason? }.
 async function linkUnmatchedPayment(pool, paymentId, userId, now = new Date()) {
   const { withTransaction } = require("../db"); // lazy: unit tests load this file without a database
+  // An unmatched payment can be refunded before anyone links it. Re-check HelloAsso first (outside the
+  // transaction: no network call while rows are locked); a refund found now is recorded as a reversal.
+  const { rows: pre } = await pool.query(
+    "SELECT payer_email, helloasso_order_id FROM membership_payments WHERE id = $1 AND user_id IS NULL AND unmatched_at IS NOT NULL",
+    [paymentId]
+  );
+  if (pre.length && isConfigured()) {
+    let found;
+    try {
+      found = await findMembershipOrdersByEmail(pre[0].payer_email);
+    } catch (err) {
+      console.error("Cannot re-check an unmatched membership payment at HelloAsso:", err.message);
+      return { ok: false, reason: "check_failed" };
+    }
+    await reverseRecordedPayments(pool, found);
+  }
   return withTransaction(pool, async (client) => {
     const { rows: pay } = await client.query(
-      "SELECT id FROM membership_payments WHERE id = $1 AND user_id IS NULL AND unmatched_at IS NOT NULL FOR UPDATE",
+      "SELECT id, reversed_at FROM membership_payments WHERE id = $1 AND user_id IS NULL AND unmatched_at IS NOT NULL FOR UPDATE",
       [paymentId]
     );
     if (!pay.length) return { ok: false, reason: "payment_gone" };
+    if (pay[0].reversed_at) return { ok: false, reason: "refunded" };
     const { rows: u } = await client.query("SELECT id, is_disabled FROM users WHERE id = $1 FOR UPDATE", [userId]);
     if (!u.length) return { ok: false, reason: "no_account" };
     if (u[0].is_disabled) return { ok: false, reason: "disabled" };
@@ -165,6 +182,37 @@ async function linkUnmatchedPayment(pool, paymentId, userId, now = new Date()) {
     const expiresAt = await applyMembershipGrant(client, userId, now);
     return { ok: true, expiresAt };
   });
+}
+
+// Reverses every RECORDED payment whose order HelloAsso returned and no longer shows as Authorized, matched by
+// helloasso_order_id and NOT by owner: a payment linked by hand to an account with another email (or kept after the
+// account's email changed) is still the same order. Same semantics as the per-account pass in
+// syncMembershipForEmail: the row is kept, reversed_at is dated once, then each owner's membership is recomputed
+// (is_member is only cleared when it was payment-driven, i.e. member_expires_at set). Returns the reversed count.
+async function reverseRecordedPayments(pool, orders) {
+  const ids = orders.filter((o) => !isAuthorized(o)).map((o) => Number(o.id)).filter(Number.isFinite);
+  if (!ids.length) return 0;
+  const { rows } = await pool.query(
+    `UPDATE membership_payments SET reversed_at = now(), reversed_amount_cents = amount_cents
+     WHERE helloasso_order_id = ANY($1::bigint[]) AND reversed_at IS NULL
+     RETURNING user_id`,
+    [ids]
+  );
+  const owners = [...new Set(rows.map((r) => r.user_id).filter((id) => id != null))];
+  for (const userId of owners) {
+    const { rows: left } = await pool.query(
+      "SELECT 1 FROM membership_payments WHERE user_id = $1 AND reversed_at IS NULL AND (amount_cents IS NULL OR amount_cents > 0) LIMIT 1",
+      [userId]
+    );
+    if (left.length) await applyMembershipGrant(pool, userId); // another payment still stands: recompute the end date
+    else {
+      await pool.query(
+        "UPDATE users SET is_member = FALSE, member_expires_at = NULL WHERE id = $1 AND member_expires_at IS NOT NULL",
+        [userId]
+      );
+    }
+  }
+  return rows.length;
 }
 
 // Re-checks HelloAsso (never trusts the webhook body itself — see
@@ -183,6 +231,9 @@ async function syncMembershipForEmail(pool, email) {
   if (!email) return;
   const orders = await findMembershipOrdersByEmail(email);
   if (!orders.length) return;
+
+  // Refunds/disputes first, by order id, whoever owns the recorded payment (see reverseRecordedPayments).
+  await reverseRecordedPayments(pool, orders);
 
   const { rows: userRows } = await pool.query("SELECT id, email_verified_at FROM users WHERE lower(email) = lower($1)", [email]);
   const user = userRows[0];

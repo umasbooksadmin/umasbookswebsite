@@ -7,6 +7,7 @@
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
+const { isbn13From } = require("../helpers/isbn"); // the add-book form refuses an ISBN with a wrong check digit
 const crypto = require("node:crypto");
 const bcrypt = require("bcryptjs");
 const sharp = require("sharp");
@@ -85,7 +86,7 @@ async function assertServedImage(url) {
 }
 
 test("inventory cover upload stores /img/<hash>.jpg, served with immutable caching", async () => {
-  const isbn = `97812345${String(Date.now()).slice(-5)}`;
+  const isbn = isbn13From(`97812345${String(Date.now()).slice(-4)}`);
   await upload("/admin/inventory", {
     title: `${TAG} cover book`, isbn, price: "5", condition: "very_good",
     description: "d", genre: "Fiction",
