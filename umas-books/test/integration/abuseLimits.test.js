@@ -8,6 +8,7 @@
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
+const { isbn13From } = require("../helpers/isbn"); // the add-book form refuses an ISBN with a wrong check digit
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
 const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
@@ -148,7 +149,7 @@ test("deleting a session whose drop-in seat was ordered explains why instead of 
 
 test("the same ISBN added simultaneously ends up as one book with all the copies", async () => {
   const admin = await loginAs({ admin: true });
-  const isbn = `978${Date.now()}`.slice(0, 13);
+  const isbn = isbn13From(`978${Date.now()}`);
   const fields = {
     title: "Racy Book", author: "R", isbn, description: "d", coverUrl: "https://example.test/c.jpg", price: "5",
   };
@@ -173,7 +174,7 @@ test("the same ISBN added simultaneously ends up as one book with all the copies
 
 test("when another request adds the ISBN between the lookup and the insert, the copy joins that book", async () => {
   const admin = await loginAs({ admin: true });
-  const isbn = `979${Date.now()}`.slice(0, 13);
+  const isbn = isbn13From(`979${Date.now()}`);
   // Deterministic stand-in for the race: a trigger inserts the "other
   // request's" book just before this request's own INSERT lands.
   await pool.query(`

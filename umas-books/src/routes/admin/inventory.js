@@ -508,7 +508,7 @@ router.post("/admin/inventory", requireAdmin, serverTiming("scan.save"), async (
   const parsed = parseIntakeInput(req.body, req.files);
   if (!parsed.ok) {
     if (json) return res.status(422).json({ ok: false, error: parsed.message });
-    return refuse(parsed.value, "title", parsed.message);
+    return refuse(parsed.value, parsed.field === "title" ? "title" : "input", parsed.message);
   }
   const prepared = await prepareIntake(pool, parsed.value, { time: req.timing.time });
   if (!prepared.ok) {
@@ -713,17 +713,21 @@ router.post("/admin/inventory/:id/copies/:copyId/use-price", requireAdmin, async
   const copyId = Number(req.params.copyId);
   const copy = await loadCopyForPricing(bookId, copyId);
   if (!copy) return res.redirect(`/admin/inventory/${bookId}`);
+  if (copy.status !== "in_stock") {
+    return bookBack(req, res, bookId, { error: "This copy is no longer in stock (sold, reserved or withdrawn), so its price was not changed." });
+  }
   const suggestion = await computeSuggestion({
     isbn: copy.isbn, title: copy.title, author: copy.authors, binding: copy.binding, condition: copy.condition, publisherPrice: copy.publisher_price,
   }, { copyId });
   if (suggestion.price == null) return bookBack(req, res, bookId, { error: suggestion.needsReview ? `${suggestion.reviewMessage}: set this price by hand.` : "No price could be suggested: set it by hand." });
   const pricing = resolveCopyPricing(copy.condition, suggestion.price, copy.publisher_price, { publishedYear: copy.published_year });
   if (pricing.error) return bookBack(req, res, bookId, { error: pricing.error });
-  await pool.query(
+  const upd = await pool.query(
     `UPDATE book_copies SET price=$1, suggested_price=$1, suggested_level=$2, price_basis='suggested', is_clearance=$3, updated_at=now()
-     WHERE id = $4 AND book_id = $5`,
+     WHERE id = $4 AND book_id = $5 AND status = 'in_stock'`,
     [pricing.price, suggestion.levelText, copy.condition !== "new" && suggestion.clearance, copyId, bookId]
   );
+  if (!upd.rowCount) return bookBack(req, res, bookId, { error: "This copy is no longer in stock, so its price was not changed." });
   await audit(req, {
     action: "copy.reprice", targetType: "book_copy", targetId: copyId,
     detail: `price ${copy.price != null ? Number(copy.price).toFixed(2) : "none"} -> ${pricing.price.toFixed(2)}`,
