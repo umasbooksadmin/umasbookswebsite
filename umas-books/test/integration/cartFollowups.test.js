@@ -9,7 +9,11 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
 const { Client } = require("pg");
+const { loadSheet } = require("../helpers/css");
 const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
 
 let app;
@@ -127,4 +131,68 @@ test("H4: in preview mode (nothing can be reserved yet) the notice does not offe
   assert.match(html, /Online reservations open when we launch\. Your cart is kept/);
   assert.match(html, /<a class="tap-link" href="\/cart">View your cart<\/a>/);
   assert.doesNotMatch(html, /\/cart\/guest/);
+});
+
+// ---------------------------------------------------------------- H10
+const BADGE = '<span class="h-cart-badge" data-cart-badge aria-hidden="true" hidden></span>';
+
+test("H10: every page's header carries the cart badge (hidden, aria-hidden), and the link keeps its spoken name 'Cart (n)'", async () => {
+  const v = visitor();
+  for (const p of ["/books.html", "/", "/login", "/cart", "/fr/books.html"]) {
+    const html = await text(v.get(p));
+    assert.ok(html.includes(BADGE), `${p}: badge present`);
+    assert.match(html, /<a class="h-tool h-cart" href="\/cart">/, p);
+    assert.match(html, /<span class="label"><span data-i18n="tool.cart">(Cart|Panier)<\/span> \(<span data-cart-count>0<\/span>\)<\/span>/, `${p}: the link's own label still carries the count for screen readers`);
+  }
+});
+
+test("H10: the badge is only drawn in the phone header; the number is written by assets/site.js and public/cart-add.js", () => {
+  const header = loadSheet("public/site-header.css");
+  assert.equal(header.getDecl("header.mkt-header .h-cart-badge", "display"), "none", "not on computers: the label says Cart (n) there");
+  const phone = { at: "@media (max-width: 640px), (max-height: 500px) and (max-width: 1000px)" };
+  assert.equal(header.getDecl("header.mkt-header .h-cart-badge", "display", phone), "flex", "on phones");
+  assert.equal(header.getDecl("header.mkt-header .h-cart-badge", "position", phone), "absolute", "it overlays the icon: nothing moves when it appears");
+  assert.equal(header.getDecl("header.mkt-header .h-cart-badge[hidden]", "display", phone), "none", "hidden when the cart is empty");
+  assert.equal(header.getDecl("header.mkt-header .h-cart", "position"), "relative");
+
+  // assets/site.js: window.UmasShowCartCount(n) sets the label, and shows / hides the badge
+  const els = (names) => names.map((n) => ({ textContent: "", hidden: true, n }));
+  const counts = els(["a"]);
+  const badges = els(["b"]);
+  const window = {};
+  const document = { querySelectorAll: (sel) => (sel === "[data-cart-count]" ? counts : sel === "[data-cart-badge]" ? badges : []), querySelector: () => null, addEventListener: () => {}, readyState: "loading", documentElement: { lang: "en" }, cookie: "" };
+  try {
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "..", "..", "assets", "site.js"), "utf8"), { window, document, location: { pathname: "/", search: "" }, navigator: {}, setTimeout, console, localStorage: { getItem: () => null, setItem: () => {} } });
+  } catch { /* the rest of site.js may need a fuller page; the helper is defined first */ }
+  assert.equal(typeof window.UmasShowCartCount, "function", "site.js exposes the helper");
+  window.UmasShowCartCount(3);
+  assert.deepEqual([counts[0].textContent, badges[0].textContent, badges[0].hidden], ["3", "3", false]);
+  window.UmasShowCartCount(0);
+  assert.deepEqual([counts[0].textContent, badges[0].textContent, badges[0].hidden], ["0", "0", true]);
+  assert.match(fs.readFileSync(path.join(__dirname, "..", "..", "public", "cart-add.js"), "utf8"), /window\.UmasShowCartCount\(data\.cartCount\)/, "cart-add.js uses it after an add");
+});
+
+test("H10 in headless Chrome at 375px: adding a book from a card shows the number on the cart icon, still there on the next page", async (t) => {
+  let browser;
+  try { browser = await require("puppeteer").launch({ headless: true, args: ["--no-sandbox"] }); } catch (err) { return t.skip(`no headless Chrome available: ${String(err.message).split("\n")[0]}`); }
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 375, height: 740, isMobile: true, hasTouch: true });
+    await page.setExtraHTTPHeaders({ "x-forwarded-for": newIp() });
+    await page.goto(`${app.base}/books.html`, { waitUntil: "networkidle0" });
+    const badge = () => page.$eval("[data-cart-badge]", (b) => ({ shown: getComputedStyle(b).display !== "none" && !b.hidden, text: b.textContent, w: b.getBoundingClientRect().width }));
+    assert.equal((await badge()).shown, false, "empty cart: no badge");
+    await page.waitForSelector(".bk-cart-add button");
+    await page.click(".bk-cart-add button");
+    await page.waitForFunction(() => !document.querySelector("[data-cart-badge]").hidden, { timeout: 8000 });
+    const b = await badge();
+    assert.equal(b.shown, true);
+    assert.equal(b.text, "1");
+    assert.ok(b.w >= 18, "a readable badge");
+    assert.equal(await page.$eval("a.h-cart", (a) => a.getAttribute("aria-label")), null, "named by its text, not a label that could go stale");
+    await page.goto(`${app.base}/cart`, { waitUntil: "networkidle0" });
+    assert.deepEqual(await badge().then((x) => [x.shown, x.text]), [true, "1"], "the next page shows it too");
+  } finally {
+    await browser.close();
+  }
 });

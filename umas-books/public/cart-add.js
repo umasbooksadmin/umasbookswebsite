@@ -102,7 +102,8 @@
         inCart[bookId] = true;
         boxesOf(document, bookId).forEach(showInCart);
         if (typeof data.cartCount === 'number') {
-          document.querySelectorAll('[data-cart-count]').forEach(function (el) { el.textContent = String(data.cartCount); });
+          if (window.UmasShowCartCount) window.UmasShowCartCount(data.cartCount);
+          else document.querySelectorAll('[data-cart-count]').forEach(function (el) { el.textContent = String(data.cartCount); });
         }
         say(UI.cartText('added', title));
       } else if (data.error === 'full') {
