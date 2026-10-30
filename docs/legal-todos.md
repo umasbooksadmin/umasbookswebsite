@@ -73,6 +73,21 @@ says who has to decide or do it: *maintainer* (Sharon), *accountant* or
   latest); never-paid reservations are anonymised after 30 days (the period the
   policy already promised). Confirm the accountant needs nothing more than name
   and email on a paid sale.
+  *Guest reservations (no account) follow the same rules, nothing special:* a
+  guest order that is collected and paid keeps the guest's name and email with
+  the order for the accounting period (10 years) and loses the phone number once
+  collected (30 days at the latest); a guest order that expires (including the
+  2-hour "never confirmed" hold) or is cancelled is anonymised after 30 days,
+  and its confirm / manage links are deleted with it. The public privacy policy
+  (`views/marketing/privacy-policy.ejs`, "Reservation details" and the
+  "Reservations" data list) already says this for every reservation, guests
+  included, so it was NOT changed. If Sharon wants guests named explicitly, a
+  sentence to add after "Contact details on reservations that were never
+  collected are removed after 30 days.": *"This applies in the same way to
+  reservations made as a guest, without an account; the one-time confirmation
+  and management links sent to a guest stop working when the reservation ends
+  or is moved to an account."* (it needs an EN + FR pair in that file and her
+  reading before it goes live).
 - [ ] **11. Accept or record the data processing agreements** (owner:
   maintainer): see `docs/privacy/processors-checklist.md` (Status column), in
   particular GitHub (it runs the backup job, so the database dump passes through

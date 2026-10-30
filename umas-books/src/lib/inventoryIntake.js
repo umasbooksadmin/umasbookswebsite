@@ -211,10 +211,10 @@ async function createBookAndCopy(pool, input, ctx, time) {
     ({ genre } = await applyRulesToBook(pool, genre));
 
     const { rows } = await time("db", () => pool.query(
-      `INSERT INTO books (isbn, title, authors, publisher, published_year, description, cover_url, categories, binding, created_by, cover_source_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO books (isbn, title, authors, publisher, published_year, description, cover_url, categories, binding, created_by, cover_source_url, cover_origin)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT DO NOTHING RETURNING id`,
-      [isbn || null, title, author, publisher, publishedYear, description, cover.cover, genre, binding, ctx.userId, cover.source]
+      [isbn || null, title, author, publisher, publishedYear, description, cover.cover, genre, binding, ctx.userId, cover.source, input.coverPhoto ? "photo" : (cover.cover || cover.source ? "form" : null)]
     ));
     if (rows.length) {
       bookId = rows[0].id;

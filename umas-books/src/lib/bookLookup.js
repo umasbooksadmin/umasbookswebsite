@@ -235,7 +235,9 @@ function bookFromRecord(isbn, data) {
 
 // Open Library's own cover for an ISBN ("default=false": a 404 when there is none, so a placeholder is never stored).
 function isbnCoverUrl(isbn) {
-  const { isbn13 } = require("./bookSources").isbnForms(normalizeIsbn(isbn));
+  const clean = normalizeIsbn(isbn);
+  if (!isValidIsbn(clean)) return null; // a misread number (987..., a wrong check digit) never gets an address
+  const { isbn13 } = require("./bookSources").isbnForms(clean);
   return /^\d{13}$/.test(isbn13) ? `https://covers.openlibrary.org/b/isbn/${isbn13}-L.jpg?default=false` : null;
 }
 
@@ -455,13 +457,14 @@ async function lookupByIsbn(rawIsbn, opts = {}) {
   return legacy;
 }
 
+// Candidates for a book known only by title/author (the photo flow). Their text fields help fill the form; they carry NO cover.
 async function searchByTitleAuthor(title, author) {
   title = String(title == null ? "" : title).slice(0, 200);
   author = String(author == null ? "" : author).slice(0, 200);
   if (!title && !author) return [];
   const params = new URLSearchParams({
     limit: "5",
-    fields: "title,author_name,isbn,cover_i,first_publish_year,publisher,subject",
+    fields: "title,author_name,isbn,first_publish_year,publisher,subject",
   });
   if (title) params.set("title", title);
   if (author) params.set("author", author);
@@ -478,7 +481,9 @@ async function searchByTitleAuthor(title, author) {
       publisher: Array.isArray(doc.publisher) ? doc.publisher[0] : null,
       publishedYear: doc.first_publish_year || null,
       description: null,
-      coverUrl: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null,
+      // Never a cover: a title search finds the work, not the edition, and its picture can belong to another edition or
+      // even another book (the French Lieutenant's Woman bug, 2026-10-30). A cover is only taken for an exact ISBN.
+      coverUrl: null,
       genre,
     };
   });

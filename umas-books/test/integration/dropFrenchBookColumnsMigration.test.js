@@ -30,7 +30,7 @@ const columns = async (table) => (await q(
 const backup = () => q("SELECT book_id, description_fr, categories_fr, saved_at FROM book_french_backup ORDER BY book_id");
 const auditLines = () => q("SELECT actor_label, action, target_type, detail FROM admin_audit_log WHERE action = 'books.french_columns_dropped' ORDER BY id");
 // Everything a book is, minus the two French columns (so before / after compare on what stays).
-const bookRows = () => q("SELECT * FROM books ORDER BY id").then((rows) => rows.map((r) => omit(r, "description_fr", "categories_fr")));
+const bookRows = () => q("SELECT * FROM books ORDER BY id").then((rows) => rows.map((r) => omit(r, "description_fr", "categories_fr", "cover_origin", "cover_checked_at") /* 111 adds these after the 107 snapshot */));
 
 function runbookRestoreSql() {
   const text = fs.readFileSync(RUNBOOK, "utf8");

@@ -103,7 +103,7 @@
         <h2 id="bk-noscript-title" data-i18n="bk.new.title">New In</h2>
         <ul class="bk-noscript-list">
           <% (typeof noscriptBooks !== 'undefined' ? noscriptBooks : []).forEach(b => { %>
-          <li><span class="bk-noscript-book"><a href="/books/<%= b.id %>"><%- bookText(b.title) %></a><% if (b.authors) { %> — <%- bookText(b.authors) %><% } %><% if (b.min_price != null) { %> · <%= eur(b.min_price) %><% } %></span><% if (b.min_price != null) { %><%- include('../partials/card_cart', { b }).trim() %><% } %></li>
+          <li><span class="bk-noscript-book"><a href="/books/<%= b.id %>"><%- bookText(b.title) %></a><% if (b.authors) { %> — <%- bookText(b.authors) %><% } %><% if (b.min_price != null) { %> · <%- include('../partials/card_price', { price: b.min_price, buy: b.buy }).trim() %><% } %></span><% if (b.min_price != null) { %><%- include('../partials/card_cart', { b }).trim() %><% } %></li>
           <% }) %>
         </ul>
       </section>

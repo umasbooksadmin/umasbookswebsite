@@ -19,7 +19,7 @@ const { configuredBaseUrl } = require("./baseUrl");
 const { seatsTakenExpr } = require("./classCapacity");
 const { SITE_TIME_ZONE } = require("./tz");
 const { RESERVATION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SESSION_OVER_SQL, expireOrderReservations } = require("./reservations");
-const { startGuestHold, queueGuestResend } = require("./guestOrders");
+const { startGuestHold, queueGuestResend, assertGuestHoldCapacity } = require("./guestOrders");
 
 // ---------- the reservation ----------
 
@@ -36,6 +36,7 @@ const { startGuestHold, queueGuestResend } = require("./guestOrders");
 //                            saw the cart (err.titles lists them): not "taken by someone else"
 //   TOO_MANY_RESERVATIONS    the account (a guest: the email) already has MAX_ACTIVE_RESERVATIONS open
 //   TOO_MANY_COPIES          the account (a guest: the email) would hold more than MAX_RESERVED_COPIES books
+//   GUEST_IP_HOLDS / GUEST_HOLDS_FULL  a guest: too many unconfirmed guest holds from this connection / shop-wide (lib/guestOrders.js)
 //   MAIL_THROTTLED           a guest: the confirmation link could not be sent to that address now (too many mails)
 //   PRICE_CHANGED            a price differs from what the customer saw (err.changes lists them)
 //   BUSY                     deadlock twice in a row
@@ -89,16 +90,18 @@ async function reserveInTransaction(client, { user, guest, base, email, name, ph
   );
   if (usage[0].reservations >= MAX_ACTIVE_RESERVATIONS) throw new Error("TOO_MANY_RESERVATIONS");
   if (usage[0].copies + bookItems.length > MAX_RESERVED_COPIES) throw new Error("TOO_MANY_COPIES");
+  // A guest (anonymous): shop-wide and per-connection caps on holds nobody has confirmed yet (lib/guestOrders.js).
+  if (guest) await assertGuestHoldCapacity(client, { ip: guest.ip || null, copies: bookItems.length });
 
   // The deadline: the end of the RESERVATION_DAYS-th day (Paris time) for books.
   // An order with only seats is set below, once its seats exist.
   const { rows: orderRows } = await client.query(
     `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, status, withdrawal_waiver_at, lang,
-                         cgv_accepted_at, cgv_version, user_id, reserved_until, is_guest)
+                         cgv_accepted_at, cgv_version, user_id, reserved_until, is_guest, client_ip)
      VALUES ($1, $2, $3, $4, 'reserved', CASE WHEN $5::boolean THEN now() END, $6, now(), $7, $8,
-             CASE WHEN $10::boolean THEN (((now() AT TIME ZONE '${SITE_TIME_ZONE}')::date + $9::int + 1)::timestamp AT TIME ZONE '${SITE_TIME_ZONE}') END, $11)
+             CASE WHEN $10::boolean THEN (((now() AT TIME ZONE '${SITE_TIME_ZONE}')::date + $9::int + 1)::timestamp AT TIME ZONE '${SITE_TIME_ZONE}') END, $11, $12)
      RETURNING *`,
-    [name, email, phone, total, hasDropin, lang, acceptedVersion, user ? user.id : null, RESERVATION_DAYS, bookItems.length > 0, Boolean(guest)]
+    [name, email, phone, total, hasDropin, lang, acceptedVersion, user ? user.id : null, RESERVATION_DAYS, bookItems.length > 0, Boolean(guest), guest ? guest.ip || null : null]
   );
   const order = orderRows[0];
 

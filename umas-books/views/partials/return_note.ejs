@@ -1,4 +1,5 @@
 <%# Why the person was sent to log in / sign up (see src/lib/returnTo.js). Only known destinations get a note. %>
-<% if (locals.returnTo === '/cart') { %><div role="status" class="notice-box"><%= tr('Log in or create an account to reserve. Your cart is kept.', 'Connectez-vous ou créez un compte pour réserver. Votre panier est conservé.') %></div><% } %>
+<%# With books or seats in the cart, partials/cart_waiting.ejs says the same (and more); only an empty cart still needs this note. %>
+<% if (locals.returnTo === '/cart' && !(locals.cartCount > 0)) { %><div role="status" class="notice-box"><%= tr('Log in or create an account to reserve. Your cart is kept.', 'Connectez-vous ou créez un compte pour réserver. Votre panier est conservé.') %></div><% } %>
 <% if (locals.returnTo === '/membership.html') { %><div role="status" class="notice-box"><%= tr('Log in or create an account to become a member.', 'Connectez-vous ou créez un compte pour devenir membre.') %></div><% } %>
 <% if (/^\/(forum|meetings|volunteer|charity|announcements)(\/|\?|$)/.test(locals.returnTo || '')) { %><div role="status" class="notice-box"><%= tr('Log in to open the members’ area. You will come back to this page afterwards.', 'Connectez-vous pour accéder à l’espace membres. Vous reviendrez ensuite sur cette page.') %></div><% } %>

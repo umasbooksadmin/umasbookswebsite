@@ -1090,6 +1090,33 @@ terms of sale, `/terms-of-sale.html`):
   no-show and cancelling work exactly the same. If the guest later creates an
   account with the same email and confirms it, their guest reservations move to
   that account. **Resend confirmation** sends the guest fresh links.
+  When the reservation moves to the account, the guest's emailed "see or cancel"
+  (manage) link stops working at once; the account holder manages it from their
+  account page.
+- **Limits on guest reservations nobody has confirmed yet** (an anonymous form
+  can be abused to tie up books for 2 hours at a time): at most **30 copies**
+  are held by unconfirmed guest reservations in the whole shop, and at most
+  **2 unconfirmed guest reservations per connection (IP address, IPv6 by /56)**.
+  A confirmed reservation never counts. Over a limit, the guest sees one neutral
+  message ("We cannot hold these books right now: too many reservations are
+  waiting to be confirmed. Please try again in a little while, or create an
+  account.") and nothing is held; every guest limit gives that same message, so
+  it says nothing about any email address. Account holders are not affected and
+  keep their own messages. Numbers: `GUEST_HOLD_MAX_COPIES` and
+  `GUEST_HOLD_MAX_PER_IP` in `src/lib/legal.js`.
+- **Guest emails**: the first mail ("confirm within 2 hours") is capped at **60
+  an hour shop-wide** (`guest_reservation`) and **3 a day per address**; this
+  daily budget is separate from the **5 a day** of verification / password-reset
+  mails, so a stranger typing someone's address cannot use up their sign-up
+  mails. The "reservation confirmed" mail (`guest_reservation_confirmed`) is never
+  capped or counted, so spam cannot stop real confirmations.
+- **Admin alert**: when the 30-copy ceiling or the 60-an-hour mail cap refuses a
+  guest, you get ONE email "[umas-books] Guest reservation limit reached" per
+  hour per limit (no addresses in it). If nobody real is waiting, someone is
+  probably spamming the guest form: look in Admin > Reservations for many
+  unconfirmed Guest holds (they release themselves after 2 hours); to clear
+  them sooner, cancel them there. A real busy day: confirmed reservations free
+  the room at once.
 - A customer can cancel their reservation from their account page (a guest:
   with the private link in their email); a seat only until **24 hours** before
   the session.
@@ -1927,7 +1954,7 @@ Single table; the code constants are in `src/lib/privacy.js` (`RETENTION`) and
 | Name + email on a **paid** order, payment records | 10 years (accounting law); the phone is NOT part of this | `Retention purge: accounting` (daily) |
 | Name + email + phone on a **cancelled / expired** (never paid) order | 30 days after the order was made, then anonymised (`Erased`) | `Retention purge: closedOrders` |
 | Contact details on a closed or uncollected book hold | 30 days | `Retention purge: reservationContacts` |
-| Buyer IP on an order | 2 days at most | `Retention purge: clientIps` |
+| Buyer IP on an order | 2 days at most. Only a guest reservation not yet confirmed has one (to cap unconfirmed holds per connection); it is emptied when the guest confirms or the hold ends (2 hours) | `Retention purge: clientIps` |
 | Event / class sign-ups | 12 months after the event | `Retention purge: signups` |
 | Book requests | unconfirmed 7 days; open 12 months; closed 30 days | `Retention purge: bookRequests` |
 | Copies of sent emails (outbox) | 30 days (90 if never sent) | `Retention purge: emailOutbox` |

@@ -24,8 +24,8 @@ const bookJson = (b) => ({
   author: b.authors,
   coverUrl: localCover(b.cover_url),
   price: b.min_price != null ? Number(b.min_price) : null,
-  // The card's cart icon (lib/cardCart.js): null (none), { copyId } (adds that copy) or { choose: true } (opens the book page).
-  buy: cardBuy(b.buy_copy_id),
+  // The card's cart icon (lib/cardCart.js): null (none), { copyId } (adds that copy) or { choose: true, from? } (opens the book page; from = the lowest price when the copies differ in price).
+  buy: cardBuy(b.buy_copy_id, b.buy_from_price),
 });
 
 module.exports = { PUBLIC_JSON_CACHE, publicJson, bookJson };

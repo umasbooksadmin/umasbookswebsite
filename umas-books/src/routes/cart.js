@@ -13,7 +13,7 @@ const { loadOrderItems, orderItemLabel, orderItemParts, reservationLastDay } = r
 const { saveSession } = require("../lib/session");
 const { clean, parseId, isEmail } = require("../lib/validation");
 const { CART_RETURN, safeReturnTo } = require("../lib/returnTo");
-const { checkoutLimiter, cartEditLimiter, limit } = require("../middleware/rateLimits");
+const { checkoutLimiter, cartEditLimiter, limit, ipKey } = require("../middleware/rateLimits");
 const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
 
 const router = express.Router();
@@ -296,15 +296,18 @@ async function prune(req, cart) {
 
 // The customer's message for a refused createReservation (lib/cart.js); `guest`: the limits are per email address.
 async function reservationRefusal(req, err, cart, { guest }) {
+  // A guest (anonymous) gets ONE neutral sentence for every limit: the specific ones would tell anybody who types an
+  // address whether it has open reservations or was mailed recently. Signed-in users keep the specific messages.
+  if (guest && ["TOO_MANY_RESERVATIONS", "TOO_MANY_COPIES", "MAIL_THROTTLED", "GUEST_IP_HOLDS", "GUEST_HOLDS_FULL"].includes(err.message)) {
+    return req.tr(
+      "We cannot hold these books right now: too many reservations are waiting to be confirmed. Please try again in a little while, or create an account.",
+      "Nous ne pouvons pas garder ces livres pour le moment : trop de réservations attendent d’être confirmées. Veuillez réessayer dans un moment, ou créer un compte.");
+  }
   if (err.message === "TOO_MANY_RESERVATIONS") {
-    return guest
-      ? req.tr(`There are already ${MAX_ACTIVE_RESERVATIONS} open reservations for this email address, which is the most we can hold for one address. Please collect or cancel one first (with the link in its email).`, `Il y a déjà ${MAX_ACTIVE_RESERVATIONS} réservations en cours pour cette adresse e-mail, ce qui est le maximum pour une adresse. Veuillez en retirer ou en annuler une avant d’en faire une autre (avec le lien de son e-mail).`)
-      : req.tr(`You already have ${MAX_ACTIVE_RESERVATIONS} open reservations, which is the most we can hold for one account. Please collect or cancel one first (see your account page).`, `Vous avez déjà ${MAX_ACTIVE_RESERVATIONS} réservations en cours, ce qui est le maximum pour un compte. Veuillez en retirer ou en annuler une avant d’en faire une autre (voir votre page de compte).`);
+    return req.tr(`You already have ${MAX_ACTIVE_RESERVATIONS} open reservations, which is the most we can hold for one account. Please collect or cancel one first (see your account page).`, `Vous avez déjà ${MAX_ACTIVE_RESERVATIONS} réservations en cours, ce qui est le maximum pour un compte. Veuillez en retirer ou en annuler une avant d’en faire une autre (voir votre page de compte).`);
   }
   if (err.message === "TOO_MANY_COPIES") {
-    return guest
-      ? req.tr(`We can hold at most ${MAX_RESERVED_COPIES} books at a time for one email address, counting its other open reservations (confirmed or not). Please remove some books from your cart, or collect or cancel a reservation first.`, `Nous pouvons garder au plus ${MAX_RESERVED_COPIES} livres à la fois pour une adresse e-mail, ses autres réservations en cours comprises (confirmées ou non). Veuillez retirer des livres de votre panier, ou retirer ou annuler une réservation avant d’en faire une autre.`)
-      : req.tr(`We can hold at most ${MAX_RESERVED_COPIES} books at a time for one account, counting your other open reservations. Please remove some books from your cart, or collect or cancel a reservation first.`, `Nous pouvons garder au plus ${MAX_RESERVED_COPIES} livres à la fois pour un compte, vos autres réservations en cours comprises. Veuillez retirer des livres de votre panier, ou retirer ou annuler une réservation avant d’en faire une autre.`);
+    return req.tr(`We can hold at most ${MAX_RESERVED_COPIES} books at a time for one account, counting your other open reservations. Please remove some books from your cart, or collect or cancel a reservation first.`, `Nous pouvons garder au plus ${MAX_RESERVED_COPIES} livres à la fois pour un compte, vos autres réservations en cours comprises. Veuillez retirer des livres de votre panier, ou retirer ou annuler une réservation avant d’en faire une autre.`);
   }
   if (err.message === "MAIL_THROTTLED") {
     return req.tr("We have sent several emails to this address recently, so nothing was reserved. Please try again later, or log in or create an account.", "Nous avons déjà envoyé plusieurs e-mails à cette adresse récemment, donc rien n’a été réservé. Veuillez réessayer plus tard, ou vous connecter ou créer un compte.");
@@ -462,9 +465,12 @@ router.post("/cart/guest/reserve", checkoutLimiter, async (req, res) => {
   let order;
   try {
     order = await createReservation(pool, {
-      guest: { email }, base: baseUrl(req), name, phone, items: withSeenPrices(req, items), lang: req.lang, hasDropin: false, acceptedVersion: TERMS_OF_SALE_VERSION,
+      guest: { email, ip: ipKey(req) }, base: baseUrl(req), name, phone, items: withSeenPrices(req, items), lang: req.lang, hasDropin: false, acceptedVersion: TERMS_OF_SALE_VERSION,
     });
   } catch (err) {
+    // A shop-wide limit (not one visitor's own) refused this: tell the admin, at most once an hour.
+    if (err.message === "GUEST_HOLDS_FULL") guestOrders.alertGuestLimit(pool, "holds");
+    else if (err.message === "MAIL_THROTTLED" && err.reason === "global") guestOrders.alertGuestLimit(pool, "mail");
     return refuse(await reservationRefusal(req, err, cart, { guest: true }));
   }
   // Held now; the reservation page says "check your email" until the link is opened.

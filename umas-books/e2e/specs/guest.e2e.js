@@ -1350,6 +1350,10 @@ s.test("G88 (must) a phone set to dark mode still gets the light site, with ligh
   }
 });
 
+s.manual("G63 unconfirmed guest holds are capped per connection (2) and shop-wide (30 copies); over a cap the guest gets one neutral message", "reserving as a guest on a live site ties up real stock and mails real addresses; covered by test/integration/guestHardening.test.js");
+s.manual("G64 every guest reservation limit gives the same neutral sentence (EN and FR) and never says anything about the address", "needs reservations and mails to real addresses; covered by test/integration/guestHardening.test.js and guestCheckout.test.js");
+s.manual("G65 a guest reservation mail has its own daily budget (3 per address) apart from sign-up / password-reset mails (5)", "needs real mailboxes and a day's mails; covered by test/integration/guestHardening.test.js");
+s.manual("G66 the emailed manage link of a guest reservation stops working once it is attached to an account", "needs a real mailbox and an account; covered by test/integration/guestCheckoutApp.test.js");
 s.manual("G89 added to the home screen on an iPhone, no bar or button sits behind the home indicator", "needs a real iPhone in home-screen (standalone) mode; the safe-area padding itself is checked by a unit test");
 
 s.test("G90 (must) covers on a phone are sized: the Browse Books grid asks for the 300, 450 or 600 px copy, never an oversized one for a 160 px slot", { viewport: GUEST_PHONE }, async (ctx) => {
@@ -1776,6 +1780,31 @@ s.test("G104 (must) a book with several copies fits a 320 px wide screen with no
     assert.equal(m.role, "table");
   }
 });
+
+s.test("G105 (must) the home page does not jump on a phone while What's New loads (layout shift under 0.1, the slider box is no longer busy afterwards)", async (ctx) => {
+  await ctx.page.setViewport({ width: 375, height: 740, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+  await ctx.page.evaluateOnNewDocument(() => { window.__cls = 0; new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: "layout-shift", buffered: true }); });
+  await ctx.goto("/", "networkidle2");
+  await new Promise((r) => setTimeout(r, 800));
+  const m = await ctx.page.evaluate(() => ({ cls: window.__cls, busy: document.getElementById("home-wn").getAttribute("aria-busy") }));
+  assert.ok(m.cls < 0.1, `layout shift ${m.cls}`);
+  assert.equal(m.busy, null, "the slider is drawn");
+});
+
+s.manual("G106 (must) cart waiting notice on the log-in and sign-up pages, with the guest checkout offered", "needs a cart filled by the same browser session, then the sign-in pages; do by hand (also covered by test/integration/cartFollowups.test.js)");
+
+s.test("G107 (must) the cart icon has a number badge that is hidden while the cart is empty (phone header)", async (ctx) => {
+  await ctx.page.setViewport({ width: 375, height: 740, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+  await ctx.goto("/books.html", "networkidle2");
+  const m = await ctx.page.evaluate(() => { const b = document.querySelector("a.h-cart [data-cart-badge]"); return b ? { hidden: b.hidden, label: b.getAttribute("aria-hidden") } : null; });
+  assert.ok(m, "the badge is in the cart link");
+  assert.equal(m.label, "true", "the badge is not read out (the link already says Cart (n))");
+  assert.equal(typeof (await ctx.page.evaluate(() => window.UmasShowCartCount)), "function");
+});
+
+s.manual("G108 (must) the cart on a small phone: title in whole lines, price and Remove under it, no sideways scrolling", "needs books in the cart; the numbers are checked by test/integration/cartFollowups.test.js, the look by eye");
+
+s.manual("G109 (must) 'from' price and the choose button on book cards", "needs a book with copies at different prices (admin); also covered by test/integration/cartFollowups.test.js");
 
 s.test("G-FR55 FR check (membership): the form and the payment step are in French", { lang: "fr" }, async (ctx) => {
   await joinPage(ctx);
