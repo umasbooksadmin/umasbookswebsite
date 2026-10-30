@@ -149,7 +149,11 @@ async function reviewPage(res, { offset = 0, notice = null } = {}) {
 
 router.get("/admin/pricing/review", requireAdmin, async (req, res) => {
   const offset = parseIntParam(req.query.offset, { min: 0, max: 1000000, default: 0 });
-  const notice = req.query.cleared != null ? `Clearance applied to ${parseIntParam(req.query.cleared, { max: 1000000 })} copies.` : null;
+  const skipped = req.query.skipped != null ? parseIntParam(req.query.skipped, { max: 1000000 }) : 0;
+  const notice = req.query.cleared != null
+    ? `Clearance applied to ${parseIntParam(req.query.cleared, { max: 1000000 })} copies.` +
+      (skipped ? ` ${skipped} ${skipped === 1 ? "copy was" : "copies were"} skipped because ${skipped === 1 ? "it was" : "they were"} no longer in stock (sold, reserved or withdrawn) and keep${skipped === 1 ? "s" : ""} the price ${skipped === 1 ? "it" : "they"} had.` : "")
+    : req.query.notice === "gone" ? "That copy is no longer in stock (sold, reserved or withdrawn), so its price was not changed." : null;
   await reviewPage(res, { offset, notice });
 });
 
@@ -162,13 +166,20 @@ router.post("/admin/pricing/review/:copyId", requireAdmin, async (req, res) => {
      FROM book_copies c JOIN books b ON b.id = c.book_id WHERE c.id = $1`, [copyId]
   );
   const copy = rows[0];
+  if (copy && copy.status !== "in_stock") {
+    // Sold / reserved / withdrawn copies are never repriced: the price on a sold copy is part of the sale record.
+    return res.redirect(`/admin/pricing/review?offset=${offset}&notice=gone`);
+  }
   if (copy && copy.status === "in_stock" && copy.condition !== "new") {
     const s = rulesSuggestionFor(copy, await cachedComparables(pool, [copy.isbn]), settings);
     if (s && s.price != null) {
-      await pool.query(
-        `UPDATE book_copies SET price=$1, suggested_price=$1, suggested_level=$2, price_basis='suggested', is_clearance=false, updated_at=now() WHERE id=$3`,
+      // status re-checked in the UPDATE itself: a sale between the SELECT above and here must not be repriced.
+      const upd = await pool.query(
+        `UPDATE book_copies SET price=$1, suggested_price=$1, suggested_level=$2, price_basis='suggested', is_clearance=false, updated_at=now()
+         WHERE id=$3 AND status='in_stock'`,
         [s.price, levelText(s), copyId]
       );
+      if (!upd.rowCount) return res.redirect(`/admin/pricing/review?offset=${offset}&notice=gone`);
       await audit(req, {
         action: "copy.reprice", targetType: "book_copy", targetId: copyId,
         detail: `price ${copy.price != null ? Number(copy.price).toFixed(2) : "none"} -> ${s.price.toFixed(2)}`,
@@ -182,18 +193,26 @@ router.post("/admin/pricing/review/:copyId", requireAdmin, async (req, res) => {
 router.post("/admin/pricing/clearance", requireAdmin, async (req, res) => {
   const settings = await getSettings(pool);
   const candidates = await clearanceCandidates(pool, settings);
+  // Only copies still in stock are repriced (status re-checked in the UPDATE itself: a copy sold or reserved
+  // since the list was computed keeps its price). Skipped ones are counted and shown to the admin.
+  const applied = [];
   await withTransaction(pool, async (client) => {
     for (const c of candidates) {
-      await client.query("UPDATE book_copies SET price = $1, is_clearance = true, updated_at = now() WHERE id = $2", [settings.clearance.price, c.id]);
+      const r = await client.query(
+        "UPDATE book_copies SET price = $1, is_clearance = true, updated_at = now() WHERE id = $2 AND status = 'in_stock'",
+        [settings.clearance.price, c.id]
+      );
+      if (r.rowCount) applied.push(c);
     }
   });
-  for (const c of candidates) {
+  for (const c of applied) {
     await audit(req, {
       action: "copy.reprice", targetType: "book_copy", targetId: c.id,
       detail: `price ${c.price != null ? c.price.toFixed(2) : "none"} -> ${Number(settings.clearance.price).toFixed(2)} (clearance)`,
     });
   }
-  res.redirect(`/admin/pricing/review?cleared=${candidates.length}`);
+  const skipped = candidates.length - applied.length;
+  res.redirect(`/admin/pricing/review?cleared=${applied.length}${skipped ? `&skipped=${skipped}` : ""}`);
 });
 
 // ---------- Reprice (one-off: Trade and Mass Market at a flat price, no EUR 8) ----------
