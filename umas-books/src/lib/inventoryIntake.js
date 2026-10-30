@@ -15,9 +15,10 @@ const { withTransaction } = require("../db");
 const { saveImage, isStoredImageUrl } = require("./imageStore");
 const { isAllowedCoverUrl } = require("./coverStore");
 const { sharpFromUpload } = require("./uploadImage");
-const { normalizeIsbn } = require("./bookLookup");
+const { normalizeIsbn, isValidIsbn } = require("./bookLookup");
+const { isbn10to13 } = require("./bookSources");
 const { applyRulesToBook } = require("./genreRules");
-const { normalizeSource, normalizeCondition, normalizeBinding, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation } = require("./inventory");
+const { normalizeSource, normalizeCondition, normalizeBinding, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, isbnVariants } = require("./inventory");
 const { getSettings } = require("./pricing/settings");
 const { otherRepriceableCopies } = require("./pricing/clearance");
 const { priceFromLevelChoice } = require("./pricing/intake");
@@ -31,6 +32,12 @@ const fastScan = require("./fastScan");
 const { learningFields, parseAcquisitionCost, asTyped } = require("./inventoryCopies");
 
 const TITLE_REQUIRED = "Title is required.";
+// Longest text the add-book form accepts (a 50,000-character title was once saved). Generous for real books.
+const TEXT_LIMITS = [
+  ["title", "Title", 300], ["author", "Author", 300], ["publisher", "Publisher", 200],
+  ["description", "Description", 5000], ["notes", "Copy notes", 1000],
+];
+const INVALID_ISBN = "That ISBN is not valid (wrong length or check digit). Check the number on the back cover, or leave the ISBN empty to save the book without one.";
 const BUSY_MESSAGE = "This book is already being saved. Wait a moment and check the book list before saving it again.";
 
 // A blank is allowed (not known); anything typed must be a real value.
@@ -49,7 +56,12 @@ const passthroughTime = (label, fn) => fn();
 function parseIntakeInput(body, files) {
   const title = (body.title || "").trim();
   const author = (body.author || "").trim() || null;
-  const isbn = body.isbn ? normalizeIsbn(body.isbn) : null;
+  // ISBN: blank is allowed (a book with none). Anything typed must be a real ISBN-10 or ISBN-13; an ISBN-10 is
+  // stored as its ISBN-13 so the same book never exists twice (the existing-book lookup also accepts both forms).
+  const typedIsbn = String(body.isbn || "").trim() ? normalizeIsbn(body.isbn) : null;
+  const isbnOk = !typedIsbn || isValidIsbn(typedIsbn);
+  const isbnBlankJunk = Boolean(String(body.isbn || "").trim()) && !typedIsbn; // e.g. "abc": nothing usable
+  const isbn = typedIsbn && isbnOk && typedIsbn.length === 10 ? isbn10to13(typedIsbn) : typedIsbn;
   const publisher = (body.publisher || "").trim() || null;
   const yearCheck = parsePublishedYear(body.publishedYear);
   const publishedYear = yearCheck.error ? null : yearCheck.value;
@@ -84,6 +96,15 @@ function parseIntakeInput(body, files) {
     answerMode: { fast: body.fast, addAnother: body.addAnother, fromScan: body.fromScan },
   };
   if (!title) return { ok: false, field: "title", message: TITLE_REQUIRED, value };
+  if (!isbnOk || isbnBlankJunk) return { ok: false, field: "isbn", message: INVALID_ISBN, value };
+  const tooLong = TEXT_LIMITS.find(([key, , max]) => value[key] && value[key].length > max);
+  if (tooLong) {
+    const [key, label, max] = tooLong;
+    const message = `${label} is too long (${value[key].length} characters; the most allowed is ${max}).`;
+    // The form is shown again with what was typed, but never the whole oversized text (it is kept in the session).
+    for (const [k, , m] of TEXT_LIMITS) if (value[k] && value[k].length > m) value[k] = value[k].slice(0, m);
+    return { ok: false, field: key, message, value };
+  }
   return { ok: true, value };
 }
 
@@ -96,7 +117,7 @@ async function prepareIntake(db, input, { time = passthroughTime } = {}) {
   const choice = priceFromLevelChoice(input.condition, input.priceForm, settings);
   let pricingYear = input.yearCheck.error ? null : input.yearCheck.value;
   if (pricingYear == null && input.isbn) {
-    const known = await db.query("SELECT published_year FROM books WHERE isbn = $1", [input.isbn]);
+    const known = await db.query("SELECT published_year FROM books WHERE isbn = ANY($1)", [isbnVariants(input.isbn)]);
     if (known.rows[0]) pricingYear = known.rows[0].published_year;
   }
   const pricing = resolveCopyPricing(input.condition, choice.rawPrice, input.raw.publisherPrice, { publishedYear: pricingYear });
@@ -184,7 +205,7 @@ async function createBookAndCopy(pool, input, ctx, time) {
   let isNewBook = false;
   let fillAfterSave = false;
   if (isbn) {
-    const { rows: existingRows } = await time("db", () => pool.query("SELECT * FROM books WHERE isbn = $1", [isbn]));
+    const { rows: existingRows } = await time("db", () => pool.query("SELECT * FROM books WHERE isbn = ANY($1) ORDER BY (isbn = $2) DESC, id LIMIT 1", [isbnVariants(isbn), isbn]));
     if (existingRows.length) {
       const existing = existingRows[0];
       bookId = existing.id;
@@ -222,7 +243,7 @@ async function createBookAndCopy(pool, input, ctx, time) {
     } else {
       // Another request added this ISBN between our lookup above and this
       // insert (books.isbn is unique, see migration 038) — use its record.
-      const { rows: winner } = await pool.query("SELECT id FROM books WHERE isbn = $1", [isbn]);
+      const { rows: winner } = await pool.query("SELECT id FROM books WHERE isbn = ANY($1) ORDER BY (isbn = $2) DESC, id LIMIT 1", [isbnVariants(isbn), isbn]);
       bookId = winner[0].id;
     }
   }

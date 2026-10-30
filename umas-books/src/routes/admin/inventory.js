@@ -508,7 +508,7 @@ router.post("/admin/inventory", requireAdmin, serverTiming("scan.save"), async (
   const parsed = parseIntakeInput(req.body, req.files);
   if (!parsed.ok) {
     if (json) return res.status(422).json({ ok: false, error: parsed.message });
-    return refuse(parsed.value, "title", parsed.message);
+    return refuse(parsed.value, parsed.field === "title" ? "title" : "input", parsed.message);
   }
   const prepared = await prepareIntake(pool, parsed.value, { time: req.timing.time });
   if (!prepared.ok) {

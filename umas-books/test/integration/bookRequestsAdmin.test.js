@@ -7,6 +7,7 @@
 
 const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
+const { isbn13From } = require("../helpers/isbn"); // the add-book form refuses an ISBN with a wrong check digit
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 const { makeClient, makeUser, uniq } = require("../helpers/routeClient");
 
@@ -63,7 +64,7 @@ async function intake({ title, isbn = "", author = "", status = "in_stock", pric
 }
 
 // A unique 979-prefixed ISBN-13 (no ISBN-10 form; the column is unique across files).
-const fakeIsbn = () => `979${String(Date.now()).slice(-7)}${String(Math.floor(Math.random() * 1e3)).padStart(3, "0")}`;
+const fakeIsbn = () => isbn13From(`979${String(Date.now()).slice(-7)}${String(Math.floor(Math.random() * 1e2)).padStart(2, "0")}`);
 
 async function request(over = {}) {
   const email = over.email === undefined ? `rq-${uniq()}@example.test` : over.email;
