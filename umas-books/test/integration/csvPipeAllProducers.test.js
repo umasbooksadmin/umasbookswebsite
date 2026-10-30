@@ -11,7 +11,7 @@ const { tillHarness } = require("../helpers/tillHarness");
 const ax = require("../../src/lib/accountingExport");
 
 const HOSTILE = '=Evil | "quoted", semi; colon\r\nnext\tline';
-const HOSTILE_SAFE = '\'=Evil / "quoted", semi; colon next line';
+const HOSTILE_SAFE = "'=Evil / 'quoted', semi; colon next line";
 let h;
 const samples = {};
 
@@ -46,7 +46,8 @@ function assertPipeFormat(name, text) {
   assert.ok(!/[^\r]\n/.test(text) && !/\r[^\n]/.test(text), `${name}: CRLF only, no stray CR or LF inside a row`);
   const lines = text.slice(1).split("\r\n").slice(0, -1);
   assert.ok(lines.length >= 2, `${name}: header and at least one row`);
-  assert.ok(!lines[0].includes('"') && !lines[0].includes(";"), `${name}: header has no quotes or semicolons`);
+  assert.ok(!text.includes('"'), `${name}: no double quote character anywhere`);
+  assert.ok(!lines[0].includes(";"), `${name}: header has no semicolons`);
   const cols = lines[0].split("|").length;
   assert.ok(cols > 2, `${name}: more than one column`);
   lines.forEach((l, i) => {

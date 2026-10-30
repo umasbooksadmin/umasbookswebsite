@@ -32,7 +32,7 @@ test("the per-book header", () => {
 const dbRow = {
   id: 42, book_id: 7, condition: "like_new", price: "6.50", publisher_price: null, is_clearance: true, location: "Store",
   source: "donation", status: "in_stock", notes: '=HYPERLINK("http://x")', added: "2026-10-01", sold: null,
-  isbn: "978-2-07-036822-8", title: 'Le "Petit" Prince; suite', authors: "A. de Saint-Exupéry", publisher: "Gallimard",
+  isbn: "978-2-07-036822-8", title: "Le 'Petit' Prince; suite", authors: "A. de Saint-Exupéry", publisher: "Gallimard",
   published_year: 1999, binding: "mass_market", categories: "Fiction, Classics",
   acquired: "2026-09-15", acquisition_cost: "0.00", suggested_price: "5.00",
 };
@@ -40,9 +40,9 @@ const dbRow = {
 test("one copy line: pipes, decimal point, no quotes, neutralised formula, labels", () => {
   const line = x.csvLine(x.COPY_COLUMNS, x.copyRow(dbRow));
   assert.equal(line, [
-    "9782070368228", "207036822X", 'Le "Petit" Prince; suite', "A. de Saint-Exupéry", "Gallimard", "1999", "Mass Market",
+    "9782070368228", "207036822X", "Le 'Petit' Prince; suite", "A. de Saint-Exupéry", "Gallimard", "1999", "Mass Market",
     "Like New", "6.50", "Store", "Donation", "In Store", "2026-10-01", "42", "UB-42", "7", "Fiction, Classics", "Yes", "",
-    "'=HYPERLINK(\"http://x\")", "",
+    "'=HYPERLINK('http://x')", "",
     "2026-09-15", "0.00", "5.00",
   ].join("|"));
 });
@@ -60,7 +60,7 @@ test("a title with | \" , ; a line break and a leading = stays one safe row with
   const line = x.csvLine(x.COPY_COLUMNS, x.copyRow({ ...dbRow, title: nasty, notes: nasty }));
   assert.ok(!/[\r\n\t]/.test(line), "no line break or tab inside the row");
   assert.equal(line.split("|").length, x.COPY_COLUMNS.length, "delimiter count = columns - 1");
-  assert.ok(line.includes('\'=Evil / "quoted", semi; colon next line'), line);
+  assert.ok(line.includes("'=Evil / 'quoted', semi; colon next line"), line);
 });
 
 test("same cell rules as the accounting export's toCsv (one format)", () => {

@@ -1656,7 +1656,7 @@ If the cart is still live it refuses and says how many minutes remain.
 
 Since 2026-10-30 every CSV the system produces (all reports and the accounting export, the till's end of day, the inventory downloads and the nightly inventory email, the monthly and yearly accounting files in Backblaze, the price-change run file) has the same format: **`|` (pipe) between values, no quote marks anywhere (header included), a decimal point in money (`8.00`)**, UTF-8 with a byte-order mark (so Excel shows accents) and Windows line ends. File names and `.csv` extensions are unchanged. There is no French-Excel variant any more: the old `&locale=fr` / `format=csv-fr` links still work and give the same file.
 
-Because nothing is quoted, a value can never contain the delimiter or a line break: a `|` inside a title or note is written as `/`, and line breaks or tabs become one space. A text starting with `=`, `+`, `-` or `@` gets a leading apostrophe so Excel cannot run it as a formula.
+Because nothing is quoted, a value can never contain the delimiter or a line break: a `|` inside a title or note is written as `/`, any double quote (`"`, also curly ones) becomes a single quote `'` (so Excel's import can never read it as a text qualifier, and no qualifier setting needs changing), and line breaks or tabs become one space. A text starting with `=`, `+`, `-` or `@` gets a leading apostrophe so Excel cannot run it as a formula.
 
 **Open in Excel:** Data > From Text/CSV, File Origin *UTF-8*, Delimiter *Custom*, type `|`, Load (double-clicking the file shows one column, because Excel only splits on its own list separator).
 

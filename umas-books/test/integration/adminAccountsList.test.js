@@ -191,7 +191,7 @@ test("Accounts report CSV: BOM, headers, filtered rows, formula-safe, audited, n
   assert.match(res.headers.get("content-disposition"), /umas-books-accounts-accounts\.csv/);
   assert.equal(res.headers.get("cache-control"), "no-store");
   assert.ok(text.startsWith("\uFEFFName|Email|Type|Member until|Email confirmed|Created|Last login|Paid reservations|Total spent|Disabled"));
-  assert.match(text, /\n'=HYPERLINK\("x"\)\|/);
+  assert.match(text, /\n'=HYPERLINK\('x'\)\|/);
   assert.ok(text.includes(u.holder.email) && text.includes(u.expired.email));
   assert.ok(!text.includes(u.paying.email), "filter applies to the CSV");
   assert.match(text, /\|1\|60\.00\|yes/);

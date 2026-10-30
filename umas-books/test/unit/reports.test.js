@@ -68,7 +68,7 @@ test("aging buckets: exactly 3, 6 and 12 months back fall in the older bucket", 
 
 test("csvCell: no quotes, | becomes /, line breaks become a space, spreadsheet formulas are neutralised", () => {
   assert.equal(csvCell("plain"), "plain");
-  assert.equal(csvCell('say "hi", ok; fine'), 'say "hi", ok; fine', "quotes, commas and semicolons are left alone");
+  assert.equal(csvCell('say "hi", ok; fine'), "say 'hi', ok; fine", "double quotes become apostrophes; commas and semicolons are left alone");
   assert.equal(csvCell("a|b|c"), "a/b/c");
   assert.equal(csvCell("line\nbreak"), "line break");
   assert.equal(csvCell("a\r\n\r\nb\t\tc"), "a b c");
@@ -106,7 +106,7 @@ test("toCsv: BOM, header row, unquoted text, | separator, decimal point, totals 
   assert.deepEqual(csv.slice(1).split("\r\n"), [
     "Title|Copies|Value",
     "'=evil()|2|10.00",
-    'A "quoted", title|1|0.50',
+    "A 'quoted', title|1|0.50",
     "Empty|0|",
     "Total|3|10.50",
     "",

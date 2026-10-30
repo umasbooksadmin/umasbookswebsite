@@ -114,7 +114,9 @@ function formatCell(value, type, { csv = false } = {}) {
 // POINT in money and numbers (8.00), UTF-8 BOM (so Excel shows accents) and CRLF
 // line ends. Open in Excel with Data > From Text/CSV, Delimiter: Custom, |.
 // Because there is no quoting, a value must never contain the delimiter or a line
-// break: csvCell() turns "|" into "/" and any run of CR / LF / tab into one space.
+// break, and Excel's From Text/CSV treats a double quote as a qualifier: csvCell() turns
+// "|" into "/", any double quote (straight or typographic) into an apostrophe, and any
+// run of CR / LF / tab into one space.
 // Spreadsheet formula protection is kept: a text cell that starts with = + - @
 // (or a tab / CR, or those after leading whitespace) gets a leading apostrophe so
 // it stays plain text. Numbers are written bare.
@@ -123,7 +125,7 @@ function csvCell(value) {
   if (value === null || value === undefined) return "";
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
   const raw = String(value);
-  let s = raw.replace(/\|/g, "/").replace(/[\r\n\t]+/g, " ");
+  let s = raw.replace(/\|/g, "/").replace(/["\u201C\u201D\u201E]/g, "'").replace(/[\r\n\t]+/g, " ");
   if (/^[=+\-@\t\r]/.test(raw) || /^\s*[=+\-@]/.test(s)) s = `'${s}`;
   return s;
 }

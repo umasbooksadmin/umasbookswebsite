@@ -39,9 +39,19 @@ test("hostile text: | \" , ; newline and a leading = give ONE safe row with the 
   const lines = csv.slice(1).split("\r\n");
   assert.equal(lines.length, 3, "header, one row, trailing empty");
   for (const l of lines.slice(0, 2)) assert.equal(l.split("|").length, 3, l);
-  assert.equal(lines[0], 'Head / "x"|B|Total');
-  assert.equal(lines[1], '\'=Evil / "quoted", semi; colon next line|ok|3.00');
+  assert.equal(lines[0], "Head / 'x'|B|Total");
+  assert.equal(lines[1], "'=Evil / 'quoted', semi; colon next line|ok|3.00");
   assert.equal(csvCell("|"), "/");
+  assert.ok(!csv.includes('"'), "no double quote anywhere, header included");
+});
+
+test('double quotes become apostrophes: Le "Petit" Prince, a value starting with a quote, typographic quotes', () => {
+  assert.equal(csvCell('Le "Petit" Prince'), "Le 'Petit' Prince");
+  assert.equal(csvCell('"Starts with a quote'), "'Starts with a quote");
+  assert.equal(csvCell("\u201CCurly\u201D \u201Elow\u201D"), "'Curly' 'low'");
+  const csv = toCsv({ columns: [{ key: "a", label: '"H"', type: "text" }], rows: [{ a: '"x,y"' }, { a: 'Le "Petit" Prince' }] });
+  assert.ok(!csv.includes('"'));
+  assert.deepEqual(csv.slice(1).split("\r\n"), ["'H'", "'x,y'", "Le 'Petit' Prince", ""]);
 });
 
 test("the crawler skips both CSV downloads", () => {
