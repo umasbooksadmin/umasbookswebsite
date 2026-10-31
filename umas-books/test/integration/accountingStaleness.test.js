@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 const { tillHarness } = require("../helpers/tillHarness");
 
 let h;
-before(async () => { h = await tillHarness({ port: 4881, ip: "10.88.1.1" }); });
+before(async () => { h = await tillHarness({ port: 4896, ip: "10.88.9.6" }); });
 after(async () => { await h.stop(); });
 
 const staleness = () => require("../../src/lib/accountingStaleness");
