@@ -51,20 +51,30 @@ const clean = (v, max = 2000) => {
 };
 const yearOf = (v) => { const m = String(v == null ? "" : v).match(/\d{4}/); return m ? Number(m[0]) : null; };
 
-async function getRaw(fetchImpl, url, signal, accept) {
+// `watch` (optional, used by Google Books only) is told why a call failed: watch(kind, res?) with kind
+// "http <status>" (res given, to read Google's short reason), "timeout", "network", "parse" or "too large".
+// It changes nothing about the result.
+async function getRaw(fetchImpl, url, signal, accept, watch) {
   try {
     const res = await fetchImpl(url, { signal, headers: { "User-Agent": USER_AGENT, Accept: accept } });
     if (res.status === 404) return { state: "missing" };
-    if (!res.ok) return { state: "error", status: res.status };
+    if (!res.ok) {
+      if (watch) await watch(`http ${res.status}`, res);
+      return { state: "error", status: res.status };
+    }
     return { state: "ok", res };
-  } catch {
+  } catch (err) {
+    if (watch) await watch(err && (err.name === "AbortError" || err.name === "TimeoutError") ? "timeout" : "network");
     return { state: "error" };
   }
 }
-async function getJson(fetchImpl, url, signal) {
-  const r = await getRaw(fetchImpl, url, signal, "application/json");
+async function getJson(fetchImpl, url, signal, watch) {
+  const r = await getRaw(fetchImpl, url, signal, "application/json", watch);
   if (r.state !== "ok") return r;
-  try { return { state: "ok", data: await readBoundedJson(r.res) }; } catch { return { state: "error" }; } // over 1 MB: this source failed
+  try { return { state: "ok", data: await readBoundedJson(r.res) }; } catch (err) { // over 1 MB: this source failed
+    if (watch) await watch(err && err.name === "BodyTooLargeError" ? "too large" : "parse");
+    return { state: "error" };
+  }
 }
 
 // ---------------- Open Library: data API ----------------
@@ -96,6 +106,29 @@ async function openLibraryData({ forms, fetchImpl, signal, helpers }) {
 
 // ---------------- Google Books ----------------
 const googlePause = { until: 0 };
+// Why Google Books lookups fail, for /admin/diagnostics/lookup. In memory only (counts restart with the app).
+// Kept: a kind ("http 429", "timeout", "network", "parse", "too large"), a count per kind, the time of the last
+// error and a short reason from Google's JSON error object. Never the URL (it carries the key) nor a response body.
+const googleState = { counts: {}, lastKind: null, lastAt: null, lastReason: null, lastOkAt: null, calls: 0 };
+function recordGoogleError(kind, reason, now) {
+  googleState.counts[kind] = (googleState.counts[kind] || 0) + 1;
+  googleState.lastKind = kind;
+  googleState.lastAt = now();
+  googleState.lastReason = reason || null;
+}
+// Google's error bodies look like {"error":{"code":429,"message":"...","errors":[{"reason":"rateLimitExceeded"}]}}.
+// Only the short machine "reason" word (else a truncated message) is kept.
+function googleReason(data) {
+  const e = data && typeof data === "object" ? data.error : null;
+  if (!e || typeof e !== "object") return null;
+  const first = Array.isArray(e.errors) && e.errors[0] && typeof e.errors[0].reason === "string" ? e.errors[0].reason : null;
+  const r = first || (typeof e.status === "string" ? e.status : null) || (typeof e.message === "string" ? e.message : null);
+  return r ? String(r).replace(/\s+/g, " ").replace(/key=[^\s&]*/gi, "key=...").trim().slice(0, 80) || null : null;
+}
+function googleStatus() {
+  const total = Object.values(googleState.counts).reduce((a, b) => a + b, 0);
+  return { counts: { ...googleState.counts }, total, calls: googleState.calls, lastKind: googleState.lastKind, lastAt: googleState.lastAt, lastReason: googleState.lastReason, lastOkAt: googleState.lastOkAt };
+}
 function fromGoogle(item, forms, helpers) {
   const v = item && item.volumeInfo;
   if (!v || !clean(v.title)) return null;
@@ -121,7 +154,14 @@ async function googleBooks({ forms, fetchImpl, signal, helpers, now = Date.now }
   const key = config.get("GOOGLE_BOOKS_API_KEY") ? `&key=${encodeURIComponent(config.get("GOOGLE_BOOKS_API_KEY"))}` : "";
   let sawMissing = false;
   for (const isbn of [forms.isbn13, forms.isbn10].filter(Boolean)) {
-    const r = await getJson(fetchImpl, `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&maxResults=3${key}`, signal);
+    googleState.calls++;
+    const watch = async (kind, res) => {
+      let reason = null;
+      if (res) { try { reason = googleReason(await readBoundedJson(res)); } catch { /* no usable body */ } }
+      recordGoogleError(kind, reason, now);
+    };
+    const r = await getJson(fetchImpl, `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&maxResults=3${key}`, signal, watch);
+    if (r.state === "ok") googleState.lastOkAt = now();
     if (r.state === "error") {
       if (r.status === 429 || r.status === 403) googlePause.until = now() + 10 * 60 * 1000;
       return r.status ? { state: "error", status: r.status } : { state: "error" };
@@ -343,9 +383,10 @@ function resetSourcePauses() {
   googlePause.until = 0;
   Object.assign(isbndbState, { nextSlot: 0, pausedUntil: 0, status: "unknown", lastError: null, lastOkAt: null, lastCallAt: null, calls: 0 });
   isbndbState.warned.clear();
+  Object.assign(googleState, { counts: {}, lastKind: null, lastAt: null, lastReason: null, lastOkAt: null, calls: 0 });
   try { require("./isbndbPrice").clearPriceCache(); } catch { /* tests only */ }
 }
 
 module.exports = {
-  USER_AGENT, isbnForms, isFrenchIsbn, isbn10to13, isbn13to10, openLibraryData, googleBooks, bnf, isbndb, isbndbRequest, isbndbConfigured, isbndbStatus, isbndbBase, isbndbDailyMax, isbndbDailyUsage, isbndbCapMessage, ISBNDB_DEFAULT_DAILY_MAX, fromIsbndb, fromBnf, fromGoogle, fromOpenLibraryData, resetSourcePauses, getJson,
+  USER_AGENT, isbnForms, isFrenchIsbn, isbn10to13, isbn13to10, openLibraryData, googleBooks, googleStatus, bnf, isbndb, isbndbRequest, isbndbConfigured, isbndbStatus, isbndbBase, isbndbDailyMax, isbndbDailyUsage, isbndbCapMessage, ISBNDB_DEFAULT_DAILY_MAX, fromIsbndb, fromBnf, fromGoogle, fromOpenLibraryData, resetSourcePauses, getJson,
 };

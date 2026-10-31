@@ -48,11 +48,12 @@ router.get("/admin/diagnostics/jobs", requireAdmin, async (req, res) => {
 // Read-only, never shows the key. English only (admin area). See docs/runbook.md, "Scan speed".
 router.get("/admin/diagnostics/lookup", requireAdmin, async (req, res) => {
   res.set("Cache-Control", "no-store");
-  const { isbndbStatus, isbndbDailyUsage } = require("../../lib/bookSources");
+  const { isbndbStatus, isbndbDailyUsage, googleStatus } = require("../../lib/bookSources");
   res.render("admin/diagnostics_lookup", {
     active: "diagnostics",
     isbndb: isbndbStatus(),
     isbndbToday: await isbndbDailyUsage(pool),
+    google: googleStatus(),
     googleKey: Boolean(config.get("GOOGLE_BOOKS_API_KEY")),
     sources: String(config.get("SCAN_LOOKUP_SOURCES")),
   });
