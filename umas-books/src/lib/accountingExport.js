@@ -242,7 +242,7 @@ function summaryText({ range, rows, tillRows, counts: c, generatedOn }) {
 // ---------- everything for one range ----------
 
 async function buildExport(db, range, { now = new Date() } = {}) {
-  const report = await accountingExportReport(db, { from: range.from, to: range.to });
+  const report = await accountingExportReport(db, { from: range.from, to: range.to, noStaleness: true });
   const section = report.sections[0];
   const accountingCsv = toCsv(section);
   const tRows = await tillDays(db, range);

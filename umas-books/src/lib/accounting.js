@@ -249,7 +249,14 @@ async function accountingExportReport(db, ctx) {
     "The label, debit account, credit account and journal come from the table at /admin/reports/accounting/mapping. The defaults are a starting point: ask the treasurer to confirm the account numbers and the import layout.",
   ];
   if (nulls[0].n) notes.push(`${nulls[0].n} membership payment(s) in this period have no amount recorded and are not in the totals.`);
+  // Staleness (D4): months already exported that changed since, and a month still open.
+  const staleness = require("./accountingStaleness");
+  const banner = ctx.noStaleness ? null : await staleness.stalenessBanner(db, ctx.from, ctx.to);
+  if (ctx.today && staleness.reachesOpenMonth(ctx.to, ctx.today)) {
+    notes.unshift("This period includes the current month, which is not over: these figures are not final and change with every sale. The official monthly export is made on the 1st for the month just ended.");
+  }
   return {
+    banner,
     sections: [{
       key: "export", title: "Accounting export",
       columns: [
