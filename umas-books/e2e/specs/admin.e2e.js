@@ -517,6 +517,8 @@ s.test("A19e the AI usage report has the Send a test credit alert button (not pr
   has(text, /Send a test credit alert/);
 });
 s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (AC26, AC35, A63)");
+s.manual("A21b the sales report shares a pickup discount between books and drop-in seats", "needs real reservations collected by hand; covered by the integration test salesReportDiscountAndTillDate");
+s.manual("A21c the sales report dates a backdated Till reservation sale by the Till sale", "needs a real backdated Till sale; covered by the integration test salesReportDiscountAndTillDate");
 
 // ---- 5F. Book requests ----
 
@@ -1315,6 +1317,7 @@ s.manual("A131 Sold or reserved copies are never repriced (covered by test/integ
 s.manual("A132 ISBN-10 and ISBN-13 are the same book; junk ISBNs and oversized text are refused (covered by test/integration/isbnSameBook.test.js)", "the add-book form is checked by hand with real typing");
 s.manual("A133 Possible duplicate books is a read-only list (covered by test/integration/isbnSameBook.test.js)", "which duplicates exist depends on the real inventory: checked by hand");
 s.manual("A134 Marking a copy Sold by hand records the date and leaves no sale (covered by test/integration/copyEditSold.test.js)", "checked by hand against the Sales report and the Accounting export");
+s.manual("A135 Warning when a month already exported has changed (covered by test/integration/accountingStaleness.test.js)", "needs a real past month that was already exported: checked by hand");
 s.manual("A136 Diagnostics > Lookup shows why Google Books lookups fail (covered by test/unit/googleDiagnostics.test.js and test/integration/scanSpeed.test.js)", "the real failure kinds depend on Google's live answers: checked by hand");
 
 s.test("A102 (must) on a phone (375 px and 320 px) the admin lists and tables fit the screen, long titles wrap, wide tables say they scroll, and the member calendars are a list", { as: "admin", timeout: 300000 }, async (ctx) => {
