@@ -4,7 +4,7 @@
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
 <%  const q = typeof queried !== 'undefined' ? queried : { binding: true, source: true, condition: true }; // a refused save keeps what was typed %>
-<div class="card scan-intake"<% if (!fromScan) { %> data-scan-intake<%= error ? " data-had-error" : "" %> data-binding-set="<%= q.binding ? '1' : '' %>" data-source-set="<%= q.source ? '1' : '' %>" data-condition-set="<%= q.condition ? '1' : '' %>"<% } %>>
+<div class="card scan-intake"<% if (!fromScan) { %> data-scan-intake<%= error ? " data-had-error" : "" %> data-binding-set="<%= q.binding ? '1' : '' %>" data-source-set="<%= q.source ? '1' : '' %>" data-condition-set="<%= q.condition ? '1' : '' %>"<% if (typeof firstUse !== 'undefined') { %> data-first-location="<%= firstUse.location %>" data-first-source="<%= firstUse.source %>" data-first-binding="<%= firstUse.binding %>" data-first-condition="<%= firstUse.condition %>"<% } %><% } %>>
   <form class="stack" method="post" action="/admin/inventory" enctype="multipart/form-data" id="intake-form">
     <%- include('../../partials/csrf_field') %>
     <input type="hidden" name="fromScan" value="<%= fromScan ? '1' : '' %>">
@@ -70,6 +70,13 @@
       <% sources.forEach(s => { %><option value="<%= s.value %>" <%= s.value === source ? 'selected' : '' %>><%= s.label %></option><% }) %>
     </select>
     </div>
+    <% if (!fromScan) { %>
+    <p class="small muted field-wide scan-reset-choices" data-scan-reset-wrap hidden>
+      Binding, condition, location and source stay as you last saved them on this device.
+      <button type="button" class="scan-link-button" data-scan-reset-choices>Reset choices</button>
+      <span id="scan-reset-note" role="status" aria-live="polite"></span>
+    </p>
+    <% } %>
 
     </div>
 
@@ -106,6 +113,7 @@
 
     <label for="coverUrl">Cover image URL</label>
     <input id="coverUrl" name="coverUrl" type="text" value="<%= book.coverUrl || '' %>">
+    <input type="hidden" name="coverOrigin" value="<%= book.coverOrigin || '' %>">
 
     <% if (!book.coverUrl) { %>
       <button type="button" class="btn btn-outline" style="align-self: flex-start;" data-trigger-file="coverPhoto">No cover found — Take or Upload a Photo</button>

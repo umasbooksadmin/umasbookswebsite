@@ -1,0 +1,13 @@
+<%# Warning for rows saved with an end that is not after the start (older rows,
+    made before the form refused it). Read-only: nothing is changed here. %>
+<% if (rows && rows.length) { %>
+  <div class="notice-box" role="status" data-bad-ranges>
+    <strong><%= rows.length %> <%= noun %><%= rows.length === 1 ? '' : 's' %> end<%= rows.length === 1 ? 's' : '' %> before <%= rows.length === 1 ? 'it starts' : 'they start' %>.</strong>
+    <%= editable ? 'Open each one below and correct its end time.' : 'Delete each one below and add it again with the right times.' %>
+    <ul class="plain">
+      <% rows.forEach(r => { %>
+        <li><a href="<%= path %>?month=<%= r.month %>"><%= r.name %></a> &middot; <%= formatDateTime(r.starts_at) %> to <%= formatDateTime(r.ends_at) %></li>
+      <% }) %>
+    </ul>
+  </div>
+<% } %>

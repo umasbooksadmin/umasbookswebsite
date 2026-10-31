@@ -26,7 +26,7 @@ const { parseWholeNumber, parseDay } = require("./validation");
 const { checkBookAwardsInBackground } = require("./awards");
 const { matchRequestsForCopy } = require("./bookRequests");
 const { runAfterResponse } = require("./afterResponse");
-const { fillBookGaps } = require("./bookFill");
+const { fillBookGaps, coverOriginOf } = require("./bookFill");
 const intakeToken = require("./intakeToken");
 const fastScan = require("./fastScan");
 const { learningFields, parseAcquisitionCost, asTyped } = require("./inventoryCopies");
@@ -82,7 +82,7 @@ function parseIntakeInput(body, files) {
     costCheck: parseAcquisitionCost(body.acquisitionCost),
     acquiredCheck: parseDay(body.acquiredAt, { label: "Date acquired" }),
     // The posted text as typed, for showing a refused form again.
-    raw: { binding: body.binding, publisherPrice: body.publisherPrice, publishedYear: body.publishedYear, priceLevel: body.priceLevel },
+    raw: { binding: body.binding, publisherPrice: body.publisherPrice, publishedYear: body.publishedYear, priceLevel: body.priceLevel, coverOrigin: body.coverOrigin },
     // The price fields priceFromLevelChoice() and learningFields() read.
     priceForm: { priceLevel: body.priceLevel, price: body.price, suggestedPrice: body.suggestedPrice, suggestedLevel: body.suggestedLevel },
     typedPricing: {
@@ -235,7 +235,7 @@ async function createBookAndCopy(pool, input, ctx, time) {
       `INSERT INTO books (isbn, title, authors, publisher, published_year, description, cover_url, categories, binding, created_by, cover_source_url, cover_origin)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT DO NOTHING RETURNING id`,
-      [isbn || null, title, author, publisher, publishedYear, description, cover.cover, genre, binding, ctx.userId, cover.source, input.coverPhoto ? "photo" : (cover.cover || cover.source ? "form" : null)]
+      [isbn || null, title, author, publisher, publishedYear, description, cover.cover, genre, binding, ctx.userId, cover.source, input.coverPhoto ? "photo" : (cover.cover || cover.source ? (input.raw.coverOrigin === "isbn" ? "isbn" : coverOriginOf(coverUrl)) : null)]
     ));
     if (rows.length) {
       bookId = rows[0].id;

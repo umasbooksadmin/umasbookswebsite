@@ -29,6 +29,14 @@ test("programs.css: the drop-in title colour reads at 4.5:1 on the cream backgro
   assert.ok(ratio(colour, CREAM) >= 4.5, `${colour} on ${CREAM} is ${ratio(colour, CREAM).toFixed(2)}:1`);
 });
 
+test("the drop-in title also reads at 4.5:1 on the tinted --cream-alt, and the status pill text on both its own and --cream-alt", () => {
+  const colour = colourOf(loadSheet("assets/programs.css"), ".pg-dropin .pg-title", "color");
+  const alt = tokens["--cream-alt"];
+  assert.ok(ratio(colour, alt) >= 4.5, `${colour} on ${alt} is ${ratio(colour, alt).toFixed(2)}:1`);
+  const pill = loadSheet("public/style.css").getDecl(".status-pill.pending", "color");
+  for (const bg of ["#faf3df", tokens["--cream-alt"]]) assert.ok(ratio(pill, bg) >= 4.5, `${pill} on ${bg} is ${ratio(pill, bg).toFixed(2)}:1`);
+});
+
 test("programs.css: white text on the gold button reads at 4.5:1", () => {
   const colour = colourOf(loadSheet("assets/programs.css"), ".pg-btn.gold", "background");
   assert.ok(ratio("#ffffff", colour) >= 4.5, `white on ${colour} is ${ratio("#ffffff", colour).toFixed(2)}:1`);

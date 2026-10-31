@@ -6,6 +6,8 @@ const { parseWholeNumber, parseMoney } = require("../../lib/validation");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 const frenchText = require("../../lib/frenchText");
+const { setFlash, takeFlash } = require("../../lib/flash");
+const { LIMITS, lengthProblem, timeRangeProblem, typedButInvalid, createOnce, DUPLICATE_WINDOW_SECONDS, findReversedRanges } = require("../../lib/adminForm");
 
 const { validateIdParams } = require("../../middleware/idParams");
 
@@ -15,7 +17,19 @@ validateIdParams(router, "id", "signupId");
 
 // ---------- Events (public sign-up) ----------
 
+const asTyped = (raw) => (typeof raw === "string" ? raw.slice(0, 200) : "");
+
+// A refused form answers with a redirect back to the calendar (Post/Redirect/Get):
+// the message and what was typed are carried once in the session. `overlay` is
+// { newDate | eventId, values } (display only, nothing in it is saved).
+async function refuseAndRedirect(req, res, calendarQuery, state) {
+  await setFlash(req, "events", state);
+  const backQuery = calendarBackQuery(calendarQuery);
+  res.redirect(303, backQuery ? `/admin/events?${backQuery}` : "/admin/events");
+}
+
 router.get("/admin/events", requireAdmin, async (req, res) => {
+  const f = takeFlash(req, "events");
   const range = resolveCalendarRange(req.query, 0);
   const { rows: events } = await pool.query(
     `SELECT e.*, (SELECT COUNT(*) FROM event_signups s WHERE s.event_id = e.id) AS signup_count
@@ -33,7 +47,8 @@ router.get("/admin/events", requireAdmin, async (req, res) => {
   }
 
   const weeks = range.buildWeeks(groupByDate(events, "starts_at"));
-  res.render("admin/events", { active: "events", fr: frenchText, weeks, signupsByEvent, view: range.view, ...range.nav });
+  const badRanges = await findReversedRanges(pool, "events");
+  res.render("admin/events", { active: "events", fr: frenchText, error: f && f.error ? String(f.error) : null, formOverlay: (f && f.overlay) || null, badRanges, weeks, signupsByEvent, view: range.view, ...range.nav });
 });
 
 router.post("/admin/events", requireAdmin, async (req, res) => {
@@ -43,21 +58,40 @@ router.post("/admin/events", requireAdmin, async (req, res) => {
   const date = req.body.date;
   const startTime = req.body.startTime;
   const endTime = req.body.endTime || null;
-  // A capacity or price that is not a sensible number saves nothing (like a bad date), instead of reaching Postgres.
+  // A capacity or price that is not a sensible number is refused with a message, instead of reaching Postgres.
   const capacityNum = parseWholeNumber(req.body.capacity, { min: 0, max: 100000, allowBlank: true, label: "Capacity" });
-  const priceNum = parseMoney(req.body.price, { allowBlank: true });
-  const numbersOk = !capacityNum.error && !priceNum.error;
+  const priceNum = parseMoney(req.body.price, { allowBlank: true, label: "Price" });
   const capacity = capacityNum.value == null ? null : capacityNum.value;
   const price = priceNum.value == null ? null : priceNum.value;
+  const startsAt = date && startTime ? parseLocalDateTime(date, startTime) : null;
+  const endsAt = endTime ? parseLocalDateTime(date, endTime) : null;
 
-  if (title && date && startTime && numbersOk) {
-    const startsAt = parseLocalDateTime(date, startTime);
-    const endsAt = endTime ? parseLocalDateTime(date, endTime) : null;
-    if (!startsAt) return res.redirect("/admin/events");
-    await pool.query(
-      `INSERT INTO events (title, description, location, starts_at, ends_at, capacity, price, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [title, description, location, startsAt, endsAt, capacity, price, req.session.user.id]
+  const problem = capacityNum.error || priceNum.error
+    || lengthProblem([["The title", title, LIMITS.title], ["The location", location, LIMITS.line], ["The description", description, LIMITS.text]])
+    || (title && date && startTime && !startsAt ? "That date or start time is not a real date and time. Nothing was saved." : null)
+    || (typedButInvalid(endTime, endsAt) ? "That end time is not a real time. Nothing was saved." : null)
+    || timeRangeProblem(startsAt, endsAt, "An event");
+  if (problem) {
+    return refuseAndRedirect(req, res, req.body, {
+      error: problem,
+      overlay: {
+        newDate: asTyped(date),
+        values: { title, startTime: asTyped(startTime), endTime: asTyped(req.body.endTime), location: location || "", capacity: asTyped(req.body.capacity), price: asTyped(req.body.price) },
+      },
+    });
+  }
+
+  if (title && startsAt) {
+    // The same form arriving twice in a minute (a double click) makes one event.
+    await createOnce(
+      pool, `event:${title}|${startsAt.toISOString()}`,
+      `SELECT 1 FROM events WHERE title = $1 AND starts_at = $2 AND created_at > now() - interval '${DUPLICATE_WINDOW_SECONDS} seconds'`,
+      [title, startsAt],
+      (client) => client.query(
+        `INSERT INTO events (title, description, location, starts_at, ends_at, capacity, price, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [title, description, location, startsAt, endsAt, capacity, price, req.session.user.id]
+      )
     );
   }
   const backQuery = calendarBackQuery(req.body);
@@ -71,16 +105,36 @@ router.post("/admin/events/:id", requireAdmin, async (req, res) => {
   const location = (req.body.location || "").trim() || null;
   const startsAt = parseLocalDateTime(req.body.startsAt);
   const endsAt = req.body.endsAt ? parseLocalDateTime(req.body.endsAt) : null;
-  // A capacity or price that is not a sensible number saves nothing (like a bad date), instead of reaching Postgres.
   const capacityNum = parseWholeNumber(req.body.capacity, { min: 0, max: 100000, allowBlank: true, label: "Capacity" });
-  const priceNum = parseMoney(req.body.price, { allowBlank: true });
-  const numbersOk = !capacityNum.error && !priceNum.error;
+  const priceNum = parseMoney(req.body.price, { allowBlank: true, label: "Price" });
   const capacity = capacityNum.value == null ? null : capacityNum.value;
   const price = priceNum.value == null ? null : priceNum.value;
+  // The optional French version (title, description, place): "" is stored as NULL = no French for that part.
+  const french = frenchText.readFrench("event", req.body);
 
-  if (title && startsAt && numbersOk) {
-    // The optional French version (title, description, place): "" is stored as NULL = no French for that part.
-    const french = frenchText.readFrench("event", req.body);
+  const problem = capacityNum.error || priceNum.error
+    || lengthProblem([
+      ["The title", title, LIMITS.title], ["The location", location, LIMITS.line], ["The description", description, LIMITS.text],
+      ["The French title", french.title_fr, LIMITS.title], ["The French location", french.location_fr, LIMITS.line], ["The French description", french.description_fr, LIMITS.text],
+    ])
+    || (typedButInvalid(req.body.startsAt, startsAt) ? "That start is not a real date and time. Nothing was saved." : null)
+    || (typedButInvalid(req.body.endsAt, endsAt) ? "That end is not a real date and time. Nothing was saved." : null)
+    || timeRangeProblem(startsAt, endsAt, "An event");
+  if (problem) {
+    return refuseAndRedirect(req, res, req.query, {
+      error: problem,
+      overlay: {
+        eventId: id,
+        values: {
+          title, description: description || "", location: location || "", startsAt: asTyped(req.body.startsAt), endsAt: asTyped(req.body.endsAt),
+          capacity: asTyped(req.body.capacity), price: asTyped(req.body.price),
+          title_fr: french.title_fr || "", description_fr: french.description_fr || "", location_fr: french.location_fr || "",
+        },
+      },
+    });
+  }
+
+  if (title && startsAt) {
     await pool.query(
       `UPDATE events SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6, price=$7,
          title_fr=$9, description_fr=$10, location_fr=$11

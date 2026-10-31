@@ -7,6 +7,8 @@ const { audit } = require("../../lib/audit");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { CHARITY_CATEGORIES } = require("../../lib/charityCategories");
 const frenchText = require("../../lib/frenchText");
+const { redirectWithFlash, takePageFlash } = require("../../lib/postRedirect");
+const { LIMITS, lengthProblem, timeRangeProblem } = require("../../lib/adminForm");
 
 const { validateIdParams } = require("../../middleware/idParams");
 const { cleanHttpUrl, parseId, clean } = require("../../lib/validation");
@@ -41,6 +43,7 @@ const CHARITY_OPTION_SELECT = `
 `;
 
 router.get("/admin/charity", requireAdmin, async (req, res) => {
+  const flash = takePageFlash(req, res, "adminCharity") || {};
   const tab = ["current", "library", "ideas", "past"].includes(req.query.tab) ? req.query.tab : "current";
   const ideasSubTab = ["pending", "approved", "rejected"].includes(req.query.ideasTab) ? req.query.ideasTab : "pending";
   const q = clean(req.query.q, 100);
@@ -84,6 +87,7 @@ router.get("/admin/charity", requireAdmin, async (req, res) => {
 
   res.render("admin/charity", {
     active: "charity",
+    flashError: flash.error || null,
     fr: frenchText,
     tab,
     ideasSubTab,
@@ -100,6 +104,15 @@ router.get("/admin/charity", requireAdmin, async (req, res) => {
   });
 });
 
+// Why a vote's form is refused (null when it is fine). Dates typed but not real, an end that is not after the
+// opening, or a text over its limit: each refused with a sentence instead of being dropped or cut off.
+function roundProblem(body, title, label, opensAt, closesAt, titleFr = null) {
+  return lengthProblem([["The title", title, LIMITS.title], ["The label", label, LIMITS.line], ["The French title", titleFr, LIMITS.title]])
+    || (body.opensAt && !opensAt ? "The opening date is not a real date and time. Nothing was saved." : null)
+    || (body.closesAt && !closesAt ? "The closing date is not a real date and time. Nothing was saved." : null)
+    || timeRangeProblem(opensAt, closesAt, "A vote");
+}
+
 router.post("/admin/charity-rounds", requireAdmin, async (req, res) => {
   const title = (req.body.title || "").trim();
   const label = (req.body.label || "").trim() || null;
@@ -108,6 +121,9 @@ router.post("/admin/charity-rounds", requireAdmin, async (req, res) => {
   const allowMultiple = req.body.allowMultiple === "on";
   const visibleTo = req.body.visibleTo === "everyone" ? "everyone" : "members";
   const showResultsDuringVote = req.body.showResultsDuringVote === "on";
+
+  const problem = roundProblem(req.body, title, label, opensAt, closesAt);
+  if (problem) return redirectWithFlash(req, res, "/admin/charity?tab=current", "adminCharity", { error: problem });
 
   if (title) {
     await pool.query("UPDATE charity_rounds SET is_active = FALSE WHERE is_active = TRUE");
@@ -130,8 +146,11 @@ router.post("/admin/charity-rounds/:id/settings", requireAdmin, async (req, res)
   const visibleTo = req.body.visibleTo === "everyone" ? "everyone" : "members";
   const showResultsDuringVote = req.body.showResultsDuringVote === "on";
 
+  const french = frenchText.readFrench("round", req.body);
+  const problem = roundProblem(req.body, title, label, opensAt, closesAt, french.title_fr);
+  if (problem) return redirectWithFlash(req, res, "/admin/charity?tab=current", "adminCharity", { error: problem });
+
   if (title) {
-    const french = frenchText.readFrench("round", req.body);
     await pool.query(
       `UPDATE charity_rounds SET title=$1, label=$2, opens_at = COALESCE($3::timestamptz, opens_at), closes_at=$4,
          allow_multiple=$5, visible_to=$6, show_results_during_vote=$7, title_fr=$9 WHERE id=$8`,
@@ -158,6 +177,8 @@ router.post("/admin/charities", requireAdmin, async (req, res) => {
   const returnTab = req.body.returnTab === "current" ? "current" : "library";
 
   if (!name) return res.redirect(`/admin/charity?tab=${returnTab}`);
+  const tooLong = lengthProblem([["The name", name, LIMITS.title], ["The description", description, LIMITS.text]]);
+  if (tooLong) return redirectWithFlash(req, res, `/admin/charity?tab=${returnTab}`, "adminCharity", { error: tooLong });
 
   const imageFile = req.files && req.files.image && req.files.image[0];
   const imageUrl = imageFile ? await processCharityImage(imageFile) : null;
@@ -191,6 +212,10 @@ router.post("/admin/charities/:id", requireAdmin, async (req, res) => {
 
   const imageFile = req.files && req.files.image && req.files.image[0];
   const french = frenchText.readFrench("charity", req.body);
+  const tooLong = lengthProblem([
+    ["The name", name, LIMITS.title], ["The description", description, LIMITS.text], ["The French description", french.description_fr, LIMITS.text],
+  ]);
+  if (tooLong) return redirectWithFlash(req, res, `/admin/charity?tab=${returnTab}`, "adminCharity", { error: tooLong });
   if (imageFile) {
     const imageUrl = await processCharityImage(imageFile);
     await pool.query(

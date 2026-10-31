@@ -241,6 +241,41 @@ function isbnCoverUrl(isbn) {
   return /^\d{13}$/.test(isbn13) ? `https://covers.openlibrary.org/b/isbn/${isbn13}-L.jpg?default=false` : null;
 }
 
+// Every exact-ISBN cover address of a book: its ISBN-13 and (when it has one) its ISBN-10 form, ISBN-13 first. Open
+// Library files a cover under whichever form the uploader knew, so both are tried.
+function isbnCoverUrls(isbn) {
+  const clean = normalizeIsbn(isbn);
+  if (!isValidIsbn(clean)) return [];
+  const { isbn13, isbn10 } = require("./bookSources").isbnForms(clean);
+  return [isbn13, isbn10].filter((f) => f && (/^\d{13}$/.test(f) || /^\d{9}[\dX]$/.test(f))).map((f) => `https://covers.openlibrary.org/b/isbn/${f}-L.jpg?default=false`);
+}
+
+// Does Open Library hold a cover for this exact ISBN, under its ISBN-13 or its ISBN-10 form? One small HEAD request per form
+// ("default=false": 404 when there is none), both at the same time, each with a short deadline. The ISBN-13 wins when both
+// exist. -> { url, state: "found" | "none" | "error" } ("error": a timeout or network trouble, so "none" is not certain).
+// Never throws, never a title search. opts: fetchImpl, signal, timeoutMs (default 2500).
+async function exactIsbnCover(rawIsbn, { fetchImpl = (...a) => fetch(...a), signal, timeoutMs = 2500 } = {}) {
+  const urls = isbnCoverUrls(rawIsbn);
+  if (!urls.length) return { url: null, state: "none" };
+  const probe = async (url) => {
+    const deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort(), timeoutMs);
+    try {
+      const res = await fetchImpl(url, { method: "HEAD", signal: signal ? AbortSignal.any([signal, deadline.signal]) : deadline.signal, headers: { "User-Agent": "UmasBooksInventory/1.0" } });
+      if (res.ok) return "yes";
+      return res.status === 404 ? "no" : "error";
+    } catch {
+      return "error";
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const answers = await Promise.all(urls.map(probe));
+  const at = answers.indexOf("yes");
+  if (at >= 0) return { url: urls[at], state: "found" };
+  return { url: null, state: answers.includes("error") ? "error" : "none" };
+}
+
 const FIELDS = ["title", "subtitle", "author", "publisher", "publishedYear", "description", "coverUrl", "genre", "pages", "language", "binding"];
 
 // The books of several sources into one: the first source with a title is the base (the sources
@@ -317,6 +352,10 @@ async function lookupByIsbnOnce(isbn, opts) {
   const enabled = enabledSources();
   const started = Date.now();
   const controller = new AbortController();
+  // The exact-ISBN cover (Open Library often files a cover under the ISBN only): asked at the same time as the sources, so
+  // it adds no waiting; it is only used when the merged record has no cover of its own.
+  const coverProbeController = new AbortController();
+  const coverProbe = exactIsbnCover(isbn, { fetchImpl, signal: coverProbeController.signal, timeoutMs: Math.min(2500, timeoutMs) });
   const helpers = { pickGenres, mapBinding };
 
   const briefOnce = async (form, budget) => {
@@ -409,10 +448,18 @@ async function lookupByIsbnOnce(isbn, opts) {
   recordLookupStats(stats, plan, results, merged);
   const via = plan.map(([name]) => name).filter((name) => results.get(name) && results.get(name).book && results.get(name).book.title);
   if (merged) {
+    let probeState = "found";
+    if (!merged.coverUrl) {
+      const cover = await coverProbe;
+      probeState = cover.state;
+      if (cover.url) merged.coverUrl = cover.url; // the preview shows it and saving stores exactly this
+    } else coverProbeController.abort();
     const out = { book: merged, state: "found", via };
-    if (cache) cache.set(isbn, out);
+    // A cover check that failed (not a plain "none") is not remembered for long, so the next scan asks again.
+    if (cache) cache.set(isbn, out, probeState === "error" ? Math.min(60000, config.get("SCAN_CACHE_TTL_MS")) : undefined);
     return { ...out, book: { ...merged } };
   }
+  coverProbeController.abort();
   const pending = plan.some((entry) => entry.running && !results.has(entry[0])); // asked, not answered
   const slow = [...results.values()].some((r) => r.slow);
   const primariesMissing = ["openlibrary", "openlibrary-data"].filter((n) => plan.some(([p]) => p === n)).every((n) => results.get(n) && results.get(n).state === "missing");
@@ -489,4 +536,4 @@ async function searchByTitleAuthor(title, author) {
   });
 }
 
-module.exports = { normalizeIsbn, isValidIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, mergeBooks, attributeSources, pickGenres, isbnCoverUrl, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES, STATIC_KNOWN_GENRES };
+module.exports = { normalizeIsbn, isValidIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, mergeBooks, attributeSources, pickGenres, isbnCoverUrl, isbnCoverUrls, exactIsbnCover, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES, STATIC_KNOWN_GENRES };

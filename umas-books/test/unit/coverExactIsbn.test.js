@@ -37,7 +37,7 @@ const FLW = "9780330298117"; // The French Lieutenant's Woman, Picador 1987 (sca
 const searchCalls = () => calls.filter((u) => u.includes("search.json"));
 
 test("findCoverUrl: no catalog cover -> Open Library's cover for the exact ISBN-13, and NO title search", async () => {
-  handler = (u) => (u.includes("/api/volumes/brief/") ? json({ records: { "/books/OL1M": { isbns: [FLW], data: { title: "The French Lieutenant's Woman" } } } }) : json({}, 404));
+  handler = (u) => (u.includes("/api/volumes/brief/") ? json({ records: { "/books/OL1M": { isbns: [FLW], data: { title: "The French Lieutenant's Woman" } } } }) : u.includes(`/b/isbn/${FLW}-`) ? new Response(null, { status: 200 }) : json({}, 404));
   const url = await findCoverUrl({ isbn: "0-330-29811-9", title: "The French Lieutenant's Woman", author: "John Fowles" });
   assert.equal(url, `https://covers.openlibrary.org/b/isbn/${FLW}-L.jpg?default=false`);
   assert.deepEqual(searchCalls(), [], "no title/author search is made for a cover");

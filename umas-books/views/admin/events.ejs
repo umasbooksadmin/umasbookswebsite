@@ -1,5 +1,9 @@
 <%- include('../partials/admin_header', { title: 'Events', active: active, pageTitle: 'Events', mainWide: view === 'week' }) %>
 
+<% if (typeof error !== "undefined" && error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<%- include('../partials/admin_bad_ranges', { rows: badRanges, noun: 'event', path: '/admin/events', editable: true }) %>
+<%# What was typed in a refused form is shown back in it (display only). %>
+<% const ov = typeof formOverlay !== "undefined" && formOverlay ? formOverlay : null; %>
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
 <% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
@@ -27,34 +31,36 @@
         <% } else { %>
           <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
             <div class="calendar-day-number"><%= day.day %></div>
-            <details class="calendar-pill calendar-add-pill">
+            <% const nv = ov && ov.newDate === day.dateKey ? ov.values : null; %>
+            <details class="calendar-pill calendar-add-pill"<%= nv ? ' open' : '' %>>
               <summary>+ Add event</summary>
               <div class="calendar-pill-body">
-                <form class="stack" method="post" action="/admin/events">
+                <form class="stack" method="post" action="/admin/events" data-saving-text="Saving&hellip;">
                   <%- include('../partials/csrf_field') %>
                   <input type="hidden" name="view" value="<%= view %>">
                   <input type="hidden" name="month" value="<%= view === 'month' ? currentMonth : '' %>">
                   <input type="hidden" name="week" value="<%= view === 'week' ? currentWeek : '' %>">
                   <input type="hidden" name="date" value="<%= day.dateKey %>">
                   <label for="title-new-<%= day.dateKey %>">Title</label>
-                  <input id="title-new-<%= day.dateKey %>" name="title" type="text" required>
+                  <input id="title-new-<%= day.dateKey %>" name="title" type="text" required value="<%= nv ? nv.title : '' %>">
                   <label for="start-new-<%= day.dateKey %>">Start time</label>
-                  <input id="start-new-<%= day.dateKey %>" name="startTime" type="time" required>
+                  <input id="start-new-<%= day.dateKey %>" name="startTime" type="time" required value="<%= nv ? nv.startTime : '' %>">
                   <label for="end-new-<%= day.dateKey %>">End time (optional)</label>
-                  <input id="end-new-<%= day.dateKey %>" name="endTime" type="time">
+                  <input id="end-new-<%= day.dateKey %>" name="endTime" type="time" value="<%= nv ? nv.endTime : '' %>">
                   <label for="loc-new-<%= day.dateKey %>">Location (optional)</label>
-                  <input id="loc-new-<%= day.dateKey %>" name="location" type="text">
+                  <input id="loc-new-<%= day.dateKey %>" name="location" type="text" value="<%= nv ? nv.location : '' %>">
                   <label for="cap-new-<%= day.dateKey %>">Capacity (optional)</label>
-                  <input id="cap-new-<%= day.dateKey %>" name="capacity" type="number" min="1">
+                  <input id="cap-new-<%= day.dateKey %>" name="capacity" type="number" min="0" max="100000" step="1" value="<%= nv ? nv.capacity : '' %>">
                   <label for="price-new-<%= day.dateKey %>">Price (&euro;, optional)</label>
-                  <input id="price-new-<%= day.dateKey %>" name="price" type="number" min="0" step="0.01" placeholder="Leave blank if free">
+                  <input id="price-new-<%= day.dateKey %>" name="price" type="number" min="0" step="0.01" placeholder="Leave blank if free" value="<%= nv ? nv.price : '' %>">
                   <div><button class="btn btn-small" type="submit">Add event</button></div>
                 </form>
               </div>
             </details>
             <% day.items.forEach(e => { %>
+              <% const ev = ov && ov.eventId === e.id ? ov.values : null; const vals = Object.assign({}, e, ev || {}); %>
               <% const full = e.capacity != null && e.signup_count >= e.capacity; const signups = signupsByEvent[e.id] || []; %>
-              <details class="calendar-pill<%= full ? ' is-full' : '' %>">
+              <details class="calendar-pill<%= full ? ' is-full' : '' %>"<%= ev ? ' open' : '' %>>
                 <summary><%= e.title %> &middot; <%= formatTime(e.starts_at) %></summary>
                 <div class="calendar-pill-body">
                   <div class="muted small">
@@ -81,26 +87,26 @@
                     </ul>
                   <% } %>
 
-                  <details style="margin-top:10px;">
+                  <details style="margin-top:10px;"<%= ev ? ' open' : '' %>>
                     <summary style="cursor:pointer; color: var(--maroon);">Edit</summary>
                     <form class="stack" method="post" action="/admin/events/<%= e.id %>?<%= qs %>" style="margin-top:10px;">
                       <%- include('../partials/csrf_field') %>
                       <label for="title-<%= e.id %>">Title</label>
-                      <input id="title-<%= e.id %>" name="title" type="text" required value="<%= e.title %>">
+                      <input id="title-<%= e.id %>" name="title" type="text" required value="<%= vals.title %>">
                       <label for="desc-<%= e.id %>">Description</label>
-                      <textarea id="desc-<%= e.id %>" name="description"><%= e.description || '' %></textarea>
+                      <textarea id="desc-<%= e.id %>" name="description"><%= vals.description || '' %></textarea>
                       <label for="loc-<%= e.id %>">Location</label>
-                      <input id="loc-<%= e.id %>" name="location" type="text" value="<%= e.location || '' %>">
+                      <input id="loc-<%= e.id %>" name="location" type="text" value="<%= vals.location || '' %>">
                       <label for="start-<%= e.id %>">Starts at</label>
-                      <input id="start-<%= e.id %>" name="startsAt" type="datetime-local" required value="<%= new Date(e.starts_at.getTime() - e.starts_at.getTimezoneOffset()*60000).toISOString().slice(0,16) %>">
+                      <input id="start-<%= e.id %>" name="startsAt" type="datetime-local" required value="<%= ev ? ev.startsAt : new Date(e.starts_at.getTime() - e.starts_at.getTimezoneOffset()*60000).toISOString().slice(0,16) %>">
                       <label for="end-<%= e.id %>">Ends at</label>
-                      <input id="end-<%= e.id %>" name="endsAt" type="datetime-local" value="<%= e.ends_at ? new Date(e.ends_at.getTime() - e.ends_at.getTimezoneOffset()*60000).toISOString().slice(0,16) : '' %>">
+                      <input id="end-<%= e.id %>" name="endsAt" type="datetime-local" value="<%= ev ? ev.endsAt : (e.ends_at ? new Date(e.ends_at.getTime() - e.ends_at.getTimezoneOffset()*60000).toISOString().slice(0,16) : '') %>">
                       <label for="cap-<%= e.id %>">Capacity</label>
-                      <input id="cap-<%= e.id %>" name="capacity" type="number" min="1" value="<%= e.capacity != null ? e.capacity : '' %>">
+                      <input id="cap-<%= e.id %>" name="capacity" type="number" min="0" max="100000" step="1" value="<%= ev ? ev.capacity : (e.capacity != null ? e.capacity : '') %>">
                       <label for="price-<%= e.id %>">Price (&euro;, optional)</label>
-                      <input id="price-<%= e.id %>" name="price" type="number" min="0" step="0.01" value="<%= e.price != null ? e.price : '' %>" placeholder="Leave blank if free">
+                      <input id="price-<%= e.id %>" name="price" type="number" min="0" step="0.01" value="<%= ev ? ev.price : (e.price != null ? e.price : '') %>" placeholder="Leave blank if free">
                       <%- include('../partials/admin_french_fields', { kind: 'event', idp: 'ev-' + e.id, fr, noun: 'event', saveLabel: 'Save changes',
-                           values: e, englishRow: e,
+                           values: vals, englishRow: e,
                            fields: [{ name: 'title', label: 'Title', type: 'text' }, { name: 'description', label: 'Description', type: 'textarea' }, { name: 'location', label: 'Location', type: 'text' }] }) %>
                       <div><button class="btn btn-small" type="submit">Save changes</button></div>
                     </form>

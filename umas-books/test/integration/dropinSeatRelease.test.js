@@ -177,3 +177,19 @@ test("releasing an already-released reservation changes nothing: its seat is nev
   assert.equal((await h.order(order.id)).status, "expired");
   assert.equal((await pool.query("SELECT status FROM class_dropin_seats WHERE id = $1", [seatId])).rows[0].status, "released");
 });
+
+test("a session saved with an end BEFORE its start never releases customers' seats early (the end is ignored)", async () => {
+  const { order, classId, seatId } = await reserveSeatAndBook();
+  // Starts in an hour, "ends" three hours before that: the old sweep saw an ended session and released the seat.
+  await pool.query("UPDATE classes SET starts_at = now() + interval '1 hour', ends_at = now() - interval '2 hours' WHERE id = $1", [classId]);
+  assert.equal(await releaseEndedSeats(pool), 0);
+  assert.equal((await pool.query("SELECT status FROM class_dropin_seats WHERE id = $1", [seatId])).rows[0].status, "reserved");
+  assert.equal(await seatsTaken(classId), 1);
+  assert.equal((await h.order(order.id)).status, "reserved");
+  // Same for an end equal to the start.
+  await pool.query("UPDATE classes SET starts_at = now() - interval '1 hour', ends_at = starts_at WHERE id = $1", [classId]);
+  assert.equal(await releaseEndedSeats(pool), 0, "an end equal to the start counts as no end time: the 3-hour fallback is not over yet");
+  // The fallback still lets it go once that has passed.
+  await pool.query("UPDATE classes SET starts_at = now() - interval '5 hours', ends_at = now() - interval '6 hours' WHERE id = $1", [classId]);
+  assert.equal(await releaseEndedSeats(pool), 1);
+});

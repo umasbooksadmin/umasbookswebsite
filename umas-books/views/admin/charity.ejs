@@ -1,5 +1,7 @@
 <%- include('../partials/admin_header', { title: 'Charity Vote', active: active, pageTitle: 'Charity Votes & Suggestions', pageSub: 'Manage charity options, view votes, and allow members to submit new ideas.' }) %>
 
+<% if (typeof flashError !== "undefined" && flashError) { %><div class="error-box" role="alert"><%= flashError %></div><% } %>
+
 <div class="ann-tabs">
   <a href="/admin/charity?tab=current" class="<%= tab === 'current' ? 'is-active' : '' %>">Current Vote</a>
   <a href="/admin/charity?tab=library" class="<%= tab === 'library' ? 'is-active' : '' %>">All Charities</a>
@@ -13,7 +15,7 @@
       <p class="muted">No vote is currently open.</p>
       <details style="margin-top:12px;">
         <summary class="btn btn-small" style="display:inline-block; cursor:pointer;">Start a New Vote</summary>
-        <form class="stack" method="post" action="/admin/charity-rounds" style="margin-top:14px; max-width:440px;">
+        <form class="stack" method="post" action="/admin/charity-rounds" data-saving-text="Saving&hellip;" style="margin-top:14px; max-width:440px;">
           <%- include('../partials/csrf_field') %>
           <label>Question</label>
           <input aria-label="Question" name="title" type="text" required placeholder="Which charity should we support next?">
@@ -95,7 +97,7 @@
             <hr style="margin:10px 0; border-color:var(--card-border);">
           <% } %>
           <div class="section-title" style="font-size:14px;">Or create a new charity</div>
-          <form class="stack" method="post" action="/admin/charities" enctype="multipart/form-data">
+          <form class="stack" method="post" action="/admin/charities" enctype="multipart/form-data" data-saving-text="Saving&hellip; please wait">
             <%- include('../partials/csrf_field') %>
             <input type="hidden" name="returnTab" value="current">
             <input type="hidden" name="addToCurrentVote" value="on">
@@ -247,7 +249,7 @@
     <div class="ann-panel">
       <div class="card">
         <div class="section-title">Add a Charity</div>
-        <form class="stack" method="post" action="/admin/charities" enctype="multipart/form-data">
+        <form class="stack" method="post" action="/admin/charities" enctype="multipart/form-data" data-saving-text="Saving&hellip; please wait">
           <%- include('../partials/csrf_field') %>
           <input type="hidden" name="returnTab" value="library">
           <label>Name</label>

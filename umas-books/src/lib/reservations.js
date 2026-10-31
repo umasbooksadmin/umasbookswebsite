@@ -38,8 +38,11 @@ const REMINDER_AT_DAYS = RESERVATION_DAYS - 3;
 const { RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SEAT_CANCEL_HOURS } = legal;
 
 // A session is over at its end time, or this long after its start when it has
-// none. `c` is the classes alias.
-const SESSION_OVER_SQL = `COALESCE(c.ends_at, c.starts_at + interval '${legal.SEAT_FALLBACK_SESSION_HOURS} hours')`;
+// none. An end that is not after the start is a typing mistake (the admin form
+// refuses it, but older rows may have one): it counts as "no end time", so a bad
+// row can never end a session at its start and release customers' seats early.
+// `c` is the classes alias.
+const SESSION_OVER_SQL = `CASE WHEN c.ends_at > c.starts_at THEN c.ends_at ELSE c.starts_at + interval '${legal.SEAT_FALLBACK_SESSION_HOURS} hours' END`;
 
 // Loaded lazily: unit tests load this file without a database.
 const lazyDb = () => require("../db");

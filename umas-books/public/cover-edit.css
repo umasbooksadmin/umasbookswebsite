@@ -38,3 +38,16 @@
 .cvr-readout { margin: 8px 0 10px; min-height: 1.4em; }
 .cvr-crop-form { margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .cvr-actions .btn span[aria-hidden] { font-size: 1.25em; line-height: 1; margin-right: 4px; }
+
+/* "Find a cover" (views/admin/inventory/find_cover.ejs): the candidate pictures from Open Library. Cards that wrap, one per row on a phone. */
+.cvr-find-current { display: flex; align-items: center; gap: 10px; margin: 0; }
+.cvr-find-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.cvr-find-item { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; border: 1px solid var(--card-border); border-radius: 6px; background: #fff; min-width: 0; }
+.cvr-find-item img { display: block; width: 120px; max-width: 100%; height: auto; min-height: 60px; border: 1px solid var(--card-border); border-radius: 3px; background: var(--cream); }
+.cvr-find-match { border-color: var(--maroon); box-shadow: 0 0 0 2px var(--maroon); }
+.cvr-find-info { min-width: 0; overflow-wrap: anywhere; }
+.cvr-find-flag { margin-bottom: 4px; font-size: .9rem; }
+.cvr-find-weak { color: var(--muted, #555); }
+.cvr-find-item form { margin: 0; margin-top: auto; }
+.cvr-find-item .btn { min-height: 44px; }
+.cvr-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 0; }

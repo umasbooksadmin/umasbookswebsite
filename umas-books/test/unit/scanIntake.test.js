@@ -203,3 +203,42 @@ test("shouldRefocusIsbn: the cursor never leaves a field the person is using (th
   assert.equal(S.shouldRefocusIsbn(el("SELECT"), isbn), false, "condition select");
   assert.equal(S.shouldRefocusIsbn(el("DIV", { isContentEditable: true }), isbn), false);
 });
+
+test("remembered choices: a binding remembered from the last book (or carried by the address) starts as chosen, so a lookup keeps it", () => {
+  assert.equal(S.bindingStartsChosen({ fromServer: false, remembered: true }), true, "the last binding is kept when the page is reloaded");
+  assert.equal(S.bindingStartsChosen({ fromServer: true, remembered: false }), true);
+  assert.equal(S.bindingStartsChosen({ fromServer: false, remembered: false }), false, "nothing remembered: the catalog's binding may select itself");
+  // end to end with the lookup: the Hobbit's catalog says Trade, the remembered binding is Hardcover
+  const hint = { key: "trade", label: "Trade" };
+  const kept = S.chooseBinding({ current: "hardcover", hint, available: ["hardcover", "trade"], touched: S.bindingStartsChosen({ remembered: true }), baseline: "hardcover" });
+  assert.equal(kept.value, "hardcover");
+  assert.equal(kept.helper, "Open Library says: Trade", "the catalog's answer is only shown");
+});
+
+test("remembered choices: after a save only binding, condition, location and source are kept", () => {
+  const kept = S.choicesToKeep({ location: "Shelf A", condition: "good", binding: "hardcover", source: "purchase", isbn: "9780143127550", title: "T", author: "A", price: "5", copyNotes: "n", coverUrl: "/img/x.jpg" });
+  assert.deepEqual(kept, { location: "Shelf A", condition: "good", binding: "hardcover", source: "purchase" });
+});
+
+// ---- a stalled request is given up, so Save is never blocked for ever
+
+test("timeoutSignal aborts the request after the limit, and clear() cancels the timer", () => {
+  const clock = fakeClock();
+  const t = S.timeoutSignal(12000, clock.setTimeoutFn, clock.clearTimeoutFn);
+  assert.equal(t.signal.aborted, false);
+  const u = S.timeoutSignal(12000, clock.setTimeoutFn, clock.clearTimeoutFn);
+  u.clear();
+  clock.advance(12000);
+  assert.equal(t.signal.aborted, true);
+  assert.equal(u.signal.aborted, false, "a finished request is not aborted later");
+  assert.equal(S.isTimeoutError(t.signal.reason) || S.isTimeoutError({ name: "AbortError" }), true);
+  assert.equal(S.isTimeoutError(new TypeError("Failed to fetch")), false);
+});
+
+test("the lookup limit is longer than the server's own 4 s lookup limit, and the page uses the signal on both requests", () => {
+  assert.ok(S.LOOKUP_TIMEOUT_MS >= 8000 && S.LOOKUP_TIMEOUT_MS <= 15000);
+  assert.ok(S.SAVE_TIMEOUT_MS > S.LOOKUP_TIMEOUT_MS);
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "../../public/scan-intake.js"), "utf8");
+  assert.match(src, /\/admin\/inventory\/lookup\?isbn=[^\n]*signal: limit\.signal/);
+  assert.match(src, /form\.getAttribute\("action"\)[^\n]*signal: limit\.signal/);
+});

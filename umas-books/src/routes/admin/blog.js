@@ -10,6 +10,7 @@ const { translatePost } = require("../../lib/blogTranslate");
 const { aiAdminLimiter } = require("../../middleware/rateLimits");
 const { clearSitemapCache } = require("../seo");
 
+const { LIMITS, lengthProblem } = require("../../lib/adminForm");
 const { redirectWithFlash, takePageFlash } = require("../../lib/postRedirect");
 const { validateIdParams } = require("../../middleware/idParams");
 const { parseId, clean } = require("../../lib/validation");
@@ -119,7 +120,12 @@ function readBlogForm(req) {
   let error = null;
   // An editor with only empty paragraphs/line breaks counts as empty.
   const bodyText = body.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "");
-  if (!title) error = "Please give the post a title. Nothing was saved.";
+  const tooLong = lengthProblem([
+    ["The title", title, LIMITS.title], ["The summary", excerpt, LIMITS.text], ["The tags", tags, LIMITS.line], ["The content", body, LIMITS.richText],
+    ["The French title", titleFr, LIMITS.title], ["The French summary", excerptFr, LIMITS.text], ["The French content", bodyFr, LIMITS.richText],
+  ]);
+  if (tooLong) error = tooLong;
+  else if (!title) error = "Please give the post a title. Nothing was saved.";
   else if (!bodyText && status !== "draft") error = "Please write some content before publishing or scheduling the post (a draft may stay empty). Nothing was saved.";
   else if (dateStr && !parisInstant(dateStr)) {
     error = "The publish date is not a valid date (use the date picker, or year-month-day like 2026-10-31). Nothing was saved.";

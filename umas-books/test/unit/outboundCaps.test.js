@@ -142,7 +142,8 @@ test("createInflight: concurrent callers share one run; the entry is cleaned up 
 test("20 concurrent lookups of the same ISBN make ONE set of outside calls, and each gets its own copy", async () => {
   process.env.SCAN_LOOKUP_SOURCES = "openlibrary";
   const urls = [];
-  const fetchImpl = async (url) => {
+  const fetchImpl = async (url, init = {}) => {
+    if (init.method === "HEAD") return new Response(null, { status: 404 }); // the exact-ISBN cover check is not a catalog request
     urls.push(String(url));
     await new Promise((r) => setTimeout(r, 30));
     return json(brief(ISBN, { title: "Shared", authors: [{ name: "A" }], publishers: [{ name: "P" }], publish_date: "2015" }));
