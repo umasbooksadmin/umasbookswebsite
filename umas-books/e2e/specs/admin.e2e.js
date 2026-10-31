@@ -517,6 +517,8 @@ s.test("A19e the AI usage report has the Send a test credit alert button (not pr
   has(text, /Send a test credit alert/);
 });
 s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (AC26, AC35, A63)");
+s.manual("A21b the sales report shares a pickup discount between books and drop-in seats", "needs real reservations collected by hand; covered by the integration test salesReportDiscountAndTillDate");
+s.manual("A21c the sales report dates a backdated Till reservation sale by the Till sale", "needs a real backdated Till sale; covered by the integration test salesReportDiscountAndTillDate");
 
 // ---- 5F. Book requests ----
 
