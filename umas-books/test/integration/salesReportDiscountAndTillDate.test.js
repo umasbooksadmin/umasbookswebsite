@@ -13,7 +13,7 @@ let h;
 let cart;
 let reports;
 before(async () => {
-  h = await tillHarness({ port: 4881, ip: "10.88.1.1" });
+  h = await tillHarness({ port: 4912, ip: "10.88.1.1" });
   cart = require("../../src/lib/cart");
   reports = require("../../src/lib/reports");
 });
