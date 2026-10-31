@@ -819,3 +819,4 @@ Copy this table for each full run.
 | | | 4 Volunteer | | |
 | | | 5 Admin | | |
 | | | 6 Edge cases | | |
+- [ ] **A136. Admin > Diagnostics > Lookup shows why Google Books lookups fail.** Admin > **Diagnostics > Book lookup sources**. **You should see:** on the Google Books row, either "No failed Google Books call since the site started" or "Failed calls since the site started: N of M" with a count per kind (for example `http 429: 3, timeout: 2`), the last failure with its Paris time and, when Google gave one, "Google says: ..." (80 characters at most), then a plain explanation of each kind and the note that the counts start again at zero when the app restarts or is redeployed. Scan a few ISBNs on Add a book and reload: the "of M" number grows. No web address and no key appears anywhere on the page.

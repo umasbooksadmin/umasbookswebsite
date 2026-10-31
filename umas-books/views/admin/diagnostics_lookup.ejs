@@ -6,7 +6,17 @@
     <tbody>
       <tr><th scope="row">Open Library</th><td>On (always the first choice)</td></tr>
       <tr><th scope="row">Bibliothèque nationale de France</th><td>On, asked for French-language ISBNs only</td></tr>
-      <tr><th scope="row">Google Books</th><td>On<%= googleKey ? ' (with a key)' : ' (no key: Google caps keyless use, it may answer "quota" and is then left alone for 10 minutes)' %></td></tr>
+      <tr><th scope="row">Google Books</th><td>On<%= googleKey ? ' (with a key)' : ' (no key: Google caps keyless use, it may answer "quota" and is then left alone for 10 minutes)' %>
+          <br>
+          <% if (!google.total) { %>
+            No failed Google Books call since the site started (<%= google.calls %> call<%= google.calls === 1 ? '' : 's' %>).
+          <% } else { %>
+            Failed calls since the site started: <%= google.total %> of <%= google.calls %>
+            (<% Object.keys(google.counts).sort().forEach(function (k, i) { %><%= i ? ', ' : '' %><%= k %>: <%= google.counts[k] %><% }) %>).
+            Last failure: <strong><%= google.lastKind %></strong> at <%= new Date(google.lastAt).toLocaleString('en-GB', { timeZone: 'Europe/Paris', dateStyle: 'medium', timeStyle: 'medium' }) %><%= google.lastReason ? ' (Google says: ' + google.lastReason + ')' : '' %>.
+          <% } %>
+          <br><small>What the failures mean: <code>http 429</code> or <code>http 403</code> = Google refused because a quota was used up (the site then leaves Google alone for 10 minutes); <code>http 400</code> = Google did not accept the request; <code>http 5xx</code> = a problem on Google&rsquo;s side; <code>timeout</code> = no answer in time; <code>network</code> = the connection failed; <code>parse</code> / <code>too large</code> = the answer was unreadable or over 1 MB. These counts live in memory and start again at zero whenever the app restarts or is redeployed. Nothing about the request (address or key) is kept.</small>
+        </td></tr>
       <tr>
         <th scope="row">ISBNdb (paid)</th>
         <td>

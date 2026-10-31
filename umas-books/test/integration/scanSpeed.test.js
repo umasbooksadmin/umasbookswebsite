@@ -283,3 +283,30 @@ test("diagnostics: /admin/diagnostics/lookup lists the sources, says ISBNdb is o
     await alone.close();
   }
 });
+
+test("diagnostics: /admin/diagnostics/lookup explains Google Books failures and the restart note, without the key", async () => {
+  const sources = require("../../src/lib/bookSources");
+  sources.resetSourcePauses();
+  const diag = express.Router();
+  const alone = await listen(buildApp([diag.use(require("../../src/routes/admin/diagnostics"))]));
+  try {
+    const get = () => realFetch(`${alone.base}/admin/diagnostics/lookup`, { headers: adminHeader() }).then((r) => r.text());
+    assert.match(await get(), /No failed Google Books call since the site started/);
+    process.env.GOOGLE_BOOKS_API_KEY = "google-secret-value";
+    try {
+      const forms = sources.isbnForms("9780143127550");
+      await sources.googleBooks({ forms, fetchImpl: async () => new Response(JSON.stringify({ error: { errors: [{ reason: "rateLimitExceeded" }] } }), { status: 429 }), signal: new AbortController().signal, helpers: { pickGenres: () => null } });
+      const html = await get();
+      assert.match(html, /Failed calls since the site started: 1 of 1/);
+      assert.match(html, /http 429: 1/);
+      assert.match(html, /Google says: rateLimitExceeded/);
+      assert.match(html, /start again at zero whenever the app restarts/);
+      assert.doesNotMatch(html, /google-secret-value/);
+    } finally {
+      delete process.env.GOOGLE_BOOKS_API_KEY;
+      sources.resetSourcePauses();
+    }
+  } finally {
+    await alone.close();
+  }
+});
