@@ -13,7 +13,7 @@
         <div class="book-detail-cover book-thumb-placeholder" aria-hidden="true"><%= tr('No cover', 'Pas de couverture') %></div>
       <% } %>
     </div>
-    <%- include('partials/cover_note', { coverNoteShow: isLibraryCover(book) }) %>
+    <%- include('partials/cover_note', { coverNoteShow: isLibraryCover(book), coverNoteLong: true }) %>
   </div>
 
   <div>
