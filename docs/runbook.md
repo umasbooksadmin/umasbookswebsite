@@ -1160,20 +1160,30 @@ finds a reservation by number, email or name.
 page use **Collect selected items**: tick the books being taken, choose how they
 paid, press the button. The ticked books are sold and paid. The books left
 behind move to a **new reservation** with the same deadline (the reservation page
-then shows "Related reservations" linking the two). This button only appears
-when the reservation holds more than one item.
+then shows "Related reservations" linking the two). If only a drop-in seat is
+left behind, its new reservation is held until the session is over, not the
+book deadline. This button only appears when the reservation holds more than one
+item.
 
 **A drop-in seat**: the customer pays at the session. After the session, open the
 reservation and press **Mark collected and paid** if you took the money (or
 leave it: the seat is released by itself once the session is over, and a
-reservation that is never collected simply ends as expired).
+reservation that is never collected simply ends as expired). A seat is always held
+until its own session, even when it was reserved together with books: when the
+books' 14 days run out, only the books go back on sale; the seat moves to a
+reservation of its own (shown under "Related reservations") and the customer's
+"your reservation has ended" email lists only the books and gives the seat's new
+reservation number. If you move a session to another day or time on **English
+Programs**, the reservations holding only seats for it follow the new time, and the
+24-hour reminder is sent again before the new time (the website does not tell the
+customers that the time changed: tell them yourself).
 
 **At the till.** If you use the till (`/admin/till`), you can collect the
 reservation there instead: type or scan **ORDER-** followed by the reservation
 number (or scan the **UB- label** of one of its books). All its lines appear at
 the reserved prices. Remove a line if the customer leaves that book or seat (a
 partial pickup: the rest stays reserved on a new reservation with the same
-deadline), then press **Cash** or **Card** as usual. The reservation is marked paid
+deadline, or until the session for a seat left on its own), then press **Cash** or **Card** as usual. The reservation is marked paid
 with that payment method, exactly as if you had pressed **Mark collected and
 paid** on its page. You can add walk-in books to the same sale. A till sale
 that collected a reservation cannot be voided at the till: to undo it, open the

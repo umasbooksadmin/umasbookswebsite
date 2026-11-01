@@ -1067,6 +1067,7 @@ s.test("A34c (must) Announcements editor has the French version section: the Fre
 });
 s.manual("A30c (must) an event's French version: Translate to French, Save, and /fr/events shows it", "changes the real events calendar and uses the paid AI button (counts toward the daily cap); do by hand");
 s.manual("A31c a session's French title and the French drop-in seat line", "changes the real sessions calendar and uses the AI button; do by hand");
+s.manual("A31d moving a session keeps the reservations holding its seats, and the 24-hour reminder follows the new time (covered by test/integration/seatHoldDeadlines.test.js)", "changes the real sessions calendar and needs a reserved seat: do by hand");
 s.manual("A36c charity: the French description and question", "changes the members' vote text and uses the AI button; do by hand");
 s.manual("A36d charity votes refuse a close date before the opening or a date that does not exist", "covered by test/integration/adminFormSafety.test.js");
 s.manual("A34b publish, schedule, pin, archive and delete announcements", "changes what members see; do by hand");

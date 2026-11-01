@@ -33,6 +33,7 @@ const { findJustMadeReservation } = require("./duplicateReservation");
 //   items:  cart lines as loaded by routes/cart.js (kind 'book' | 'dropin', price > 0)
 // Resolves the new order row. Rejects with an Error whose message is one of
 //   SOLD_OUT                 something in the cart was taken in the meantime
+//   SESSION_STARTED          a drop-in session in the cart has started since (err.sessions lists it: { classId, title, titleFr })
 //   NOT_FOR_SALE             a copy is still on the shelf but its price was cleared or set to 0 since the customer
 //                            saw the cart (err.titles lists them): not "taken by someone else"
 //   TOO_MANY_RESERVATIONS    the account (a guest: the email) already has MAX_ACTIVE_RESERVATIONS open
@@ -182,11 +183,18 @@ async function reserveInTransaction(client, { user, guest, base, email, name, ph
       // committed (READ COMMITTED re-checks the locked row, not subselects).
       await client.query("SELECT id FROM classes WHERE id = $1 FOR UPDATE", [classId]);
       const { rows: clsRows } = await client.query(
-        `SELECT capacity, dropin_price, ${seatsTakenExpr("classes")}::int AS seats_taken
+        `SELECT capacity, dropin_price, starts_at <= now() AS started, ${seatsTakenExpr("classes")}::int AS seats_taken
          FROM classes WHERE id = $1`,
         [classId]
       );
       const cls = clsRows[0];
+      if (cls && cls.started) {
+        // The session has begun (or is over): its seats can no longer be reserved.
+        const item = dropinItems.find((i) => i.classId === classId);
+        const err = new Error("SESSION_STARTED");
+        err.sessions = [{ classId, title: item.title, titleFr: item.titleFr || null }];
+        throw err;
+      }
       const spotsLeft = cls && cls.dropin_price != null && Number(cls.dropin_price) > 0
         ? (cls.capacity != null ? cls.capacity - cls.seats_taken : Infinity)
         : 0;
