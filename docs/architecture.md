@@ -778,7 +778,8 @@ contact form to the shop) goes through `lib/outbox.js`: **store, then send**.
   does erasing an address (rows are matched on `to_email` and on `subject_email`,
   the submitter's address on form mail, migration 068).
 - **Per-recipient throttle** (`THROTTLED_KINDS`: verification, signup_attempt,
-  password_reset, book_request_confirm, book_request_list): at most 1 mail per
+  password_reset, book_request_confirm, book_request_list; guest_reservation and
+  event_signup have their own daily budget per address, `OWN_BUDGET`): at most 1 mail per
   (recipient, kind) per 10 minutes, 5 per recipient per day, and a shop-wide
   ceiling per kind per hour (`THROTTLE` constants; `MAIL_GLOBAL_PER_HOUR`
   overrides, used by tests). A throttled request stores nothing and logs a

@@ -2,6 +2,10 @@ const express = require("express");
 const { pool, withTransaction } = require("../db");
 const { requireVolunteer } = require("../middleware/auth");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../lib/calendar");
+const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
+
+// What the calendar says after a sign-up (Post/Redirect/Get): 'signed_up' | 'full' | 'past', with the shift's role.
+const SIGNUP_FLASH = "volunteerSignup";
 
 const { validateIdParams } = require("../middleware/idParams");
 
@@ -29,7 +33,8 @@ router.get("/volunteer", requireVolunteer, async (req, res) => {
   );
 
   const weeks = range.buildWeeks(groupByDate(shifts, "starts_at"));
-  res.render("volunteer", { weeks, mySignedUpIds, myShifts: mySignups, view: range.view, ...range.nav });
+  const signupNotice = takePageFlash(req, res, SIGNUP_FLASH);
+  res.render("volunteer", { weeks, mySignedUpIds, myShifts: mySignups, signupNotice, view: range.view, ...range.nav });
 });
 
 router.post("/volunteer/:id/signup", requireVolunteer, async (req, res) => {
@@ -38,15 +43,21 @@ router.post("/volunteer/:id/signup", requireVolunteer, async (req, res) => {
   const backQuery = calendarBackQuery(req.query);
   const redirectUrl = backQuery ? `/volunteer?${backQuery}` : "/volunteer";
 
+  let shift;
   try {
     await withTransaction(pool, async (client) => {
       // Lock the shift row so two signups arriving at the same moment
       // can't both read the same "spots left" and both squeeze in —
       // same pattern as the event signup and the drop-in seat checkout
       // in lib/cart.js.
-      const { rows: shiftRows } = await client.query("SELECT * FROM volunteer_shifts WHERE id = $1 FOR UPDATE", [shiftId]);
-      const shift = shiftRows[0];
+      const { rows: shiftRows } = await client.query("SELECT *, starts_at <= now() AS started FROM volunteer_shifts WHERE id = $1 FOR UPDATE", [shiftId]);
+      shift = shiftRows[0];
       if (!shift) throw new Error("SHIFT_NOT_FOUND");
+      // A shift that has started (or is over) takes no more sign-ups (review 6B L5).
+      if (shift.started) throw new Error("SHIFT_STARTED");
+      // Already on it (a double click): say so, not "full" when this volunteer took the last place.
+      const { rows: mine } = await client.query("SELECT 1 FROM volunteer_signups WHERE shift_id = $1 AND user_id = $2", [shiftId, userId]);
+      if (mine.length) return;
 
       const { rows: countRows } = await client.query(
         "SELECT COUNT(*)::int AS n FROM volunteer_signups WHERE shift_id = $1", [shiftId]
@@ -60,10 +71,11 @@ router.post("/volunteer/:id/signup", requireVolunteer, async (req, res) => {
     });
   } catch (err) {
     if (err.message === "SHIFT_NOT_FOUND") return res.status(404).send(req.tr("Shift not found.", "Créneau introuvable."));
-    if (err.message === "AT_CAPACITY") return res.redirect(redirectUrl);
+    if (err.message === "SHIFT_STARTED") return redirectWithFlash(req, res, redirectUrl, SIGNUP_FLASH, { outcome: "past", role: shift.role });
+    if (err.message === "AT_CAPACITY") return redirectWithFlash(req, res, redirectUrl, SIGNUP_FLASH, { outcome: "full", role: shift.role });
     throw err;
   }
-  res.redirect(redirectUrl);
+  return redirectWithFlash(req, res, redirectUrl, SIGNUP_FLASH, { outcome: "signed_up", role: shift.role });
 });
 
 router.post("/volunteer/:id/cancel", requireVolunteer, async (req, res) => {

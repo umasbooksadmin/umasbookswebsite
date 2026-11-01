@@ -52,7 +52,7 @@ test(`${CONCURRENCY} concurrent event signups against capacity 1 produce exactly
       }).then((res) => res.status)
     )
   );
-  assert.ok(statuses.every((s) => s === 302), "every signup attempt should redirect regardless of outcome");
+  assert.ok(statuses.every((s) => s === 303), "every signup attempt should redirect (Post/Redirect/Get) regardless of outcome");
 
   const { rows: signups } = await pool.query("SELECT COUNT(*)::int AS n FROM event_signups WHERE event_id = $1", [eventId]);
   assert.equal(signups[0].n, 1);
@@ -96,7 +96,7 @@ test(`${CONCURRENCY} concurrent volunteer signups against capacity 1 produce exa
       return res.status;
     })
   );
-  assert.ok(statuses.every((s) => s === 302));
+  assert.ok(statuses.every((s) => s === 303));
 
   const { rows: signups } = await pool.query("SELECT COUNT(*)::int AS n FROM volunteer_signups WHERE shift_id = $1", [shiftId]);
   assert.equal(signups[0].n, 1);

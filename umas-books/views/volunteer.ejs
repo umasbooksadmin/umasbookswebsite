@@ -7,6 +7,16 @@
 <h1><%= tr('Volunteer Shifts', 'Créneaux de bénévolat') %></h1>
 <p class="muted"><%= tr("Sign up for a shift below. Uma's is entirely volunteer-run — every hour on the shop floor, every sorted donation, every event, is someone giving their time.", "Inscrivez-vous à un créneau ci-dessous. Uma’s repose entièrement sur des bénévoles — chaque heure en boutique, chaque don trié, chaque événement, c’est quelqu’un qui donne de son temps.") %></p>
 
+<% if (locals.signupNotice) { const v = { role: signupNotice.role || '' }; %>
+  <% if (signupNotice.outcome === 'signed_up') { %>
+    <div role="status" class="notice-box"><%= tr('You’re signed up for this shift: {role}.', 'Votre inscription à ce créneau est enregistrée : {role}.', v) %></div>
+  <% } else if (signupNotice.outcome === 'full') { %>
+    <div role="alert" class="error-box"><%= tr('Sorry, this shift is full: {role}. Your sign-up was not recorded.', 'Désolé, ce créneau est complet : {role}. Votre inscription n’a pas été enregistrée.', v) %></div>
+  <% } else if (signupNotice.outcome === 'past') { %>
+    <div role="alert" class="error-box"><%= tr('Sign-ups for this shift are closed: it has already started or is over ({role}).', 'Les inscriptions à ce créneau sont closes : il a déjà commencé ou est terminé ({role}).', v) %></div>
+  <% } %>
+<% } %>
+
 <% if (myShifts.length) { %>
   <div class="card">
     <div class="section-title"><%= tr('My upcoming shifts', 'Mes prochains créneaux') %></div>
@@ -44,7 +54,7 @@
           <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
             <div class="calendar-day-number"><span class="calendar-day-weekday"><%= weekdayNames[wi] %></span><%= day.day %></div>
             <% day.items.forEach(s => { %>
-              <% const full = s.signup_count >= s.capacity; const mine = mySignedUpIds.has(s.id); %>
+              <% const full = s.signup_count >= s.capacity; const mine = mySignedUpIds.has(s.id); const started = new Date(s.starts_at) <= new Date(); %>
               <details class="calendar-pill<%= full ? ' is-full' : '' %><%= mine ? ' is-mine' : '' %>">
                 <summary><%= s.role %> &middot; <%= formatTime(s.starts_at) %></summary>
                 <div class="calendar-pill-body">
@@ -58,6 +68,8 @@
                       <%- include('partials/csrf_field') %>
                       <button class="btn btn-outline btn-small" type="submit"><%= tr('Cancel', 'Annuler') %></button>
                     </form>
+                  <% } else if (started) { %>
+                    <div class="muted small"><%= tr('This shift has started or is over: sign-ups are closed.', 'Ce créneau a commencé ou est terminé : les inscriptions sont closes.') %></div>
                   <% } else { %>
                     <form method="post" action="/volunteer/<%= s.id %>/signup?<%= qs %>" style="margin-top:8px;">
                       <%- include('partials/csrf_field') %>

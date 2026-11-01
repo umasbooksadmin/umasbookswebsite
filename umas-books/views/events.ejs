@@ -24,6 +24,24 @@
   </div>
 </section>
 
+<% if (locals.signupNotice) { const n = signupNotice; const v = { title: n.title || '', email: n.email || '', contact: legalText.contactEmail }; %>
+<div class="fcal-wrap fcal-signup-notice">
+  <% if (n.outcome === 'signed_up') { %>
+    <div role="status" class="notice-box"><%= tr('You’re signed up for “{title}”. We’ve sent a confirmation to {email}, with a link to cancel if you need to.', 'Votre inscription à « {title} » est enregistrée. Nous avons envoyé une confirmation à {email}, avec un lien pour annuler si besoin.', v) %></div>
+  <% } else if (n.outcome === 'already') { %>
+    <div role="status" class="notice-box"><%= tr('This email address is already signed up for “{title}”. To cancel, use the link in the email we sent you.', 'Cette adresse e-mail est déjà inscrite à « {title} ». Pour annuler, utilisez le lien de l’e-mail que nous vous avons envoyé.', v) %></div>
+  <% } else if (n.outcome === 'full') { %>
+    <div role="alert" class="error-box"><%= tr('Sorry, “{title}” is full: your sign-up was not recorded.', 'Désolé, « {title} » est complet : votre inscription n’a pas été enregistrée.', v) %></div>
+  <% } else if (n.outcome === 'past') { %>
+    <div role="alert" class="error-box"><%= tr('“{title}” has already started or taken place, so sign-ups are closed.', '« {title} » a déjà commencé ou a déjà eu lieu : les inscriptions sont closes.', v) %></div>
+  <% } else if (n.outcome === 'busy') { %>
+    <div role="alert" class="error-box"><%= tr('We can’t take this sign-up right now. Please try again later, or email us at {contact}.', 'Nous ne pouvons pas enregistrer cette inscription pour le moment. Veuillez réessayer plus tard, ou écrivez-nous à {contact}.', v) %></div>
+  <% } else { %>
+    <div role="alert" class="error-box"><%= tr('Please give your name and a valid email address to sign up.', 'Veuillez indiquer votre nom et une adresse e-mail valide pour vous inscrire.') %></div>
+  <% } %>
+</div>
+<% } %>
+
 <div class="fcal-wrap<%= view === 'week' ? ' is-week' : '' %>">
   <%- include('partials/calendar_grid', { monWeeks, qs, itemPartial: 'calendar_item_event', emptyKind: 'events', nextUrl: '/events?' + nextHref }) %>
 </div>

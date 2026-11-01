@@ -59,8 +59,9 @@ const FAST_PATH_WAIT_MS = 5000;
 
 // Kinds whose body is a live login/confirmation link. The link is single-use
 // and short-lived, so the body is blanked as soon as the mail is sent.
-// guest_reservation / guest_reservation_confirmed carry a guest's confirm and manage links (lib/guestOrders.js).
-const TOKEN_KINDS = new Set(["verification", "password_reset", "book_request_confirm", "book_request_list", "signup_attempt", "guest_reservation", "guest_reservation_confirmed"]);
+// guest_reservation / guest_reservation_confirmed carry a guest's confirm and manage links (lib/guestOrders.js);
+// event_signup carries the link that cancels an event sign-up (routes/events.js).
+const TOKEN_KINDS = new Set(["verification", "password_reset", "book_request_confirm", "book_request_list", "signup_attempt", "guest_reservation", "guest_reservation_confirmed", "event_signup"]);
 // How long the link inside such a mail works; a still-pending mail older than
 // this is dead weight (and a live link in the database) and is expired.
 // verification / password_reset match lib/emailVerification.js (24 h) and
@@ -77,20 +78,26 @@ const TOKEN_LIFETIME_MINUTES = {
 
 // Kinds an anonymous visitor can trigger toward ANY address they type. Order and
 // reservation confirmations, reminders and admin mail are never in this set.
-const THROTTLED_KINDS = new Set(["verification", "signup_attempt", "password_reset", "book_request_confirm", "book_request_list", "guest_reservation"]);
+const THROTTLED_KINDS = new Set(["verification", "signup_attempt", "password_reset", "book_request_confirm", "book_request_list", "guest_reservation", "event_signup"]);
 const THROTTLE = {
   intervalMinutes: 10, // at most 1 mail per (recipient, kind) per this many minutes
   perRecipientPerDay: 5, // and at most this many throttled-kind mails (verification, password reset, ...) per recipient per 24 h
   // guest_reservation has its OWN daily budget and counts only its own kind: an anonymous visitor typing someone's
   // address must not use up that person's 5 verification / password-reset mails, and vice versa.
   guestReservationPerRecipientPerDay: 3,
+  // event_signup (the "you're signed up" mail of the public event form) has its own budget too, for the same reason.
+  // One address gets at most one per event anyway (one sign-up per address and event).
+  eventSignupPerRecipientPerDay: 5,
   // Shop-wide ceiling per kind per hour: a flood of DIFFERENT addresses cannot
   // make Gmail (about 2000 a day) refuse the order confirmations. Trade-off: a
   // determined flood can use the ceiling up and delay genuine signups for an
   // hour (the per-IP limits still apply first); the log counter shows it. The
   // MAIL_GLOBAL_PER_HOUR environment variable overrides all of them (tests).
-  globalPerHour: { verification: 100, signup_attempt: 100, password_reset: 60, book_request_confirm: 60, book_request_list: 60, guest_reservation: 60 },
+  globalPerHour: { verification: 100, signup_attempt: 100, password_reset: 60, book_request_confirm: 60, book_request_list: 60, guest_reservation: 60, event_signup: 60 },
 };
+// Kinds with their own daily budget per recipient (the THROTTLE key holding it); they count only their own kind, and
+// the shared budget of the other throttled kinds does not count them.
+const OWN_BUDGET = { guest_reservation: "guestReservationPerRecipientPerDay", event_signup: "eventSignupPerRecipientPerDay" };
 const throttleCounts = new Map(); // "kind:reason" -> number since boot (never any address)
 const getThrottleCounts = () => Object.fromEntries(throttleCounts);
 const resetThrottleCounts = () => throttleCounts.clear();
@@ -145,8 +152,8 @@ async function enqueueThrottled(db, msg, { mode, limits } = {}) {
   try {
     if (own) await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [`mailthrottle:${String(msg.to).toLowerCase()}`]);
-    const ownBudget = msg.kind === "guest_reservation";
-    const budgetKinds = ownBudget ? [msg.kind] : [...THROTTLED_KINDS].filter((k) => k !== "guest_reservation");
+    const ownBudget = OWN_BUDGET[msg.kind];
+    const budgetKinds = ownBudget ? [msg.kind] : [...THROTTLED_KINDS].filter((k) => !OWN_BUDGET[k]);
     const { rows: [r] } = await client.query(
       `SELECT count(*) FILTER (WHERE kind = $2 AND created_at > now() - ($3 * interval '1 minute'))::int AS recent,
               count(*)::int AS day
@@ -156,7 +163,7 @@ async function enqueueThrottled(db, msg, { mode, limits } = {}) {
     );
     let reason = null;
     if (mode !== "skipInterval" && r.recent >= 1) reason = "interval";
-    else if (r.day >= (ownBudget ? t.guestReservationPerRecipientPerDay : t.perRecipientPerDay)) reason = "daily";
+    else if (r.day >= (ownBudget ? t[ownBudget] : t.perRecipientPerDay)) reason = "daily";
     if (!reason) {
       const cap = globalCap(msg.kind, limits);
       if (Number.isFinite(cap)) {
