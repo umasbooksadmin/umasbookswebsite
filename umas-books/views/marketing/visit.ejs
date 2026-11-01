@@ -28,6 +28,7 @@
           </span>
         </div>
       </div>
+      <p class="muted small visit-selection" data-i18n="visit.selection">Our online catalogue is a selection from the shop. We have many more second-hand books on the shelves than we list here, and new donations arrive regularly. Can't find a title? Ask us or drop in, and we'll look.</p>
     </div>
   </div>
 <% const pageI18nEn = {
@@ -43,6 +44,7 @@
   "visit.hours.note": "{shopHoursShort}",
   "visit.contact.l": "Contact",
   "visit.phone.aria": "Phone: {shopPhone}",
+  "visit.selection": "Our online catalogue is a selection from the shop. We have many more second-hand books on the shelves than we list here, and new donations arrive regularly. Can't find a title? Ask us or drop in, and we'll look.",
 }; %>
 <% const pageI18nFr = {
   "meta.title": "Nous rendre visite — Uma’s Books and Adventures",
@@ -57,5 +59,6 @@
   "visit.hours.note": "{shopHoursShort}",
   "visit.contact.l": "Contact",
   "visit.phone.aria": "Téléphone\u00a0: {shopPhone}",
+  "visit.selection": "Notre catalogue en ligne n’est qu’une sélection de la boutique. Nous avons beaucoup plus de livres d’occasion en rayon que ceux listés ici, et de nouveaux dons arrivent régulièrement. Vous ne trouvez pas un titre\u00a0? Demandez-nous ou passez à la boutique, nous chercherons.",
 }; %>
 <%- include('partials/mkt_footer', { pageI18nEn: fillVat(pageI18nEn, 'en'), pageI18nFr: fillVat(pageI18nFr, 'fr') }) %>

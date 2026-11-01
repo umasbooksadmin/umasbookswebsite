@@ -40,6 +40,8 @@
   "bk.band.ask.d": "Tell us what you are looking for and we'll email you if a copy arrives. No account needed.",
   "bk.band.ask.cta": "Ask us",
   "bk.empty.ask": "Can't find it? Ask us to look out for it.",
+  "bk.selnote": "What you see online is only part of our shelves. Many more books are in the shop and not listed here, so come and browse.",
+  "bk.empty.long": "Our online catalogue is a selection from the shop. We have many more second-hand books on the shelves than we list here, and new donations arrive regularly. Can't find a title? Ask us or drop in, and we'll look.",
 }; -%>
 <% const pageI18nFr = {
   "meta.title": "Livres — Uma’s Books and Adventures",
@@ -82,6 +84,8 @@
   "bk.band.ask.d": "Dites-nous ce que vous cherchez et nous vous écrirons si un exemplaire arrive. Aucun compte nécessaire.",
   "bk.band.ask.cta": "Demander",
   "bk.empty.ask": "Introuvable ? Demandez-nous de le chercher pour vous.",
+  "bk.selnote": "Ce que vous voyez en ligne n’est qu’une partie de nos étagères. Beaucoup d’autres livres sont en boutique sans figurer ici\u00a0: venez fouiner.",
+  "bk.empty.long": "Notre catalogue en ligne n’est qu’une sélection de la boutique. Nous avons beaucoup plus de livres d’occasion en rayon que ceux listés ici, et de nouveaux dons arrivent régulièrement. Vous ne trouvez pas un titre\u00a0? Demandez-nous ou passez à la boutique, nous chercherons.",
 }; -%>
 <%# The genre button labels (g.<slug>) come from the managed genres (Admin > Genres), in the page dictionaries like every other text. Book genres are English on both sites (Sharon, 2026-10-28): the French dictionary gets the English label, marked lang="en" on /fr/ (the "All Genres" button stays French). -%>
 <% browseGenres.forEach(function (g) { pageI18nEn[g.key] = g.labelEn; pageI18nFr[g.key] = g.labelFr; }); -%>
@@ -115,6 +119,7 @@
         <input type="search" id="shop-search-input" data-i18n-attr="placeholder:bk.search.ph;aria-label:bk.search.label" placeholder="Search books…" aria-label="Search by title, author, keyword, or genre">
         <button type="submit" data-i18n="bk.search.submit">Search</button>
       </form>
+      <p class="bk-selnote" id="bk-selnote" data-i18n="bk.selnote">What you see online is only part of our shelves. Many more books are in the shop and not listed here, so come and browse.</p>
     </div>
 
 
