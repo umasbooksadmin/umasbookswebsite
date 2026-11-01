@@ -29,6 +29,11 @@
     </details>
 
     <img id="cover-preview" class="book-cover-preview" alt=""<% if (book.coverUrl) { %> src="<%= book.coverUrl %>"<% } else { %> hidden<% } %>>
+    <%# Filled by public/scan-intake.js for a book found without a cover of its exact ISBN: Open Library candidates, picked by hand. %>
+    <div class="cover-picks" data-cover-picks hidden aria-live="polite">
+      <p class="muted small" data-cover-picks-text></p>
+      <ul class="cover-picks-list" data-cover-picks-list></ul>
+    </div>
 
     <div class="intake-grid">
     <div class="field field-wide">
@@ -114,6 +119,7 @@
     <label for="coverUrl">Cover image URL</label>
     <input id="coverUrl" name="coverUrl" type="text" value="<%= book.coverUrl || '' %>">
     <input type="hidden" name="coverOrigin" value="<%= book.coverOrigin || '' %>">
+    <input type="hidden" name="chosenCoverId" value=""><%# the cover number picked in the Find a cover row under the preview (public/scan-intake.js) %>
 
     <% if (!book.coverUrl) { %>
       <button type="button" class="btn btn-outline" style="align-self: flex-start;" data-trigger-file="coverPhoto">No cover found — Take or Upload a Photo</button>

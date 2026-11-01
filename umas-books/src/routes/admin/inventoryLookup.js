@@ -79,6 +79,7 @@ router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.que
         coverUrl: stocked.cover_url || (found && found.coverUrl) || null,
         genre: stocked.categories || (found && found.genre) || null,
         binding: stocked.binding || (found && found.binding) || null,
+        coverOrigin: !stocked.cover_url && found && found.coverUrl ? "isbn" : null, // the catalog has this exact ISBN's cover (the preview may still be downloading it)
       }
     : found && {
         title: found.title, author: found.author, publisher: found.publisher, publishedYear: found.publishedYear,
