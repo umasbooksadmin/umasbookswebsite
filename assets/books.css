@@ -34,6 +34,7 @@
   .bk-search { max-width: min(1020px, calc(100% - 2 * 190px)); }
 }
 .bk-search-row { padding: 0 0 22px; }
+.bk-selnote { font-size: 13px; opacity: .75; margin: 10px 0 0; overflow-wrap: anywhere; }
 
 /* ---------- Browse by Collection / Browse by Genre ----------
    Both are a heading above a carousel: the same side-arrow carousel as New In (.bk-carousel / .bk-track, below), with

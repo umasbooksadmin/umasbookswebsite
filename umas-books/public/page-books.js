@@ -116,9 +116,12 @@
   }
   // The "cover images come from an online book library" note: only under books whose cover came from one (lib/coverNote.js).
   var coverNote = resultsEl.querySelector('[data-cover-note]');
+  // The quiet "online is only part of our shelves" line under the search box; a search with no match shows the longer text instead.
+  var selNote = document.getElementById('bk-selnote');
   function drawBooks(books) {
+    if (selNote) selNote.hidden = !books.length;
     if (coverNote) coverNote.hidden = !books.some(function (b) { return b.libraryCover; });
-    if (!books.length) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.empty')) + ' <a href="' + esc(UI.href('/request-a-book')) + '">' + esc(t('bk.empty.ask')) + '</a></p>'; return; }
+    if (!books.length) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.empty')) + '</p><p class="bk-selnote">' + esc(t('bk.empty.long')) + '</p><p class="muted"><a href="' + esc(UI.href('/request-a-book')) + '">' + esc(t('bk.empty.ask')) + '</a></p>'; return; }
     resultsGrid.innerHTML = books.map(function (b) { return UI.bookCardHtml(b, true); }).join('');
     syncFavorites(resultsGrid);
     if (window.UmasCart) window.UmasCart.sync(resultsGrid);

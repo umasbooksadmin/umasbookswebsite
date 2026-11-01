@@ -189,6 +189,8 @@ img { max-width: 100%; display: block; }
 .scheduletable th { font-family: var(--font-serif); text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; color: var(--gold-dark); font-weight: 600; }
 
 .visit-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; max-width: 62ch; margin: 0 auto; text-align: center; }
+/* The "online catalogue is a selection" line under the hours. */
+.visit-selection { max-width: 62ch; margin: 28px auto 0; text-align: center; }
 @media (max-width: 620px) { .visit-grid { grid-template-columns: 1fr; gap: 30px; } }
 .visit-item .label { font-family: var(--font-serif); text-transform: uppercase; font-weight: 600; letter-spacing: 0.1em; font-size: 13.5px; color: var(--gold-dark); display: block; margin-bottom: 8px; }
 .visit-item .value { font-size: 17px; color: var(--ink); }
