@@ -8,6 +8,7 @@
 const { localCover } = require("./coverStore");
 const { likeContains } = require("./parseParams");
 const { BUY_COPY_SQL, BUY_FROM_SQL } = require("./cardCart");
+const { LIBRARY_COVER_SQL } = require("./coverNote");
 const { genresLabel } = require("./genres");
 const { frenchPlainText } = require("./frenchTypography");
 // Required when used: the pure helpers of this file are loaded by unit tests that have no database.
@@ -34,7 +35,7 @@ const APPROVED_IN_STOCK_FROM = `FROM curated_collection_books cb
 // Each row also carries the book's genre (categories, English in both languages) and the AI's reason (reason, reason_fr) for bookExtras().
 async function approvedInStockBooks(pool, collectionId, { offset = 0, limit = null } = {}) {
   const { rows } = await pool.query(
-    `SELECT b.id, b.title, b.authors, b.cover_url, b.categories, cb.reason, cb.reason_fr,
+    `SELECT b.id, b.title, b.authors, b.cover_url, ${LIBRARY_COVER_SQL("b")} AS library_cover, b.categories, cb.reason, cb.reason_fr,
             (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
             ${BUY_COPY_SQL("b.id")} AS buy_copy_id,
             ${BUY_FROM_SQL("b.id")} AS buy_from_price

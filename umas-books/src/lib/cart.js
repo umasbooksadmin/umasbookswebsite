@@ -20,6 +20,7 @@ const { seatsTakenExpr } = require("./classCapacity");
 const { SITE_TIME_ZONE } = require("./tz");
 const { RESERVATION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SESSION_OVER_SQL, expireOrderReservations } = require("./reservations");
 const { startGuestHold, queueGuestResend, assertGuestHoldCapacity } = require("./guestOrders");
+const { findJustMadeReservation } = require("./duplicateReservation");
 
 // ---------- the reservation ----------
 
@@ -41,7 +42,9 @@ const { startGuestHold, queueGuestResend, assertGuestHoldCapacity } = require(".
 //   PRICE_CHANGED            a price differs from what the customer saw (err.changes lists them)
 //   BUSY                     deadlock twice in a row
 // (Anything else is an unexpected failure.)
-async function createReservation(pool, { user = null, guest = null, base = "", name, phone = null, items, lang = null, hasDropin = false, acceptedVersion }) {
+// A second press of Reserve for the reservation just made (lib/duplicateReservation.js; formShownAt: the form's hidden
+// field) resolves that reservation with duplicate: true: nothing new is reserved and no second email is sent.
+async function createReservation(pool, { user = null, guest = null, base = "", name, phone = null, items, lang = null, hasDropin = false, acceptedVersion, formShownAt = null }) {
   if (!user === !guest) throw new Error("createReservation: exactly one of user and guest");
   const bookItems = items.filter((i) => i.kind === "book");
   const dropinItems = items.filter((i) => i.kind === "dropin");
@@ -49,7 +52,7 @@ async function createReservation(pool, { user = null, guest = null, base = "", n
   const total = cents / 100;
   const email = String((user || guest).email).toLowerCase();
 
-  const attempt = (client) => reserveInTransaction(client, { user, guest, base, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion });
+  const attempt = (client) => reserveInTransaction(client, { user, guest, base, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion, formShownAt });
   let order;
   try {
     order = await withTransaction(pool, attempt);
@@ -75,9 +78,16 @@ function priceChangedError(changes) {
   return err;
 }
 
-async function reserveInTransaction(client, { user, guest, base, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion }) {
+async function reserveInTransaction(client, { user, guest, base, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion, formShownAt = null }) {
   // One reservation at a time per account (a guest: per email address), so the limits below cannot be raced past.
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [user ? `reserve-user:${user.id}` : `reserve-guest:${email}`]);
+  // Under that lock a double tap's second request sees the first one's reservation (committed by now): answered with
+  // it, before the limits and the copies (which it holds) could refuse with a wrong reason.
+  const same = await findJustMadeReservation(client, user ? { userId: user.id } : { email, ip: guest.ip || null }, [...bookItems, ...dropinItems], { formShownAt });
+  if (same) {
+    const { rows: existing } = await client.query("SELECT * FROM orders WHERE id = $1", [same.id]);
+    return { ...existing[0], confirmationId: null, duplicate: true };
+  }
 
   // A guest's limits count every open GUEST reservation of the address, confirmed or not
   // (attached to an account since or not), whatever the case of the address.

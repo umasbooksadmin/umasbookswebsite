@@ -9,7 +9,10 @@
   // The server renders <html lang="en|fr"> from the person's language.
   var fr = (document.documentElement.lang || "").toLowerCase().indexOf("fr") === 0;
   function t(en, frText) { return fr ? frText : en; }
+  // The "cover images come from an online book library" note: only when a listed book's cover came from one (lib/coverNote.js).
+  var coverNote = typeof document.querySelector === "function" ? document.querySelector("[data-cover-note]") : null;
   function render(books) {
+    if (coverNote) coverNote.hidden = !books.some(function (b) { return b.libraryCover; });
     if (!books.length) {
       list.innerHTML = fr
         ? '<p class="muted">Aucun favori pour l’instant\u00a0: parcourez les <a href="/books">livres</a> et touchez le cœur de ceux qui vous plaisent.</p>'

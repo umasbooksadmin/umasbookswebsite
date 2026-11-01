@@ -10,9 +10,10 @@ const { redirectWithFlash, takePageFlash } = require("../../lib/postRedirect");
 const { LIMITS, lengthProblem } = require("../../lib/adminForm");
 
 const { validateIdParams } = require("../../middleware/idParams");
-const { parseId, clean } = require("../../lib/validation");
+const { parseId, clean, parseDay } = require("../../lib/validation");
 const { likeContains } = require("../../lib/parseParams");
 const { makeBackQuery, oneOf, text } = require("../../lib/backQuery");
+const { parisInstant, parisDateString } = require("../../lib/tz");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -40,6 +41,23 @@ function resolveAnnouncementStatus(action, scheduledAt) {
   if (action === "schedule" && scheduledAt) return { status: "scheduled", publishedAt: new Date(scheduledAt) };
   return { status: "published", publishedAt: new Date() };
 }
+
+// The expiration date (an <input type=date>, "YYYY-MM-DD") means "shown until the END of that day in Paris" (review
+// 6B L3): stored as the instant the next Paris day starts. new Date("2026-11-05") was UTC midnight, so the announcement
+// disappeared at 01:00 or 02:00 Paris on the 5th itself. -> { value: Date|null } | { error } (not a real date).
+const EXPIRY_INVALID = "The expiration date must be a real date, like 2026-11-05.";
+function parseExpiry(body) {
+  if (body.expiresEnabled !== "on" || !String(body.expiresAt || "").trim()) return { value: null };
+  const day = parseDay(String(body.expiresAt), { label: "The expiration date" });
+  if (day.error || !day.value) return { error: EXPIRY_INVALID };
+  const [y, m, d] = day.value.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+  const value = parisInstant(next);
+  return value ? { value } : { error: EXPIRY_INVALID };
+}
+// The day the edit form shows for a stored expiry: the last Paris day it is still shown (also right for an expiry saved
+// before this change, at UTC midnight of the chosen day).
+const expiryDayOf = (expiresAt) => (expiresAt ? parisDateString(new Date(new Date(expiresAt).getTime() - 1)) : "");
 
 // The list filters to return to, rebuilt from a whitelist (lib/backQuery.js), never appended as posted.
 const announcementBack = makeBackQuery({
@@ -109,7 +127,7 @@ router.get("/admin/announcements", requireAdmin, async (req, res) => {
   let editing = null;
   if (parseId(req.query.edit) !== null) {
     const { rows } = await pool.query("SELECT * FROM announcements WHERE id = $1", [parseId(req.query.edit)]);
-    editing = rows[0] || null;
+    editing = rows[0] ? { ...rows[0], expires_day: expiryDayOf(rows[0].expires_at) } : null;
   }
 
   res.render("admin/announcements", {
@@ -132,12 +150,14 @@ router.post("/admin/announcements", requireAdmin, async (req, res) => {
   const body = sanitizeHtml((req.body.body || "").trim());
   const category = ANNOUNCEMENT_CATEGORIES.includes(req.body.category) ? req.body.category : null;
   const isPinned = req.body.pinned === "on";
-  const expiresAt = req.body.expiresEnabled === "on" && req.body.expiresAt ? new Date(req.body.expiresAt) : null;
+  const expiry = parseExpiry(req.body);
+  const expiresAt = expiry.value || null;
   const eventId = parseId(req.body.eventId);
   const { status, publishedAt } = resolveAnnouncementStatus(req.body.statusAction, req.body.scheduledAt);
   const backQuery = announcementBackQuery(req);
 
   if (!title || !body) return res.redirect(`/admin/announcements${backQuery}`);
+  if (expiry.error) return redirectWithFlash(req, res, `/admin/announcements${backQuery}`, "adminAnnouncements", { error: expiry.error });
 
   // The optional French version (title, summary, content): "" is stored as NULL = no French for that part; the
   // content passes the same sanitising as the English one.
@@ -192,12 +212,14 @@ router.post("/admin/announcements/:id", requireAdmin, async (req, res) => {
   const body = sanitizeHtml((req.body.body || "").trim());
   const category = ANNOUNCEMENT_CATEGORIES.includes(req.body.category) ? req.body.category : null;
   const isPinned = req.body.pinned === "on";
-  const expiresAt = req.body.expiresEnabled === "on" && req.body.expiresAt ? new Date(req.body.expiresAt) : null;
+  const expiry = parseExpiry(req.body);
+  const expiresAt = expiry.value || null;
   const eventId = parseId(req.body.eventId);
   const { status, publishedAt } = resolveAnnouncementStatus(req.body.statusAction, req.body.scheduledAt);
   const backQuery = announcementBackQuery(req);
 
   if (!title || !body) return res.redirect(`/admin/announcements${backQuery}`);
+  if (expiry.error) return redirectWithFlash(req, res, `/admin/announcements${backQuery}`, "adminAnnouncements", { error: expiry.error });
 
   const french = frenchText.readFrench("announcement", req.body);
   if (french.excerpt_fr) french.excerpt_fr = french.excerpt_fr.slice(0, 200);
@@ -209,7 +231,11 @@ router.post("/admin/announcements/:id", requireAdmin, async (req, res) => {
   const clearImage = !imageFile && req.body.removeImage === "on";
 
   await pool.query(
-    `UPDATE announcements SET title=$1, excerpt=$2, body=$3, category=$4, status=$5, published_at=$6,
+    // "Publish now" on an announcement that has already been out keeps its date (review 6B L3), like the Publish and
+    // Restore buttons (COALESCE below): fixing a typo must not make a three-week-old announcement "today" and move it to
+    // the top. A never-published draft, or one scheduled for later, is dated now.
+    `UPDATE announcements SET title=$1, excerpt=$2, body=$3, category=$4, status=$5,
+       published_at = CASE WHEN $5 = 'published' AND published_at IS NOT NULL AND published_at <= now() THEN published_at ELSE $6::timestamptz END,
        image_url = CASE WHEN $7::text IS NOT NULL THEN $7 WHEN $8 THEN NULL ELSE image_url END,
        is_pinned=$9, expires_at=$10, event_id=$11, title_fr=$13, excerpt_fr=$14, body_fr=$15, updated_at=now()
      WHERE id=$12`,

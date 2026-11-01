@@ -1,1 +1,5 @@
-<p class="cover-note"><%= tr('Cover images come from an online book library and may not show the actual condition of the copy in our shop.', 'Les couvertures proviennent d’une bibliothèque de livres en ligne et peuvent ne pas refléter l’état réel de l’exemplaire en boutique.') %></p>
+<%# Only for covers that came from an online book library (lib/coverNote.js), never for the shop's own photos or a book
+    with no cover (review 6B L4). coverNoteShow: true = shown, false = left out, 'client' = written hidden, for the page's
+    script to show once it has drawn a book with such a cover. %>
+<% const _coverNoteShow = locals.coverNoteShow === undefined ? true : locals.coverNoteShow; %>
+<% if (_coverNoteShow) { %><p class="cover-note" data-cover-note<%= _coverNoteShow === 'client' ? ' hidden' : '' %>><%= tr('Cover images come from an online book library and may not show the actual condition of the copy in our shop.', 'Les couvertures proviennent d’une bibliothèque de livres en ligne et peuvent ne pas refléter l’état réel de l’exemplaire en boutique.') %></p><% } %>

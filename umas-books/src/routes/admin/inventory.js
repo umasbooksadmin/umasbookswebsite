@@ -19,7 +19,7 @@ const { prepareIntakeForm, priceUi, computeSuggestion } = require("../../lib/pri
 const { setFlash, takeFlash } = require("../../lib/flash");
 const { validateIdParams } = require("../../middleware/idParams");
 const fastScan = require("../../lib/fastScan");
-const { parseIntakeInput, prepareIntake, intakeRefusal, saveBookAndCopy, afterSaveFollowUps, intakeAnswer, processCoverPhoto, parsePublishedYear, matchBookRequests, BUSY_MESSAGE } = require("../../lib/inventoryIntake");
+const { parseIntakeInput, prepareIntake, intakeRefusal, saveBookAndCopy, afterSaveFollowUps, intakeAnswer, processCoverPhoto, parsePublishedYear, matchBookRequests, resolveEditedIsbn, BUSY_MESSAGE } = require("../../lib/inventoryIntake");
 const { asTyped, statusLabelOf, parseCopyEdit, priceCopyEdit, copyEditOverlay, updateCopy, cancelReservation, deleteBook, deleteCopy } = require("../../lib/inventoryCopies");
 const { serverTiming } = require("../../lib/timing");
 const { aiAdminLimiter, AI_LIMIT_MESSAGE } = require("../../middleware/rateLimits");
@@ -589,25 +589,14 @@ router.get("/admin/inventory/:id", requireAdmin, async (req, res) => {
   return renderBook(res, id, f && f.error ? String(f.error) : null, hasOrdersNotice(req), (f && f.overlay) || {});
 });
 
-// Saving a book with an EMPTY description makes the server write one with the paid AI (English only); that is
-// counted against the same per-admin 10-a-minute limit as the other AI buttons. A normal save, with a description
-// typed, never calls the AI to write one and is never limited. A refusal brings the admin back to the book with
-// what was typed and the same sentence as the other AI buttons.
-const bookEditLimiter = aiAdminLimiter({
-  skip: (req) => !clean(req.body && req.body.title, 500) || Boolean(clean(req.body && req.body.description, 5000)),
-  handler: (req, res) => {
-    const b = req.body || {};
-    return bookBack(req, res, Number(req.params.id), { error: AI_LIMIT_MESSAGE, overlay: {
-      book: { isbn: clean(b.isbn, 40) || null, title: clean(b.title, 500), authors: clean(b.author, 500) || null, publisher: clean(b.publisher, 500) || null, published_year: clean(b.publishedYear, 10), description: "", cover_url: clean(b.coverUrl, 1000) || null },
-    } });
-  },
-});
-
-router.post("/admin/inventory/:id", requireAdmin, bookEditLimiter, async (req, res) => {
+// Saving a book never writes an AI description (review 6B M5): an empty description box stays empty. The owner cleared
+// AI-guessed descriptions on purpose (migration 110); a description is written only on the first intake of a book that
+// is new to the shop, or with the "Generate description" button, which the admin reviews before saving.
+router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const title = (req.body.title || "").trim();
   const author = (req.body.author || "").trim() || null;
-  const isbn = req.body.isbn ? normalizeIsbn(req.body.isbn) : null;
+  const typedIsbn = clean(req.body.isbn, 40);
   const publisher = (req.body.publisher || "").trim() || null;
   const yearCheck = parsePublishedYear(req.body.publishedYear);
   const publishedYear = yearCheck.value ?? null;
@@ -619,9 +608,17 @@ router.post("/admin/inventory/:id", requireAdmin, bookEditLimiter, async (req, r
 
   if (yearCheck.error) {
     return bookBack(req, res, id, { error: yearCheck.error, overlay: {
-      book: { isbn, title, authors: author, publisher, published_year: asTyped(req.body.publishedYear), description, cover_url: coverUrl },
+      book: { isbn: typedIsbn || null, title, authors: author, publisher, published_year: asTyped(req.body.publishedYear), description, cover_url: coverUrl },
     } });
   }
+  // The add-book form's ISBN rules (valid, ISBN-10 stored as ISBN-13, not another book's): lib/inventoryIntake.js.
+  const isbnCheck = title ? await resolveEditedIsbn(pool, id, typedIsbn) : { isbn: null };
+  if (isbnCheck.error) {
+    return bookBack(req, res, id, { error: isbnCheck.error, overlay: {
+      book: { isbn: typedIsbn || null, title, authors: author, publisher, published_year: publishedYear, description, cover_url: coverUrl },
+    } });
+  }
+  const { isbn } = isbnCheck;
 
   if (title) {
     const coverPhoto = req.files && req.files.coverPhoto && req.files.coverPhoto[0];
@@ -633,10 +630,7 @@ router.post("/admin/inventory/:id", requireAdmin, bookEditLimiter, async (req, r
     let coverOrigin = coverPhoto ? "photo" : (coverUrl && !(current && coverUrl === current.cover_url) ? coverOriginOf(coverUrl) : null);
     const coverRemoved = Boolean(current && current.cover_removed_at);
     const typedCover = coverUrl;
-    [description, coverUrl] = await Promise.all([
-      description || generateBookDescription({ title, author, publisher, publishedYear }),
-      coverUrl || (coverRemoved ? null : findCoverUrl({ isbn })), // exact ISBN only, never a title search
-    ]);
+    coverUrl = coverUrl || (coverRemoved ? null : await findCoverUrl({ isbn })); // exact ISBN only, never a title search
     if (!typedCover && coverUrl) coverOrigin = "isbn";
     const cover = await prepareCover(coverUrl);
     try {

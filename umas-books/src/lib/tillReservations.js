@@ -39,16 +39,18 @@ const ITEMS_SQL = `
 
 const held = (r, orderId) => (r.book_copy_id != null ? r.copy_status === "reserved" && r.cart_order_id === orderId : r.seat_status === "reserved");
 
-// -> { error } | { order: { id, name, email }, items: [row...] } (only items still held).
+// -> { error } | { order: { id, name, reservedUntil }, items: [row...] } (only items still held). The buyer's email is
+// never read here: this answer goes to the till page, which a till-only account (no admin, no two-step) can use, and
+// the till shows only the number and the name (review 6A L1).
 async function loadReservation(db, orderId) {
-  const { rows } = await db.query("SELECT id, status, buyer_name, buyer_email, reserved_until FROM orders WHERE id = $1", [orderId]);
+  const { rows } = await db.query("SELECT id, status, buyer_name, reserved_until FROM orders WHERE id = $1", [orderId]);
   const order = rows[0];
   if (!order) return { error: `No reservation ${orderId}.` };
   if (order.status !== "reserved") return { error: `Reservation #${orderId} ${NOT_OPEN[order.status] || `is ${order.status}`}.` };
   const { rows: all } = await db.query(ITEMS_SQL, [orderId]);
   const items = all.filter((r) => held(r, orderId));
   if (!items.length) return { error: `Nothing is held for reservation #${orderId} any more (its books were sold or released). Cancel it from the reservation page.` };
-  return { order: { id: order.id, name: order.buyer_name, email: order.buyer_email, reservedUntil: order.reserved_until }, items };
+  return { order: { id: order.id, name: order.buyer_name, reservedUntil: order.reserved_until }, items };
 }
 
 // The order that holds a copy (for a scanned UB- label), or null.

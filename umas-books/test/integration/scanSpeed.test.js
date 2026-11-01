@@ -241,7 +241,7 @@ test("save: a book saved without a cover gets one found afterwards (from the cat
   assert.equal(calls.catalog, catalogCalls, "no second catalog call: it was remembered");
 });
 
-test("save: a second copy of a book that lacks its texts fills them afterwards without delaying the answer", async () => {
+test("save: a second copy of a book that lacks its description is answered at once and gets no AI description (review 6B M5)", async () => {
   process.env.ANTHROPIC_API_KEY = "test-key";
   const isbn = isbn13();
   await save({ isbn, title: "Two Copies", description: "d", coverUrl: "" });
@@ -252,7 +252,7 @@ test("save: a second copy of a book that lacks its texts fills them afterwards w
   assert.ok(r.ms < 800, `answered in ${r.ms.toFixed(0)} ms`);
   await settled();
   const row = await bookRow(isbn);
-  assert.equal(row.description, "A description.");
+  assert.equal(row.description, null, "an empty description (perhaps cleared on purpose) stays empty");
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM book_copies WHERE book_id = $1", [row.id])).rows[0].n, 2);
 });
 

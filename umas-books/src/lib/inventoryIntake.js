@@ -214,7 +214,9 @@ async function createBookAndCopy(pool, input, ctx, time) {
       if (binding && !existing.binding) {
         await pool.query("UPDATE books SET binding = $1, updated_at = now() WHERE id = $2", [binding, bookId]);
       }
-      // A description or a cover the book still lacks is fetched AFTER the answer (lib/bookFill.js).
+      // A cover the book still lacks is fetched AFTER the answer (lib/bookFill.js), and a description typed on the form
+      // fills an empty one. No AI description is written for a book already in the shop (review 6B M5): an empty one
+      // may have been cleared on purpose (migration 110).
       if (!existing.description || !existing.cover_url) fillAfterSave = true;
     }
   }
@@ -285,6 +287,30 @@ async function createBookAndCopy(pool, input, ctx, time) {
   return { state: "saved", bookId, copyId: copyRows[0].id, isNewBook, fillAfterSave, coverUrl };
 }
 
+// ---------- Editing a book's ISBN (POST /admin/inventory/:id) ----------
+
+// The ISBN typed on a book's edit form, by the same rules as the add-book form (review 6B L1): blank is allowed (no
+// ISBN); anything else must be a real ISBN-10 or ISBN-13; an ISBN-10 is stored as its ISBN-13; and the ISBN of ANOTHER
+// book, in either form, is refused (the unique index compares the stored text only, so an ISBN-10 typed for a book whose
+// twin is stored as ISBN-13 used to slip through). An ISBN left as it was stored is kept as it is, so an old book with
+// an odd ISBN can still have its other details corrected.
+// -> { isbn } | { error }
+async function resolveEditedIsbn(db, bookId, raw) {
+  const typed = String(raw || "").trim();
+  if (!typed) return { isbn: null };
+  const normalized = normalizeIsbn(typed);
+  const { rows: [current] } = await db.query("SELECT isbn FROM books WHERE id = $1", [bookId]);
+  if (current && current.isbn && normalized === normalizeIsbn(current.isbn)) return { isbn: current.isbn };
+  if (!normalized || !isValidIsbn(normalized)) return { error: INVALID_ISBN };
+  const isbn = normalized.length === 10 ? isbn10to13(normalized) : normalized;
+  const { rows: twins } = await db.query(
+    "SELECT id, title FROM books WHERE upper(isbn) = ANY($1) AND id <> $2 ORDER BY id LIMIT 1", [isbnVariants(isbn), bookId]);
+  if (twins.length) {
+    return { error: `Another book already has this ISBN (in its 10- or 13-digit form): "${twins[0].title}" (book #${twins[0].id}). Nothing was saved. Check the number, or add this copy to that book instead.` };
+  }
+  return { isbn };
+}
+
 // ---------- After the copy exists ----------
 
 // Matching customers' book requests must never stop a book from being saved:
@@ -309,7 +335,8 @@ async function afterSaveFollowUps(pool, saved, input, ctx) {
   // Cover and description: fetched now that the copy is saved and the answer is on its way.
   if (saved.fillAfterSave) {
     const { isbn, title, author, publisher, publishedYear, description } = input;
-    const hints = { isbn, title, author, publisher, publishedYear, description, coverUrl: saved.coverUrl };
+    // The AI writes a description only for a book new to the shop (its first intake), never for a later copy.
+    const hints = { isbn, title, author, publisher, publishedYear, description, coverUrl: saved.coverUrl, aiDescription: saved.isNewBook };
     runAfterResponse(`fill book ${saved.bookId}`, () => fillBookGaps(pool, saved.bookId, hints));
   }
 
@@ -336,5 +363,5 @@ function intakeAnswer(input, { copyId, bookId, title, requests }, wantsJson) {
 
 module.exports = {
   parseIntakeInput, prepareIntake, intakeRefusal, saveBookAndCopy, afterSaveFollowUps, intakeAnswer,
-  processCoverPhoto, parsePublishedYear, matchBookRequests, TITLE_REQUIRED, BUSY_MESSAGE,
+  processCoverPhoto, parsePublishedYear, matchBookRequests, resolveEditedIsbn, TITLE_REQUIRED, BUSY_MESSAGE, INVALID_ISBN,
 };

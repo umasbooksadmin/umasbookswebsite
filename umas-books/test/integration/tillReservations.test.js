@@ -63,6 +63,25 @@ test("scan ORDER-<n>: the reservation's lines come in at the reserved prices (bo
   assert.equal((await h.scan(`order ${r.order.id}`)).body.type, "reservation");
 });
 
+test("a till-only account scanning ORDER-<n> gets the number and the name, never the customer's email; the opening is audited (review 6A L1)", async () => {
+  const r = await reserve({ prices: [5] });
+  const cashier = await h.makeUser({ till: true, name: "Volunteer cashier" });
+  const s = await h.json("/admin/till/scan", { code: `ORDER-${r.order.id}`, have: "[]" }, cashier.jar);
+  assert.equal(s.status, 200);
+  assert.equal(s.body.type, "reservation");
+  assert.equal(s.body.order.name, "Till Reserver");
+  assert.equal(s.body.order.email, undefined, "no email in the answer");
+  assert.ok(!JSON.stringify(s.body).includes(r.user.email), "the address appears nowhere in the answer");
+  const logged = (await h.audit("till.reservation_open")).filter((a) => a.target_type === "order" && Number(a.target_id) === r.order.id);
+  assert.equal(logged.length, 1);
+  assert.match(logged[0].detail, /by till account/);
+  // An admin's scan (the label of a held book opens it too) is recorded without that note.
+  await h.scan(`UB-${r.copyIds[0]}`);
+  const both = (await h.audit("till.reservation_open")).filter((a) => Number(a.target_id) === r.order.id);
+  assert.equal(both.length, 2);
+  assert.equal(both[1].detail, "opened at the till");
+});
+
 test("scanning the label of a book that a reservation holds opens that reservation (no 'reserved for a customer' dead end)", async () => {
   const r = await reserve({ prices: [7, 3] });
   const s = await h.scan(`UB-${r.copyIds[1]}`);

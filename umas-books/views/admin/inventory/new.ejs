@@ -125,7 +125,7 @@
     <label for="description">Description</label>
     <textarea id="description" name="description"><%= book.description || '' %></textarea>
     <div><button type="button" class="btn btn-outline btn-small" data-generate-description="description">Generate description</button></div>
-    <p class="muted small">Preview an AI description above, or leave blank to have one generated automatically when you save.</p>
+    <p class="muted small">Preview an AI description above, or leave blank to have one generated automatically when you save a book that is new to the shop (a later copy, or a later edit, never adds one).</p>
 
     <div class="section-title" style="margin-top:10px;">This copy</div>
     <p class="muted small">Condition guide: <% conditions.forEach(c => { %><strong><%= c.label %>:</strong> <%= c.description %> <% }) %></p>

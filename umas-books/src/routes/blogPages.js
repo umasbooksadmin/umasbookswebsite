@@ -13,6 +13,7 @@
 
 const express = require("express");
 const { pool } = require("../db");
+const { isFullAdmin } = require("../middleware/auth");
 const blog = require("../lib/blogPosts");
 const { renderMarketing } = require("../lib/pageDictionary");
 const { setMarketingSeoLocals } = require("./seo");
@@ -24,7 +25,8 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,199}$/;
 const BRAND = "Uma's Books and Adventures";
 const DESCRIPTION_MAX = 160;
 
-const isAdminPreview = (req) => req.query.preview === "1" && Boolean(req.session && req.session.user && req.session.user.isAdmin);
+// An admin's preview of drafts: only with the same two-step condition as the admin pages (middleware/auth.js isFullAdmin).
+const isAdminPreview = (req) => req.query.preview === "1" && isFullAdmin(req);
 
 function truncate(text, max) {
   if (text.length <= max) return text;

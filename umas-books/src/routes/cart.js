@@ -1,5 +1,6 @@
 const express = require("express");
 const { localCover } = require("../lib/coverStore");
+const { LIBRARY_COVER_SQL } = require("../lib/coverNote");
 const { pool } = require("../db");
 const { createReservation } = require("../lib/cart");
 const { expireStaleReservations, cancelReservationAsCustomer, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SEAT_CANCEL_HOURS } = require("../lib/reservations");
@@ -15,6 +16,7 @@ const { clean, parseId, isEmail } = require("../lib/validation");
 const { CART_RETURN, safeReturnTo } = require("../lib/returnTo");
 const { checkoutLimiter, cartEditLimiter, limit, ipKey } = require("../middleware/rateLimits");
 const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
+const { findJustMadeReservation, parseFormShownAt, rememberReservation, justReservedInSession } = require("../lib/duplicateReservation");
 
 const router = express.Router();
 
@@ -98,7 +100,7 @@ async function loadCartItems(cart) {
 
   if (bookLines.length) {
     const { rows } = await pool.query(
-      `SELECT c.id, c.price, c.condition, b.title, b.authors, b.cover_url
+      `SELECT c.id, c.price, c.condition, b.title, b.authors, b.cover_url, ${LIBRARY_COVER_SQL("b")} AS library_cover
        FROM book_copies c JOIN books b ON b.id = c.book_id
        WHERE c.id = ANY($1::int[]) AND c.status = 'in_stock'
          AND c.price IS NOT NULL AND c.price > 0
@@ -111,7 +113,7 @@ async function loadCartItems(cart) {
       if (!r) continue; // no longer in stock — dropped, same as before
       items.push({
         kind: "book", lineId: line.lineId, copyId: r.id,
-        title: r.title, authors: r.authors, coverUrl: localCover(r.cover_url), price: Number(r.price), condition: r.condition,
+        title: r.title, authors: r.authors, coverUrl: localCover(r.cover_url), libraryCover: r.library_cover, price: Number(r.price), condition: r.condition,
       });
     }
   }
@@ -339,6 +341,24 @@ async function reservationRefusal(req, err, cart, { guest }) {
   return req.tr("Sorry, something in your cart was just taken by someone else. Please review your cart and try again.", "Désolé, un article de votre panier vient d’être pris par quelqu’un d’autre. Veuillez vérifier votre panier et réessayer.");
 }
 
+// A second press of Reserve (a double tap) for the reservation this customer has just made (lib/duplicateReservation.js):
+// the cart is emptied as the first press did, and the customer lands on that reservation's page, not on an error.
+async function toJustMadeReservation(req, res, order) {
+  req.session.cart = [];
+  await saveSession(req);
+  return res.redirect(`/cart/return?order=${order.access_token}`);
+}
+
+// That reservation, when there is one: from the session when the first press has already finished (the cart it emptied
+// came with this request), else from the database (lib/duplicateReservation.js). -> { access_token } | null
+async function justMadeReservation(req, cart, owner, formShownAt) {
+  if (!cart.length) {
+    const token = justReservedInSession(req.session, formShownAt);
+    return token ? { access_token: token } : null;
+  }
+  return owner ? findJustMadeReservation(pool, owner, cart, { formShownAt }) : null;
+}
+
 // POST /cart/reserve: "Reserve these books". NOTHING IS PAID ONLINE: the copies
 // and seats are held for the customer (RESERVATION_DAYS for books), who pays in
 // person at the shop or at the class session. See lib/cart.js createReservation.
@@ -379,6 +399,10 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
   if (account.state === "unconfirmed") {
     return refuse(req.tr("Please confirm your email address before reserving: open the link we sent you when you signed up.", "Veuillez confirmer votre adresse e-mail avant de réserver : ouvrez le lien que nous vous avons envoyé lors de votre inscription."));
   }
+  // A double tap whose first press has already reserved (its copies are no longer in the cart loaded above).
+  const formShownAt = parseFormShownAt(req.body.formShownAt);
+  const justMade = await justMadeReservation(req, cart, { userId: account.user.id }, formShownAt);
+  if (justMade) return toJustMadeReservation(req, res, justMade);
   if (!name) name = clean(account.user.display_name, 100);
 
   if (!items.length) return refuse(req.tr("Your cart is empty.", "Votre panier est vide."));
@@ -391,7 +415,7 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
   let order;
   try {
     order = await createReservation(pool, {
-      user: account.user, name, phone, items: priced, lang: req.lang, hasDropin: false, acceptedVersion: TERMS_OF_SALE_VERSION,
+      user: account.user, name, phone, items: priced, lang: req.lang, hasDropin: false, acceptedVersion: TERMS_OF_SALE_VERSION, formShownAt,
     });
   } catch (err) {
     return refuse(await reservationRefusal(req, err, cart, { guest: false }));
@@ -402,6 +426,7 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
   // unguessable UUID, see migrations/019) rather than order.id in the URL: the
   // id is sequential.
   req.session.cart = [];
+  rememberReservation(req.session, order); // a second press arriving after this one lands on it too
   await saveSession(req);
   res.redirect(`/cart/return?order=${order.access_token}`);
 });
@@ -455,6 +480,10 @@ router.post("/cart/guest/reserve", checkoutLimiter, async (req, res) => {
     ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
   }));
   const refuse = (error) => redirectWithFlash(req, res, GUEST_FORM, "cartGuest", { error, name, email, phone: phone || "" });
+  // A double tap whose first press has already reserved: the same address from the same connection (see the lib).
+  const formShownAt = parseFormShownAt(req.body.formShownAt);
+  const justMade = await justMadeReservation(req, cart, isEmail(email) ? { email, ip: ipKey(req) } : null, formShownAt);
+  if (justMade) return toJustMadeReservation(req, res, justMade);
 
   // Preview mode: nothing can be reserved (the cart page says so).
   if (isPreviewMode()) return redirectWithFlash(req, res, CART_RETURN, "cart", { error: null });
@@ -465,7 +494,7 @@ router.post("/cart/guest/reserve", checkoutLimiter, async (req, res) => {
   let order;
   try {
     order = await createReservation(pool, {
-      guest: { email, ip: ipKey(req) }, base: baseUrl(req), name, phone, items: withSeenPrices(req, items), lang: req.lang, hasDropin: false, acceptedVersion: TERMS_OF_SALE_VERSION,
+      guest: { email, ip: ipKey(req) }, base: baseUrl(req), name, phone, items: withSeenPrices(req, items), lang: req.lang, hasDropin: false, acceptedVersion: TERMS_OF_SALE_VERSION, formShownAt,
     });
   } catch (err) {
     // A shop-wide limit (not one visitor's own) refused this: tell the admin, at most once an hour.
@@ -475,6 +504,7 @@ router.post("/cart/guest/reserve", checkoutLimiter, async (req, res) => {
   }
   // Held now; the reservation page says "check your email" until the link is opened.
   req.session.cart = [];
+  rememberReservation(req.session, order); // a second press arriving after this one lands on it too
   await saveSession(req);
   res.redirect(`/cart/return?order=${order.access_token}`);
 });

@@ -9,7 +9,7 @@
 <% if (!items.length) { %>
   <div class="card"><p class="muted"><%= tr('Your cart is empty.', 'Votre panier est vide.') %> <a href="/books.html"><%= tr('Browse books', 'Parcourez les livres') %></a> <%= tr('or', 'ou') %> <a href="/sessions"><%= tr('browse drop-in sessions', 'les séances drop-in') %></a> <%= tr('to add some.', 'pour en ajouter.') %></p></div>
 <% } else { %>
-  <%- include('partials/cover_note') %>
+  <%- include('partials/cover_note', { coverNoteShow: items.some((i) => i.libraryCover) }) %>
   <div class="cart-list">
     <% items.forEach(i => { %>
       <div class="cart-item">
@@ -67,8 +67,9 @@
     <% const hasBooks = items.some((i) => i.kind === 'book'); const hasSeats = items.some((i) => i.kind === 'dropin'); %>
     <div class="card">
       <h2 class="section-title"><%= tr('Reservation', 'Réservation') %></h2>
-      <form class="stack" method="post" action="/cart/reserve">
+      <form class="stack" method="post" action="/cart/reserve" data-saving-text="<%= tr('Reserving…', 'Réservation en cours…') %>">
         <%- include('partials/csrf_field') %>
+        <input type="hidden" name="formShownAt" value="<%= Date.now() %>">
         <% items.filter((i) => i.kind === 'book').forEach((i) => { %><input type="hidden" name="seenPrice_<%= i.copyId %>" value="<%= i.price.toFixed(2) %>"><% }) %>
         <label for="name"><%= tr('Name', 'Nom') %></label>
         <input id="name" name="name" type="text" autocomplete="name" value="<%= locals.accountName || '' %>" required>

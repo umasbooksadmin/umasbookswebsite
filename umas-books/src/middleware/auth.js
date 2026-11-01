@@ -107,12 +107,24 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// Two-step verification is missing where it is required: such an admin session may only reach the setup page.
+const needsTwoStep = (u) => admin2faRequired() && !u.totpEnabled;
+
+// Whether this request may use admin powers: an admin who has passed requireAdmin's two-step condition. Used wherever a
+// page that is not behind requireAdmin shows an admin something extra (blog drafts with ?preview=1, hidden forum posts),
+// so that extra is never available to an admin session that requireAdmin itself would send to the setup page
+// (review 6A L4).
+function isFullAdmin(req) {
+  const u = req && req.session && req.session.user;
+  return Boolean(u && u.isAdmin && !needsTwoStep(u));
+}
+
 function requireAdmin(req, res, next) {
   if (!req.session.user) return res.redirect("/login");
   if (!req.session.user.isAdmin) return res.status(403).send(adminsOnly(req));
   // Admins must have two-step verification: until it is set up, the only
   // thing an admin session can do is reach the setup page.
-  if (admin2faRequired() && !req.session.user.totpEnabled) return res.redirect("/account/2fa?required=1");
+  if (needsTwoStep(req.session.user)) return res.redirect("/account/2fa?required=1");
   next();
 }
 
@@ -162,4 +174,4 @@ function requireVolunteer(req, res, next) {
   next();
 }
 
-module.exports = { admin2faRequired, attachUser, requireAuth, requireAdmin, requireTillOrAdmin, TILL_IDLE_MS, requireMember, requireVolunteer };
+module.exports = { admin2faRequired, isFullAdmin, attachUser, requireAuth, requireAdmin, requireTillOrAdmin, TILL_IDLE_MS, requireMember, requireVolunteer };
