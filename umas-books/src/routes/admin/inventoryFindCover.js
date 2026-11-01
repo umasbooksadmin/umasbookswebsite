@@ -72,7 +72,7 @@ const thumbs = new Map(); // coverId -> { jpeg, expires }
 const THUMB_MAX = 80;
 const THUMB_TTL_MS = 10 * 60 * 1000;
 
-router.get("/admin/inventory/:id/find-cover/thumb/:coverId", requireAdmin, thumbLimiter, async (req, res) => {
+async function sendThumb(req, res) {
   const coverId = parseCoverId(req.params.coverId);
   if (!coverId) return res.status(404).render("404");
   try {
@@ -90,7 +90,36 @@ router.get("/admin/inventory/:id/find-cover/thumb/:coverId", requireAdmin, thumb
   } catch {
     return res.status(404).type("text/plain").send("No picture");
   }
+}
+router.get("/admin/inventory/:id/find-cover/thumb/:coverId", requireAdmin, thumbLimiter, sendThumb);
+
+// ---- The same candidates inside the Add a book page (public/scan-intake.js): the book is not saved yet, so there is no id.
+// Asked by the page AFTER the preview has appeared, with the title/author/ISBN on the form. Nothing is applied here: the page
+// shows the pictures and the admin presses "Use this cover"; the chosen cover number travels with the form and is saved with the book
+// (lib/inventoryIntake.js, cover_origin 'chosen', audit cover.choose). Same search code and cache as above (lib/coverSearch.js).
+const scanTooBusy = (req, res) => res.status(429).json({ ok: false, state: "busy" });
+const scanSearchLimiter = coverEditLimiter({ max: 30, handler: scanTooBusy }); // a book with no exact cover costs at most four cached requests
+const scanThumbLimiter = coverEditLimiter({ max: 240, handler: (req, res) => res.status(429).type("text/plain").send("Busy") });
+const clip = (v, n) => String(v == null ? "" : v).slice(0, n).trim();
+
+router.get("/admin/inventory/scan-cover/candidates", requireAdmin, scanSearchLimiter, async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const year = Number(clip(req.query.year, 4));
+  try {
+    const result = await findCoverCandidates({
+      title: clip(req.query.title, 200), authors: clip(req.query.author, 100), isbn: clip(req.query.isbn, 20),
+      publisher: clip(req.query.publisher, 100), publishedYear: Number.isInteger(year) && year > 0 ? year : null,
+    });
+    return res.json({
+      ok: true, state: result.state,
+      candidates: result.candidates.map((c) => ({ coverId: c.coverId, kind: c.kind, isbnMatch: c.isbnMatch, title: c.title, publisher: c.publisher, year: c.year, language: c.language })),
+    });
+  } catch (err) {
+    console.warn("Scan cover candidates failed:", err.message);
+    return res.json({ ok: true, state: "error", candidates: [] });
+  }
 });
+router.get("/admin/inventory/scan-cover/thumb/:coverId", requireAdmin, scanThumbLimiter, sendThumb);
 
 router.post("/admin/inventory/:id/find-cover/choose", requireAdmin, chooseLimiter, async (req, res) => {
   const book = await loadBook(req, res);

@@ -103,3 +103,11 @@
 .scan-reset-choices { margin: 0; }
 .scan-link-button { background: none; border: 0; padding: 0; font: inherit; color: var(--maroon-dark); text-decoration: underline; cursor: pointer; min-height: 32px; }
 .scan-link-button:focus-visible { outline: 3px solid var(--maroon-dark); outline-offset: 2px; }
+
+/* Find a cover candidates under the preview (public/scan-intake.js): a small row of thumbnails, each with "Use this cover". */
+.cover-picks[hidden] { display: none; }
+.cover-picks-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; gap: 10px; overflow-x: auto; }
+.cover-pick { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 0 0 auto; padding: 6px; border: 1px solid var(--card-border); border-radius: 6px; background: #fff; }
+.cover-pick img { display: block; height: auto; max-height: 108px; object-fit: contain; }
+.cover-pick-match { border-color: var(--ink); border-width: 2px; }
+.cover-pick-flag { font-weight: 600; }

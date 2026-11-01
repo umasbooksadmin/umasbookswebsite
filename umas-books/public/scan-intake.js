@@ -210,6 +210,34 @@
   }
   function isTimeoutError(err) { return !!err && (err.name === "AbortError" || err.name === "TimeoutError"); }
 
+  // ---- Find a cover candidates in the preview (the same Open Library search as Find a cover on a book's page).
+  // Only for a book that was found but whose exact ISBN gave no cover: the lookup answer has no coverUrl AND no coverOrigin
+  // ("isbn" means the catalog does hold the exact cover, even if its download was still running).
+  var COVER_PICKS_DELAY_MS = 600;
+  var COVER_PICKS_TIMEOUT_MS = 8000;
+  var COVER_PICKS_NONE = "No cover found: add a photo or use Find a cover later.";
+  function wantsCoverPicks(result, touched) {
+    if (!result || !result.found || !result.book) return false;
+    if (result.book.coverUrl || result.book.coverOrigin) return false;
+    if (touched && touched.coverUrl) return false;
+    return Boolean(result.book.title);
+  }
+  // The query string of the candidates request, from the form's current values.
+  function coverPicksQuery(isbn, values) {
+    var pairs = [["isbn", isbn], ["title", values.title], ["author", values.author], ["publisher", values.publisher], ["year", values.publishedYear]];
+    return pairs.filter(function (p) { return p[1] != null && String(p[1]).trim() !== ""; })
+      .map(function (p) { return p[0] + "=" + encodeURIComponent(String(p[1]).trim()); }).join("&");
+  }
+  // What the form carries for a pick: the cover NUMBER only (digits); the server builds the address from it.
+  function chosenCoverNumber(coverId) {
+    var n = String(coverId);
+    return /^[1-9]\d{0,8}$/.test(n) ? n : "";
+  }
+  function coverPickThumb(coverId) { return "/admin/inventory/scan-cover/thumb/" + encodeURIComponent(String(coverId)); }
+  function coverPickLabel(c) {
+    return [c.title || "Untitled", c.publisher, c.year].filter(Boolean).join(", ");
+  }
+
   // ------------------------------------------------------------------ page part
 
   function init(document, window) {
@@ -357,6 +385,90 @@
       if (priceRoot && result.suggestion) priceRoot.dispatchEvent(new CustomEvent("ps:apply", { detail: result.suggestion }));
     }
 
+    // ---- Find a cover candidates for a book whose exact ISBN has no cover. Asked AFTER the preview is on screen, on its own
+    // request with a short deadline, after a short pause (so scanning book after book asks nothing for the ones passed over).
+    // Nothing is ever applied by itself: the cover is chosen only with "Use this cover".
+    var picksBox = document.querySelector("[data-cover-picks]");
+    var picksText = picksBox && picksBox.querySelector("[data-cover-picks-text]");
+    var picksList = picksBox && picksBox.querySelector("[data-cover-picks-list]");
+    var picksGuard = createRequestGuard();
+    var picksTimer = null;
+    var picksLimit = null;
+    function cancelPicks() {
+      picksGuard.cancel();
+      if (picksTimer !== null) { clearTimeout(picksTimer); picksTimer = null; }
+      if (picksLimit) { picksLimit.clear(); picksLimit = null; }
+      if (picksBox) { picksBox.hidden = true; picksText.textContent = ""; picksList.textContent = ""; }
+      if (form.elements.chosenCoverId) form.elements.chosenCoverId.value = "";
+    }
+    function clearChosenCover() {
+      var field = form.elements.chosenCoverId;
+      if (field && field.value) {
+        field.value = "";
+        coverImg.hidden = true; coverImg.removeAttribute("src");
+      }
+    }
+    function showPicks(candidates) {
+      picksList.textContent = "";
+      candidates.forEach(function (c) {
+        var li = document.createElement("li");
+        li.className = "cover-pick" + (c.isbnMatch ? " cover-pick-match" : "");
+        var img = document.createElement("img");
+        img.src = coverPickThumb(c.coverId); img.width = 72; img.loading = "lazy";
+        img.alt = "Candidate cover: " + coverPickLabel(c);
+        var flag = document.createElement("span");
+        flag.className = "cover-pick-flag small";
+        flag.textContent = c.isbnMatch ? "Same ISBN" : (c.kind === "work" ? "Edition unknown" : "Other ISBN");
+        var btn = document.createElement("button");
+        btn.type = "button"; btn.className = "btn btn-small btn-outline"; btn.textContent = "Use this cover";
+        btn.setAttribute("aria-label", "Use this cover: " + coverPickLabel(c));
+        btn.setAttribute("aria-pressed", "false");
+        btn.addEventListener("click", function () {
+          var number = chosenCoverNumber(c.coverId);
+          if (!number || !form.elements.chosenCoverId) return;
+          form.elements.chosenCoverId.value = number;
+          coverImg.src = coverPickThumb(c.coverId); coverImg.hidden = false;
+          Array.prototype.forEach.call(picksList.querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", "false"); b.textContent = "Use this cover"; });
+          btn.setAttribute("aria-pressed", "true"); btn.textContent = "Chosen";
+          picksText.textContent = "This cover will be saved with the book. Pick another, or take a photo instead.";
+        });
+        li.appendChild(img); li.appendChild(flag); li.appendChild(btn);
+        picksList.appendChild(li);
+      });
+      picksText.textContent = "No exact cover for this ISBN. Possible covers from Open Library, best match first: pick one only if it matches your copy.";
+    }
+    function askCoverPicks(body) {
+      if (!picksBox) return;
+      if (picksTimer !== null) clearTimeout(picksTimer);
+      picksTimer = setTimeout(function () {
+        picksTimer = null;
+        // The form may have changed meanwhile: a photo, a typed address or a cover from the lookup ends the question.
+        if (touched.coverUrl || (form.elements.coverUrl && form.elements.coverUrl.value)) return;
+        var id = picksGuard.begin();
+        picksBox.hidden = false; picksList.textContent = "";
+        picksText.textContent = "Looking for a cover on Open Library…";
+        var q = coverPicksQuery(body.isbn, { title: form.elements.title.value, author: form.elements.author && form.elements.author.value, publisher: form.elements.publisher && form.elements.publisher.value, publishedYear: form.elements.publishedYear && form.elements.publishedYear.value });
+        var limit = timeoutSignal(COVER_PICKS_TIMEOUT_MS);
+        picksLimit = limit;
+        fetch("/admin/inventory/scan-cover/candidates?" + q, { credentials: "same-origin", headers: { Accept: "application/json" }, signal: limit.signal })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            limit.clear();
+            if (!picksGuard.isCurrent(id)) return;
+            if (j && j.ok && j.state === "ok" && j.candidates && j.candidates.length) showPicks(j.candidates);
+            else picksText.textContent = COVER_PICKS_NONE;
+          })
+          .catch(function () {
+            limit.clear();
+            if (!picksGuard.isCurrent(id)) return;
+            picksText.textContent = COVER_PICKS_NONE; // quiet: the scan itself never depends on this
+          });
+      }, COVER_PICKS_DELAY_MS);
+    }
+    // A cover address typed by hand replaces a pick.
+    if (form.elements.coverUrl) form.elements.coverUrl.addEventListener("input", function () { clearChosenCover(); });
+    if (form.elements.coverPhoto) form.elements.coverPhoto.addEventListener("change", function () { if (form.elements.coverPhoto.value) { cancelPicks(); clearChosenCover(); } });
+
     // ---- the publisher's price suggestion (ISBNdb), New books only. Asked AFTER the title lookup has filled the
     // form, on its own request: it never delays the scan or the save. It only ever shows text and a button;
     // the field changes only when "Use this price" is pressed.
@@ -408,6 +520,7 @@
       var id = guard.begin();
       inFlight = true;
       hideSuggestion();
+      cancelPicks();
       setStatus("loading", "Looking up…");
       var limit = timeoutSignal(LOOKUP_TIMEOUT_MS);
       fetch("/admin/inventory/lookup?isbn=" + encodeURIComponent(digits) + "&binding=" + encodeURIComponent(bindingSel.value), { credentials: "same-origin", headers: { Accept: "application/json" }, signal: limit.signal })
@@ -430,6 +543,7 @@
           setStatus(st.kind, st.text + (res.body.aiNotice ? " " + res.body.aiNotice : ""));
           refocusIsbn();
           askIsbndbPrice();
+          if (wantsCoverPicks(res.body, touched)) askCoverPicks(res.body);
         })
         .catch(function (err) {
           limit.clear();
@@ -491,7 +605,7 @@
       savedEl.hidden = false;
     }
 
-    var CLEAR_FIELDS = ["isbn", "title", "author", "publisher", "publishedYear", "genre", "coverUrl", "coverOrigin", "description", "publisherPrice", "copyNotes"];
+    var CLEAR_FIELDS = ["isbn", "title", "author", "publisher", "publishedYear", "genre", "coverUrl", "coverOrigin", "chosenCoverId", "description", "publisherPrice", "copyNotes"];
     function resetForm(keep) {
       form.reset();
       CLEAR_FIELDS.forEach(function (name) { var el = form.elements[name]; if (el) el.value = ""; });
@@ -506,6 +620,7 @@
       var photoName = document.getElementById("coverPhoto-name"); if (photoName) photoName.textContent = "No photo selected";
       touched = {};
       coverImg.hidden = true; coverImg.removeAttribute("src");
+      cancelPicks();
       bindingHint.textContent = "";
       errorEl.hidden = true;
       if (priceRoot) priceRoot.dispatchEvent(new CustomEvent("ps:reset"));
@@ -650,7 +765,7 @@
 
   return {
     isbnDigits: isbnDigits, isCompleteIsbn: isCompleteIsbn, createScanWatcher: createScanWatcher, createRequestGuard: createRequestGuard, shouldRefocusIsbn: shouldRefocusIsbn,
-    wantsIsbndbPrice: wantsIsbndbPrice, isbndbPriceMessage: isbndbPriceMessage, planFill: planFill, resolveBindingKey: resolveBindingKey, chooseBinding: chooseBinding, bindingStartsChosen: bindingStartsChosen, choicesToKeep: choicesToKeep, lookupStatus: lookupStatus,
+    wantsIsbndbPrice: wantsIsbndbPrice, wantsCoverPicks: wantsCoverPicks, coverPicksQuery: coverPicksQuery, chosenCoverNumber: chosenCoverNumber, coverPickThumb: coverPickThumb, coverPickLabel: coverPickLabel, COVER_PICKS_NONE: COVER_PICKS_NONE, COVER_PICKS_TIMEOUT_MS: COVER_PICKS_TIMEOUT_MS, isbndbPriceMessage: isbndbPriceMessage, planFill: planFill, resolveBindingKey: resolveBindingKey, chooseBinding: chooseBinding, bindingStartsChosen: bindingStartsChosen, choicesToKeep: choicesToKeep, lookupStatus: lookupStatus,
     keyboardInset: keyboardInset, timeoutSignal: timeoutSignal, isTimeoutError: isTimeoutError, LOOKUP_TIMEOUT_MS: LOOKUP_TIMEOUT_MS, SAVE_TIMEOUT_MS: SAVE_TIMEOUT_MS, FILL_FIELDS: FILL_FIELDS, init: init,
   };
 });
