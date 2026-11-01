@@ -107,7 +107,7 @@ const NOTICES = {
   collected: "Marked as collected.",
   "already-collected": "This reservation was already marked collected. Nothing changed.",
   "collected-paid": "Collected and paid: the books and seats are sold and the reservation now counts as a sale.",
-  "collected-partial": "Collected and paid for the selected items. The other items stay reserved on a new reservation with the same deadline.",
+  "collected-partial": "Collected and paid for the selected items. The other items stay reserved on a new reservation with the same deadline (drop-in seats left on their own are held until their session).",
   "reservation-cancelled": "The reservation was cancelled: its books are back on the shelf and its seats are free again.",
   "reservation-expired": "Marked as no-show: the books are back on the shelf and the seats are free again.",
   "reservation-extended": `The deadline was extended by ${RESERVATION_EXTENSION_DAYS} days.`,

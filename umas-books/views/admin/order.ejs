@@ -51,7 +51,7 @@
     <% }) %>
   </ul>
   <% if (related && related.length) { %>
-    <p class="muted small">Related reservation<%= related.length === 1 ? '' : 's' %> (after a partial pickup):
+    <p class="muted small">Related reservation<%= related.length === 1 ? '' : 's' %> (after a partial pickup, or drop-in seats kept when the books expired):
       <% related.forEach((r, n) => { %><%= n ? ', ' : '' %><a href="/admin/orders/<%= r.id %>">#<%= r.id %> (<%= r.status %>)</a><% }) %></p>
   <% } %>
 </div>
@@ -135,7 +135,7 @@
         <form class="stack" method="post" action="/admin/orders/<%= order.id %>/collect-selected" id="collect-selected-form" style="margin-bottom:18px;">
           <%- include('../partials/csrf_field') %>
           <strong>Collect selected items</strong>
-          <span class="muted small">The customer takes only some of the items: tick them. They are sold and paid; the others stay reserved on a new reservation with the same deadline.</span>
+          <span class="muted small">The customer takes only some of the items: tick them. They are sold and paid; the others stay reserved on a new reservation with the same deadline (drop-in seats left on their own are held until their session).</span>
           <% activeItems.forEach(i => { %>
             <label class="ann-check"><input type="checkbox" name="itemIds" value="<%= i.id %>"> <span><%= i.item_title %> &middot; &euro;<%= Number(i.price).toFixed(2) %></span></label>
           <% }) %>

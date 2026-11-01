@@ -453,6 +453,10 @@ s.manual("AC36 one place fewer on /sessions while the seat is reserved, and back
 
 s.manual("AC37 admin sees the reserved drop-in seat under the session (Reserved, not counted as free)", "needs a reserved seat to look at; do it by hand with AC35");
 
+s.manual("AC37a a session that has started shows Booking closed instead of Add to Cart, and the cart and checkout refuse its seat with a message (covered by test/integration/pastSessionSeats.test.js)", "needs a session that has already started, or one that starts while its seat is in the cart: checked by hand");
+
+s.manual("AC37b a seat reserved with books is kept until its session when the books expire or are collected first, and the ending email lists only the books (covered by test/integration/seatHoldDeadlines.test.js)", "needs the 14-day deadline to pass: checked by hand on a test database");
+
 s.test("AC-FR34 FR check: the drop-in seat lines read in French and there is no waiver", { as: "account", lang: "fr" }, async (ctx) => {
   await addDropin(ctx);
   await needReserve(ctx);
