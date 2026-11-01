@@ -1201,7 +1201,7 @@ s.test("G61 a book page shows the cover from our own server with its size reserv
   const { html } = await pageHtml(ctx, `/books/${book.id}`);
   assert.doesNotMatch(html, /openlibrary\.org|archive\.org/);
 });
-s.manual("G61a (must) the online-library cover note shows only for covers that came from an online library, not for own photos or no cover (covered by test/integration/coverDisclaimer.test.js)", "which books have own photos depends on the real inventory: checked by hand");
+s.manual("G61a (must) the online-library cover note (long text on the book page, short on lists) shows only for covers that came from an online library, not for own photos or no cover (covered by test/integration/coverDisclaimer.test.js)", "which books have own photos depends on the real inventory: checked by hand");
 
 s.test("G62 New In covers are shown whole (contain, 2:3 box, no horizontal overflow)", async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
@@ -1611,7 +1611,7 @@ s.test("G97 (must) a collection button opens its page: title, description, the b
   assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr");
   const text = await ctx.text();
   has(text, /Retour à Parcourir les livres/);
-  hasNot(text, /Back to Browse|Cover images come from|Add .* to favorites/);
+  hasNot(text, /Back to Browse|Covers are shown for illustration|Add .* to favorites/);
   assert.equal(await ctx.page.$eval(".col-back a", (a) => a.getAttribute("href")), "/fr/books.html");
   await ctx.goto("/fr/books.html", "networkidle2");
   has(await ctx.page.$eval("#bk-collections", (e) => e.innerText), /Parcourir\s+par collection/);

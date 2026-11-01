@@ -167,7 +167,7 @@ test("a button opens the collection page; the French pages are French from top t
     assert.equal(await page.$eval("html", (h) => h.lang), "fr");
     const text = await page.evaluate(() => document.body.innerText);
     assert.match(text, /Retour à Parcourir les livres/);
-    assert.ok(!/Back to Browse|Cover images come from/.test(text));
+    assert.ok(!/Back to Browse|Covers are shown for illustration/.test(text));
     await go(page, "/fr/books.html");
     assert.match(await page.$eval("#bk-collections", (e) => e.innerText), /Parcourir par collection/);
     assert.equal(slug && first.href.endsWith(slug), true, "the first button is the first collection in sort order");
