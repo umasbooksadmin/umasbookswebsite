@@ -20,7 +20,9 @@ const { createAccount, sessionHeaders } = require("./accounts");
 
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
-function reserveHarness(label, { isolated = true } = {}) {
+// `routers`: more route modules to mount on the same app, as paths under src/ (for example "routes/sessions", the public
+// calendar, or "routes/admin/sessions"), after the usual ones.
+function reserveHarness(label, { isolated = true, routers = [] } = {}) {
   const db = prepareDatabase(label, { isolated });
 
   const mailer = require("../../src/mailer");
@@ -73,7 +75,10 @@ function reserveHarness(label, { isolated = true } = {}) {
       require("../../src/routes/admin/dashboard"),
       require("../../src/routes/admin/reports"),
       require("../../src/routes/admin/inventory"),
+      ...routers.map((r) => require(`../../src/${r}`)),
     ]);
+    // src/index.js sets this view local (the /sessions calendar uses it); buildApp does not.
+    app.locals.mondayFirstWeeks = require("../../src/lib/calendar").mondayFirstWeeks;
     app.set("trust proxy", true);
     server = await listen(app);
     h.base = server.base;

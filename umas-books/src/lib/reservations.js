@@ -183,8 +183,95 @@ async function releaseReservation(pool, orderId, { status = "cancelled", reason,
   });
 }
 
-// Every order past its deadline is released (status 'expired'). The email that
-// tells the customer is sent by the periodic job (orderSweeps.js), once.
+// A drop-in seat is held until its OWN session is over (releaseEndedSeats), never by a book deadline. So a
+// reservation that holds only seats has the end of its last session as its deadline. Sets that deadline on those of
+// `orderIds` that are open, confirmed (an unconfirmed guest hold keeps its 2-hour limit, lib/guestOrders.js) and hold
+// no book any more (a reservation with books keeps its book deadline). A guest's private manage link (valid
+// MANAGE_DAYS after the deadline) is stretched with it, so it still works on the day of the session. `db` is a client
+// inside the caller's transaction (or the pool). Resolves the ids whose deadline changed.
+async function syncSeatOnlyDeadlines(db, orderIds) {
+  if (!orderIds.length) return [];
+  const { rows } = await db.query(
+    `UPDATE orders o SET reserved_until = d.until
+     FROM (SELECT s.order_id, MAX(${SESSION_OVER_SQL}) AS until
+           FROM class_dropin_seats s JOIN classes c ON c.id = s.class_id
+           WHERE s.order_id = ANY($1::int[]) AND s.status = 'reserved' GROUP BY s.order_id) d
+     WHERE o.id = d.order_id AND o.status = 'reserved' AND NOT (o.is_guest AND o.guest_confirmed_at IS NULL)
+       AND NOT EXISTS (SELECT 1 FROM book_copies b WHERE b.cart_order_id = o.id AND b.status = 'reserved')
+       AND o.reserved_until IS DISTINCT FROM d.until
+     RETURNING o.id`,
+    [orderIds]
+  );
+  const changed = rows.map((r) => r.id);
+  if (changed.length) {
+    const { MANAGE_DAYS } = require("./guestOrders"); // lazily: guestOrders requires this file
+    await db.query(
+      `UPDATE guest_order_tokens t SET expires_at = GREATEST(t.expires_at, o.reserved_until + make_interval(days => $2))
+       FROM orders o WHERE o.id = t.order_id AND t.order_id = ANY($1::int[]) AND t.purpose = 'manage'`,
+      [changed, MANAGE_DAYS]
+    );
+  }
+  return changed;
+}
+
+// Moves some still-held items of reservation `orderId` (locked by the caller) to a NEW reservation of the same
+// customer (split_from_order_id = orderId), inside the caller's transaction. `rest`: order_items rows with id,
+// price, book_copy_id, class_dropin_seat_id. The new reservation keeps the old deadline when it holds books, and
+// the end of its last session when it holds only seats. A guest's private links follow the part that stays reserved.
+// Resolves the new order's id.
+async function splitOffReservation(client, orderId, rest) {
+  const cents = (v) => Math.round(Number(v) * 100);
+  const restTotal = rest.reduce((sum, i) => sum + cents(i.price), 0) / 100;
+  const { rows: created } = await client.query(
+    `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, status, withdrawal_waiver_at, lang,
+                         cgv_accepted_at, cgv_version, user_id, reserved_until, reservation_extended_at, confirmation_sent_at,
+                         customer_pickup_reminder_sent_at, pickup_reminder_sent_at, split_from_order_id, is_guest, guest_confirmed_at)
+     SELECT buyer_name, buyer_email, buyer_phone, $2, 'reserved', withdrawal_waiver_at, lang,
+            cgv_accepted_at, cgv_version, user_id, reserved_until, reservation_extended_at, confirmation_sent_at,
+            customer_pickup_reminder_sent_at, pickup_reminder_sent_at, id, is_guest, guest_confirmed_at
+     FROM orders WHERE id = $1 RETURNING id`,
+    [orderId, restTotal]
+  );
+  const newOrderId = created[0].id;
+  await client.query("UPDATE guest_order_tokens SET order_id = $2 WHERE order_id = $1", [orderId, newOrderId]);
+  const restCopies = rest.filter((i) => i.book_copy_id != null).map((i) => i.book_copy_id);
+  const restSeats = rest.filter((i) => i.class_dropin_seat_id != null).map((i) => i.class_dropin_seat_id);
+  await client.query("UPDATE order_items SET order_id = $2 WHERE id = ANY($1::int[])", [rest.map((i) => i.id), newOrderId]);
+  if (restCopies.length) await client.query("UPDATE book_copies SET cart_order_id = $2, updated_at = now() WHERE id = ANY($1::int[])", [restCopies, newOrderId]);
+  if (restSeats.length) await client.query("UPDATE class_dropin_seats SET order_id = $2, updated_at = now() WHERE id = ANY($1::int[])", [restSeats, newOrderId]);
+  await syncSeatOnlyDeadlines(client, [newOrderId]);
+  return newOrderId;
+}
+
+// Under the order lock, before an expiry: the seats whose session is still ahead are NOT released with the books.
+//   - an unconfirmed guest hold: everything goes (nobody confirmed the address);
+//   - books and live seats: the seats move to a reservation of their own (held until their session), the books
+//     expire with this one (its "has ended" email then lists only them);
+//   - only live seats (a deadline left behind by a rescheduled session): nothing is released, the deadline is reset.
+// Returns { outcome: "skipped" } to stop the release, or nothing to let it go ahead.
+async function keepLiveSeats(client, order) {
+  if (order.is_guest && !order.guest_confirmed_at) return undefined;
+  const { rows: live } = await client.query(
+    `SELECT oi.id, oi.price, oi.book_copy_id, oi.class_dropin_seat_id
+     FROM order_items oi JOIN class_dropin_seats s ON s.id = oi.class_dropin_seat_id JOIN classes c ON c.id = s.class_id
+     WHERE oi.order_id = $1 AND s.order_id = $1 AND s.status = 'reserved' AND ${SESSION_OVER_SQL} >= now()
+     ORDER BY s.id FOR UPDATE OF s`,
+    [order.id]
+  );
+  if (!live.length) return undefined;
+  const { rows: books } = await client.query("SELECT 1 FROM book_copies WHERE cart_order_id = $1 AND status = 'reserved' LIMIT 1", [order.id]);
+  if (!books.length) {
+    await syncSeatOnlyDeadlines(client, [order.id]);
+    return { outcome: "skipped" };
+  }
+  await splitOffReservation(client, order.id, live);
+  const moved = live.reduce((sum, i) => sum + Math.round(Number(i.price) * 100), 0) / 100;
+  await client.query("UPDATE orders SET total_amount = total_amount - $2 WHERE id = $1", [order.id, moved]);
+  return undefined;
+}
+
+// Every order past its deadline is released (status 'expired'), except the drop-in seats whose session is still
+// ahead (keepLiveSeats). The email that tells the customer is sent by the periodic job (orderSweeps.js), once.
 async function expireOrderReservations(pool) {
   const { rows } = await pool.query("SELECT id FROM orders WHERE status = 'reserved' AND reserved_until < now() ORDER BY id LIMIT 500");
   let released = 0;
@@ -197,7 +284,7 @@ async function expireOrderReservations(pool) {
       const r = await releaseReservation(pool, id, {
         status: "expired", reason,
         // Re-checked under the lock: an admin may have extended it meanwhile.
-        guard: async (client, o) => (o.reserved_until && new Date(o.reserved_until).getTime() < Date.now() ? undefined : { outcome: "skipped" }),
+        guard: async (client, o) => (o.reserved_until && new Date(o.reserved_until).getTime() < Date.now() ? keepLiveSeats(client, o) : { outcome: "skipped" }),
       });
       if (r.outcome === "released") released++;
     } catch (err) {
@@ -305,7 +392,7 @@ async function extendReservation(pool, orderId) {
 
 module.exports = {
   expireStaleReservations, expireStaleReservationsThrottled, makeThrottledExpiry, EXPIRY_THROTTLE_MS, sendPickupReminders, expireOrderReservations, releaseEndedSeats,
-  releaseReservation, cancelReservationAsCustomer, cancelReservationAsGuest, extendReservation,
+  releaseReservation, cancelReservationAsCustomer, cancelReservationAsGuest, extendReservation, syncSeatOnlyDeadlines, splitOffReservation,
   RESERVATION_DAYS, RESERVATION_TTL_DAYS, RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SEAT_CANCEL_HOURS,
   SESSION_OVER_SQL,
 };

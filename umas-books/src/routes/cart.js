@@ -91,7 +91,9 @@ function accountView(account) {
   };
 }
 
-async function loadCartItems(cart) {
+// `started` (optional array): collects { title, titleFr } of each drop-in session dropped because it has already
+// started (its seats can no longer be reserved), so the caller can say why the line went.
+async function loadCartItems(cart, { started = null } = {}) {
   const bookLines = cart.filter((l) => l.kind === "book");
   const dropinLines = cart.filter((l) => l.kind === "dropin");
   const items = [];
@@ -119,7 +121,7 @@ async function loadCartItems(cart) {
   if (dropinLines.length) {
     const classIds = [...new Set(dropinLines.map((l) => l.classId))];
     const { rows } = await pool.query(
-      `SELECT c.id, c.title, c.title_fr, c.starts_at, c.capacity, c.dropin_price, ${seatsTakenExpr("c")}::int AS seats_taken
+      `SELECT c.id, c.title, c.title_fr, c.starts_at, c.starts_at <= now() AS started, c.capacity, c.dropin_price, ${seatsTakenExpr("c")}::int AS seats_taken
        FROM classes c WHERE c.id = ANY($1::int[])`,
       [classIds]
     );
@@ -131,6 +133,11 @@ async function loadCartItems(cart) {
     for (const line of dropinLines) {
       const cls = byId.get(line.classId);
       if (!cls || cls.dropin_price == null || Number(cls.dropin_price) <= 0) continue; // no longer sold as drop-in — dropped
+      if (cls.started) {
+        // The session has begun or is over — dropped, and named once.
+        if (started && !started.some((x) => x.classId === cls.id)) started.push({ classId: cls.id, title: cls.title, titleFr: cls.title_fr });
+        continue;
+      }
       const alreadyAccepted = acceptedPerClass.get(cls.id) || 0;
       const spotsLeft = cls.capacity != null ? Math.max(0, cls.capacity - cls.seats_taken) : Infinity;
       if (alreadyAccepted >= spotsLeft) continue; // this class filled up — dropped
@@ -161,10 +168,34 @@ function cartNotice(req) {
   }
 }
 
+// A drop-in session's title in the page's language (the French title when there is one), quoted.
+function quotedSessions(req, sessions) {
+  return sessions
+    .map((x) => {
+      const fr = req.lang === "fr" && x.titleFr && String(x.titleFr).trim() ? String(x.titleFr).trim() : null;
+      return req.lang === "fr" ? `« ${fr || x.title} »` : `"${x.title}"`;
+    })
+    .join(", ");
+}
+
+// A seat for a session that has started can no longer be reserved: on the cart page (the line was removed) and
+// when Reserve was pressed (nothing was reserved).
+function startedNotice(req, sessions) {
+  return req.tr(
+    `The session ${quotedSessions(req, sessions)} has already started, so we removed its seat from your cart.`,
+    `La séance ${quotedSessions(req, sessions)} a déjà commencé : nous avons retiré sa place de votre panier.`);
+}
+function startedRefusal(req, sessions) {
+  return req.tr(
+    `The session ${quotedSessions(req, sessions)} has already started, so its seat can no longer be reserved. We removed it from your cart and nothing was reserved: please review your cart and try again.`,
+    `La séance ${quotedSessions(req, sessions)} a déjà commencé : il n’est plus possible d’y réserver une place. Nous l’avons retirée de votre panier et rien n’a été réservé : veuillez vérifier votre panier et réessayer.`);
+}
+
 router.get("/cart", async (req, res) => {
   await expireStaleReservations(pool);
   const cart = getCart(req);
-  const items = await loadCartItems(cart);
+  const started = [];
+  const items = await loadCartItems(cart, { started });
   // Drop anything that's no longer actually available (someone else
   // bought it, or a drop-in session filled up, while it sat in this
   // cart) so the total shown always matches what checkout would charge.
@@ -178,8 +209,9 @@ router.get("/cart", async (req, res) => {
   const flash = takePageFlash(req, res, "cart") || {};
   const view = accountView(account);
   if (flash.name) view.accountName = flash.name;
+  const notice = [cartNotice(req), started.length ? startedNotice(req, started) : null].filter(Boolean).join(" ") || null;
   res.render("cart", {
-    items, total, error: flash.error || null, notice: cartNotice(req), ...view, typedPhone: flash.phone || "", limits: LIMITS,
+    items, total, error: flash.error || null, notice, ...view, typedPhone: flash.phone || "", limits: LIMITS,
   });
 });
 
@@ -244,11 +276,19 @@ router.post("/cart/add-dropin", cartEditLimiter, async (req, res) => {
   const backTo = isSafeLocalPath(req.body.backTo) ? req.body.backTo : "/sessions";
   if (classId !== null) {
     const { rows } = await pool.query(
-      `SELECT capacity, dropin_price, ${seatsTakenExpr("classes")}::int AS seats_taken
+      `SELECT capacity, dropin_price, starts_at <= now() AS started, ${seatsTakenExpr("classes")}::int AS seats_taken
        FROM classes WHERE id = $1`,
       [classId]
     );
     const cls = rows[0];
+    if (cls && cls.started && cls.dropin_price != null && Number(cls.dropin_price) > 0) {
+      // The session has begun or is over (an old calendar page, or the time passed while it was open): nothing is
+      // added, and the calendar says why. Only the calendar shows the message, so another backTo goes to /sessions.
+      const back = /^\/sessions(\?|$)/.test(backTo) ? backTo : "/sessions";
+      return redirectWithFlash(req, res, back, "sessions", {
+        error: req.tr("This session has already started, so its seats can no longer be reserved.", "Cette séance a déjà commencé : ses places ne peuvent plus être réservées."),
+      });
+    }
     if (cls && cls.dropin_price != null && Number(cls.dropin_price) > 0) {
       const cart = getCart(req);
       const alreadyInCart = cart.filter((l) => l.kind === "dropin" && l.classId === classId).length;
@@ -328,6 +368,11 @@ async function reservationRefusal(req, err, cart, { guest }) {
       `${names} is no longer for sale at the moment (it has no price), so nothing was reserved. Please review your cart and try again.`,
       `${namesFr} n’est plus en vente pour le moment (il n’a plus de prix), donc rien n’a été réservé. Veuillez vérifier votre panier et réessayer.`);
   }
+  if (err.message === "SESSION_STARTED") {
+    // It started between loading the cart and the class lock (lib/cart.js).
+    await prune(req, cart);
+    return startedRefusal(req, err.sessions || []);
+  }
   if (err.message === "BUSY") {
     return req.tr("The shop is busy right now. Please try again in a moment.", "La boutique est très sollicitée en ce moment. Veuillez réessayer dans un instant.");
   }
@@ -350,7 +395,8 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
   let name = clean(req.body.name, 100);
   const phone = clean(req.body.phone, 30) || null;
 
-  const items = await loadCartItems(cart);
+  const started = [];
+  const items = await loadCartItems(cart, { started });
   req.session.cart = items.map((i) => ({
     kind: i.kind, lineId: i.lineId,
     ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
@@ -381,6 +427,8 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
   }
   if (!name) name = clean(account.user.display_name, 100);
 
+  // A seat whose session started while it sat in the cart: removed above, and nothing is reserved without it.
+  if (started.length) return refuse(startedRefusal(req, started));
   if (!items.length) return refuse(req.tr("Your cart is empty.", "Votre panier est vide."));
   if (!name) return refuse(req.tr("Please enter your name.", "Veuillez indiquer votre nom."));
   if (req.body.acceptCgv !== "on") return refuse(req.tr("Please accept the terms of sale to continue.", "Veuillez accepter les conditions générales de vente (CGV) pour continuer."));
@@ -425,19 +473,21 @@ router.get(GUEST_FORM, async (req, res) => {
   if (req.session.user || isPreviewMode()) return res.redirect(CART_RETURN);
   await expireStaleReservations(pool);
   const cart = getCart(req);
-  const items = await loadCartItems(cart);
+  const started = [];
+  const items = await loadCartItems(cart, { started });
   req.session.cart = items.map((i) => ({
     kind: i.kind, lineId: i.lineId,
     ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
   }));
   if (!items.length) {
+    if (started.length) return redirectWithFlash(req, res, CART_RETURN, "cart", { error: startedNotice(req, started) });
     await saveSession(req);
     return res.redirect(CART_RETURN);
   }
   const flash = takePageFlash(req, res, "cartGuest") || {};
   res.set("Cache-Control", "private, no-store");
   res.render("cart_guest", {
-    items, total: items.reduce((sum, i) => sum + i.price, 0), error: flash.error || null, limits: LIMITS, confirmHours: GUEST_CONFIRM_HOURS,
+    items, total: items.reduce((sum, i) => sum + i.price, 0), error: flash.error || (started.length ? startedNotice(req, started) : null), limits: LIMITS, confirmHours: GUEST_CONFIRM_HOURS,
     values: { name: flash.name || "", email: flash.email || "", phone: flash.phone || "" },
   });
 });
@@ -449,7 +499,8 @@ router.post("/cart/guest/reserve", checkoutLimiter, async (req, res) => {
   const name = clean(req.body.name, 100);
   const email = clean(req.body.email, 200).toLowerCase();
   const phone = clean(req.body.phone, 30) || null;
-  const items = await loadCartItems(cart);
+  const started = [];
+  const items = await loadCartItems(cart, { started });
   req.session.cart = items.map((i) => ({
     kind: i.kind, lineId: i.lineId,
     ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
@@ -458,6 +509,8 @@ router.post("/cart/guest/reserve", checkoutLimiter, async (req, res) => {
 
   // Preview mode: nothing can be reserved (the cart page says so).
   if (isPreviewMode()) return redirectWithFlash(req, res, CART_RETURN, "cart", { error: null });
+  // A seat whose session started while it sat in the cart: removed above; the cart page says so.
+  if (started.length) return redirectWithFlash(req, res, CART_RETURN, "cart", { error: startedRefusal(req, started) });
   if (!items.length) return redirectWithFlash(req, res, CART_RETURN, "cart", { error: req.tr("Your cart is empty.", "Votre panier est vide.") });
   if (!name || !isEmail(email)) return refuse(req.tr("Please enter your name and a valid email address.", "Veuillez indiquer votre nom et une adresse e-mail valide."));
   if (req.body.acceptCgv !== "on") return refuse(req.tr("Please accept the terms of sale to continue.", "Veuillez accepter les conditions générales de vente (CGV) pour continuer."));
@@ -471,6 +524,8 @@ router.post("/cart/guest/reserve", checkoutLimiter, async (req, res) => {
     // A shop-wide limit (not one visitor's own) refused this: tell the admin, at most once an hour.
     if (err.message === "GUEST_HOLDS_FULL") guestOrders.alertGuestLimit(pool, "holds");
     else if (err.message === "MAIL_THROTTLED" && err.reason === "global") guestOrders.alertGuestLimit(pool, "mail");
+    // The cart lost that seat: the cart page shows what is left.
+    if (err.message === "SESSION_STARTED") return redirectWithFlash(req, res, CART_RETURN, "cart", { error: await reservationRefusal(req, err, cart, { guest: true }) });
     return refuse(await reservationRefusal(req, err, cart, { guest: true }));
   }
   // Held now; the reservation page says "check your email" until the link is opened.
