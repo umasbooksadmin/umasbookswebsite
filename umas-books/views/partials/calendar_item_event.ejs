@@ -6,6 +6,8 @@
 const e = item;
 const tones = ['tone-a', 'tone-b', 'tone-c', 'tone-d', 'tone-e', 'tone-f'];
 const full = e.capacity != null && e.signup_count >= e.capacity;
+// Sign-ups close when the event starts (routes/events.js refuses them too).
+const started = new Date(e.starts_at) <= new Date();
 const priceLabel = e.price != null
   ? eur(e.price)
   : tr('Free', 'Gratuit');
@@ -25,6 +27,9 @@ const payOnTheDay = e.price != null ? tr('Payment on the day', 'Paiement sur pla
     <% if (e.fallback) { %><p class="fcal-notice small" role="note"><%= tr('This event is only described in English.', 'Cet événement n’est décrit qu’en anglais.') %></p><% } %>
     <% if (e.description) { %><p class="muted small"<% if (e.fallback) { %> lang="en"<% } %>><%= e.description %></p><% } %>
 
+    <% if (started) { %>
+    <p class="fcal-notice small" role="note"><%= tr('This event has already started or taken place: sign-ups are closed.', 'Cet événement a déjà commencé ou a déjà eu lieu : les inscriptions sont closes.') %></p>
+    <% } else { %>
     <form method="post" action="/events/<%= e.id %>/signup?<%= qs %>" class="fcal-session-form">
       <%- include('csrf_field') %>
       <label for="name-<%= e.id %>"><%= tr('Name', 'Nom') %></label>
@@ -34,6 +39,7 @@ const payOnTheDay = e.price != null ? tr('Payment on the day', 'Paiement sur pla
       <%- include('privacy_note', { en: 'We use your name and email only to manage attendance at this event. See our', fr: 'Votre nom et votre e-mail servent uniquement à gérer la participation à cet événement. Consultez notre' }) %>
       <button type="submit" class="fcal-session-cta"<%= full ? ' disabled' : '' %>><%= full ? tr('Full', 'Complet') : tr('Sign Up', 'S’inscrire') %></button>
     </form>
+    <% } %>
 
     <a class="fcal-session-cta fcal-session-cta-outline" href="/events/<%= e.id %>/ics" download><%= tr('Add to My Calendar', 'Ajouter à mon agenda') %></a>
   </div>

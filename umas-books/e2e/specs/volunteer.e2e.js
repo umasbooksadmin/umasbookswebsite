@@ -39,6 +39,8 @@ s.write("VO3 (must) sign up for a shift and see it under My upcoming shifts", { 
   ctx.created("volunteer shift sign-up (cancelled again by VO5)", "the volunteer test account", "admin Volunteer Shifts");
 });
 
+s.manual("VO3a (must) a shift that has started shows no Sign up button and refuses a sign-up with a message (covered by test/integration/meetingsVolunteer.test.js)", "needs a shift that has already started: checked by hand");
+
 s.manual("VO4 a second volunteer sees the shift as Full", "needs a second volunteer account");
 
 s.write("VO5 (must) cancel the shift again and it is free", { as: "volunteer" }, async (ctx) => {

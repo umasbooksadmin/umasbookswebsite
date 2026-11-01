@@ -1,0 +1,23 @@
+<%- include('partials/header', { noindex: true, title: tr('Cancel my event sign-up', 'Annuler mon inscription') }) %>
+
+<h1><%= tr('Cancel my event sign-up', 'Annuler mon inscription') %></h1>
+<% if (state === 'ask') { %>
+  <p class="muted"><%= tr('Press the button to cancel your sign-up for:', 'Appuyez sur le bouton pour annuler votre inscription à :') %></p>
+  <div class="card">
+    <strong<% if (event.fallback) { %> lang="en"<% } %>><%= event.title %></strong>
+    <div class="muted small"><%= formatDateTime(event.starts_at) %><% if (event.location) { %> · <span<% if (event.fallback) { %> lang="en"<% } %>><%= event.location %></span><% } %></div>
+  </div>
+  <form class="stack" method="post" action="/events/cancel/<%= token %>">
+    <%- include('partials/csrf_field') %>
+    <button class="btn" type="submit"><%= tr('Cancel my sign-up', 'Annuler mon inscription') %></button>
+  </form>
+  <p class="muted small"><%= tr('Cancelling frees your place and deletes your name and email from this event.', 'Annuler libère votre place et supprime votre nom et votre e-mail de cet événement.') %></p>
+<% } else if (state === 'cancelled') { %>
+  <div role="status" class="notice-box"><% if (event) { %><%= tr('Your sign-up for “{title}” is cancelled, and your name and email have been deleted from it.', 'Votre inscription à « {title} » est annulée, et votre nom et votre e-mail ont été supprimés.', { title: event.title }) %><% } else { %><%= tr('Your sign-up is cancelled.', 'Votre inscription est annulée.') %><% } %></div>
+  <p class="muted small"><a href="/events"><%= tr('Back to the events', 'Retour aux événements') %></a></p>
+<% } else { %>
+  <div role="status" class="notice-box"><%= tr('This sign-up is already cancelled, or this link is not valid. There is nothing more to do.', 'Cette inscription est déjà annulée, ou ce lien n’est pas valable. Vous n’avez rien d’autre à faire.') %></div>
+  <p class="muted small"><a href="/events"><%= tr('Back to the events', 'Retour aux événements') %></a></p>
+<% } %>
+
+<%- include('partials/footer') %>

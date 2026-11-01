@@ -195,9 +195,12 @@ test("volunteer: calendar shows escaped role/notes and filled/capacity; week vie
 test("volunteer: sign up, duplicate is a no-op, cancel frees the spot; redirects keep the view", async () => {
   const s = await makeShift(noon(2091, 9, 10), { capacity: 2 });
   const r = await c.post(`/volunteer/${s.id}/signup?month=2091-09`, {}, { as: volunteer });
-  assert.equal(r.status, 302);
-  assert.equal(r.location, "/volunteer?month=2091-09");
-  await c.post(`/volunteer/${s.id}/signup`, {}, { as: volunteer });
+  assert.equal(r.seeOther, "/volunteer?month=2091-09");
+  assert.match(r.text, /You’re signed up for this shift: /);
+  assert.ok(r.text.includes(s.role));
+  // A second press (a double click) says the same, not "full".
+  const again = await c.post(`/volunteer/${s.id}/signup`, {}, { as: volunteer });
+  assert.match(again.text, /You’re signed up for this shift/);
   assert.equal(await shiftSignups(s.id), 1);
 
   const page = await c.get("/volunteer?month=2091-09", { as: volunteer });
@@ -215,9 +218,11 @@ test("volunteer: a full shift refuses further sign-ups and renders as Full", asy
   const s = await makeShift(noon(2091, 10, 10), { capacity: 1 });
   await c.post(`/volunteer/${s.id}/signup`, {}, { as: volunteer });
   const late = await c.post(`/volunteer/${s.id}/signup?month=2091-10`, {}, { as: admin });
-  assert.equal(late.status, 302);
-  assert.equal(late.location, "/volunteer?month=2091-10");
+  assert.equal(late.seeOther, "/volunteer?month=2091-10");
+  assert.match(late.text, /Sorry, this shift is full: .*Your sign-up was not recorded\./);
   assert.equal(await shiftSignups(s.id), 1);
+  // The message is shown once: a reload of the calendar does not repeat it.
+  assert.doesNotMatch((await c.get("/volunteer?month=2091-10", { as: admin })).text, /this shift is full/);
   const page = await c.get("/volunteer?month=2091-10", { as: admin });
   assert.match(page.text, /is-full/);
   assert.match(page.text, /disabled>Full</);
@@ -239,4 +244,24 @@ test("volunteer: a past shift stays listed in its month but is not under 'my upc
   assert.match(page.text, new RegExp(`/volunteer/${s.id}/cancel`));
   const now = await c.get("/volunteer", { as: volunteer });
   assert.ok(!now.text.includes(s.role));
+});
+
+// Review 6B L5: a shift that has started or is over takes no sign-up, says so, and shows no Sign up button.
+test("volunteer: a past or started shift refuses a sign-up with a message, and shows no Sign up button", async () => {
+  const past = await makeShift(noon(2020, 4, 10), { capacity: 3 });
+  const started = await makeShift(new Date(Date.now() - 30 * 60 * 1000), { capacity: 3 });
+  for (const s of [past, started]) {
+    const r = await c.post(`/volunteer/${s.id}/signup?month=2020-04`, {}, { as: volunteer });
+    assert.equal(r.seeOther, "/volunteer?month=2020-04");
+    assert.match(r.text, /Sign-ups for this shift are closed: it has already started or is over/);
+    assert.equal(await shiftSignups(s.id), 0, "nothing stored");
+  }
+  const page = await c.get("/volunteer?month=2020-04", { as: volunteer });
+  assert.ok(!page.text.includes(`/volunteer/${past.id}/signup`), "no sign-up form on a past shift");
+  assert.match(page.text, /This shift has started or is over: sign-ups are closed\./);
+  const fr = await c.post(`/volunteer/${past.id}/signup`, {}, { as: volunteer, headers: { "accept-language": "fr" } });
+  assert.match(fr.text, /Les inscriptions à ce créneau sont closes/);
+  // A shift still to come keeps its button.
+  const future = await makeShift(noon(2091, 12, 10));
+  assert.ok((await c.get("/volunteer?month=2091-12", { as: volunteer })).text.includes(`/volunteer/${future.id}/signup`));
 });

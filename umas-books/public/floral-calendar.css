@@ -44,6 +44,8 @@
    mainClass="wrap-wide" the page passes to its header include) lets that
    one row use more of the available width instead. */
 .fcal-wrap.is-week { max-width: 1400px; }
+.fcal-wrap.fcal-signup-notice { padding-bottom: 0; }
+.fcal-signup-notice .notice-box, .fcal-signup-notice .error-box { margin: 0; }
 .fcal-grid { display: grid; grid-template-columns: repeat(7, 1fr); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
 .fcal-weekday {
   text-align: center; font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase;
