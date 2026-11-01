@@ -157,17 +157,26 @@ function buildReservationReminder(order, items, base) {
 
 // Sent once when a reservation was released because its deadline passed (or its
 // session did): no penalty, the items are simply back on sale.
-function buildReservationExpiredNotice(order, items, base) {
+// keptSeats { orderId, count }: the drop-in seats of the reservation were NOT released (their session is still ahead)
+// and carry on as reservation orderId (lib/reservations.js keepLiveSeats): the email says so.
+function buildReservationExpiredNotice(order, items, base, { keptSeats = null } = {}) {
   const lang = normLang(order.lang) || "en";
   const tr = emailTr(lang);
   const name = emailSafeName(order.buyer_name);
   const lines = items.map((i) => `- ${orderItemLabel(i, lang)}`).join("\n");
   const notice = noReturnsShortPlain(lang, base);
+  const several = keptSeats && keptSeats.count > 1;
+  const kept = keptSeats
+    ? tr(
+        `${several ? "Your drop-in seats are" : "Your drop-in seat is"} still reserved: ${several ? "they are" : "it is"} now reservation #${keptSeats.orderId}, held until the session. You pay at the session.\n\n`,
+        `${several ? "Vos places « drop-in » restent réservées : elles forment" : "Votre place « drop-in » reste réservée : c’est"} maintenant la réservation n° ${keptSeats.orderId}, gardée jusqu’à la séance. Vous réglez sur place, à la séance.\n\n`
+      )
+    : "";
   return {
     subject: tr(`Your reservation #${order.id} has ended`, `Votre réservation n° ${order.id} est terminée`),
     text: tr(
-      `Hi ${name},\n\nYour reservation #${order.id} was not collected in time, so we have put the items back on sale:\n\n${lines}\n\nThere is nothing to pay and no penalty. If you still want them and they are available, you can reserve them again on our website.\n\n${notice}\n\nUma's Books`,
-      `Bonjour ${name},\n\nVotre réservation n° ${order.id} n’a pas été retirée à temps ; nous avons donc remis les articles en vente :\n\n${lines}\n\nIl n’y a rien à payer et aucune pénalité. Si vous les souhaitez encore et qu’ils sont disponibles, vous pouvez les réserver de nouveau sur notre site.\n\n${notice}\n\nUma's Books`
+      `Hi ${name},\n\nYour reservation #${order.id} was not collected in time, so we have put the items back on sale:\n\n${lines}\n\nThere is nothing to pay and no penalty. If you still want them and they are available, you can reserve them again on our website.\n\n${kept}${notice}\n\nUma's Books`,
+      `Bonjour ${name},\n\nVotre réservation n° ${order.id} n’a pas été retirée à temps ; nous avons donc remis les articles en vente :\n\n${lines}\n\nIl n’y a rien à payer et aucune pénalité. Si vous les souhaitez encore et qu’ils sont disponibles, vous pouvez les réserver de nouveau sur notre site.\n\n${kept}${notice}\n\nUma's Books`
     ),
   };
 }

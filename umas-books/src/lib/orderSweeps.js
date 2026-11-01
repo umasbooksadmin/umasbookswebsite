@@ -167,7 +167,15 @@ async function sendExpiryNotices(pool) {
     if (!order) continue;
     try {
       const items = (await loadOrderItems(pool, order.id)).filter((i) => i.class_dropin_seat_id == null);
-      await sendEmail({ kind: "reservation_expired", lang: order.lang, relatedOrderId: order.id, to: order.buyer_email, ...buildReservationExpiredNotice(order, items, configuredBaseUrl()) });
+      // Drop-in seats whose session is still ahead were not released: they carry on as a reservation of their own
+      // (lib/reservations.js keepLiveSeats), which the email names.
+      const { rows: kept } = await pool.query(
+        `SELECT o.id, (SELECT COUNT(*) FROM class_dropin_seats s WHERE s.order_id = o.id AND s.status = 'reserved')::int AS seats
+         FROM orders o WHERE o.split_from_order_id = $1 AND o.status = 'reserved' ORDER BY o.id LIMIT 1`,
+        [order.id]
+      );
+      const keptSeats = kept[0] && kept[0].seats > 0 ? { orderId: kept[0].id, count: kept[0].seats } : null;
+      await sendEmail({ kind: "reservation_expired", lang: order.lang, relatedOrderId: order.id, to: order.buyer_email, ...buildReservationExpiredNotice(order, items, configuredBaseUrl(), { keptSeats }) });
       sent++;
     } catch (err) {
       console.error(`Reservation expiry notice failed for order ${order.id}:`, err.message);

@@ -133,10 +133,13 @@ test("releasing a reservation that holds a drop-in seat and a book works and fre
   assert.equal(items.length, 2, "the closed order keeps its line items");
 });
 
-test("a seat-only reservation past its deadline is found and expired by the sweep", async () => {
+// Its deadline is the end of its session: a deadline in the past while the session is still ahead is never acted on
+// (test/integration/seatHoldDeadlines.test.js).
+test("a seat-only reservation past its deadline (its session is over) is found and expired by the sweep", async () => {
   const buyer = await h.account();
   const classId = await h.session({ capacity: 3, price: 20 });
   const { order } = await h.reserve(buyer, { classIds: [classId] });
+  await pool.query("UPDATE classes SET starts_at = now() - interval '3 hours', ends_at = now() - interval '2 hours' WHERE id = $1", [classId]);
   await pool.query("UPDATE orders SET reserved_until = now() - interval '1 hour' WHERE id = $1", [order.id]);
   await expireStaleReservations(pool);
   assert.equal((await h.order(order.id)).status, "expired");

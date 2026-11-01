@@ -3,6 +3,7 @@ const { pool } = require("../db");
 const { groupByDate, resolveCalendarRange } = require("../lib/calendar");
 const { seatsTakenExpr } = require("../lib/classCapacity");
 const { localizeAll } = require("../lib/frenchText");
+const { takePageFlash } = require("../lib/postRedirect");
 
 const router = express.Router();
 
@@ -20,13 +21,15 @@ router.get("/sessions", async (req, res) => {
   const dropinOnly = req.query.type === "dropin";
 
   const { rows: classes } = await pool.query(
-    `SELECT c.*, ${seatsTakenExpr("c")}::int AS seats_taken
+    `SELECT c.*, c.starts_at <= now() AS started, ${seatsTakenExpr("c")}::int AS seats_taken
      FROM classes c WHERE c.starts_at >= $1 AND c.starts_at < $2 ${dropinOnly ? "AND c.dropin_price IS NOT NULL" : ""} ORDER BY c.starts_at ASC`,
     [range.start, range.end]
   );
 
   const weeks = range.buildWeeks(groupByDate(localizeAll("session", classes, req.lang), "starts_at"));
-  res.render("sessions", { weeks, view: range.view, dropinOnly, ...range.nav });
+  // A refused "Add to Cart" (POST /cart/add-dropin: the session has already started) left its message here, once.
+  const flash = takePageFlash(req, res, "sessions") || {};
+  res.render("sessions", { weeks, view: range.view, dropinOnly, error: flash.error || null, ...range.nav });
 });
 
 // immersion.html and programs.html still link here — keep the URL alive

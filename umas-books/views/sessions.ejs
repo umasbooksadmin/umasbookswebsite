@@ -30,6 +30,7 @@
 </section>
 
 <div class="fcal-wrap<%= view === 'week' ? ' is-week' : '' %>">
+  <% if (locals.error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
   <div class="fcal-legend">
     <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-a"></span> <%= tr('Little Explorers', 'Petits Explorateurs') %></span>
     <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-b"></span> Éveil</span>

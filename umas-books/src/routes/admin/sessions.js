@@ -5,6 +5,7 @@ const { audit } = require("../../lib/audit");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 const { seatsTakenExpr } = require("../../lib/classCapacity");
+const { syncSeatOnlyDeadlines } = require("../../lib/reservations");
 const frenchText = require("../../lib/frenchText");
 const { setFlash, takeFlash } = require("../../lib/flash");
 const { parseMoney, parseWholeNumber } = require("../../lib/validation");
@@ -165,7 +166,7 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
     // so the seat counts below cannot change under this edit.
     await withTransaction(pool, async (client) => {
       const { rows } = await client.query(
-        `SELECT c.capacity, c.dropin_price, ${seatsTakenExpr("c")}::int AS seats_taken,
+        `SELECT c.capacity, c.dropin_price, c.starts_at, ${seatsTakenExpr("c")}::int AS seats_taken,
                 (SELECT COUNT(*) FROM class_dropin_seats d WHERE d.class_id = c.id AND d.status IN ('in_cart', 'reserved', 'sold'))::int AS paid_seats
          FROM classes c WHERE c.id = $1 FOR UPDATE OF c`,
         [id]
@@ -190,6 +191,16 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
          WHERE id = $9`,
         [title, description, location, startsAt, endsAt, capacity, dropinPrice, programType, id, french.title_fr]
       );
+      // A moved session takes its reserved seats with it: a reservation holding only seats is held until its
+      // (new) end, and the 24-hour reminder is sent again before the new start (lib/orderSweeps.js).
+      const { rows: holding } = await client.query(
+        "SELECT DISTINCT order_id FROM class_dropin_seats WHERE class_id = $1 AND status = 'reserved' AND order_id IS NOT NULL",
+        [id]
+      );
+      await syncSeatOnlyDeadlines(client, holding.map((r) => r.order_id));
+      if (new Date(cur.starts_at).getTime() !== startsAt.getTime()) {
+        await client.query("UPDATE class_dropin_seats SET reminder_sent_at = NULL WHERE class_id = $1 AND status = 'reserved'", [id]);
+      }
     });
   }
   if (problem) return refuse(problem);

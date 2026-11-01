@@ -19,7 +19,7 @@
 const { withTransaction } = require("../db");
 const { parseMoney } = require("./validation");
 const { SITE_TIME_ZONE, parisPlusDaysSql } = require("./tz");
-const { releaseReservation, extendReservation } = require("./reservations");
+const { releaseReservation, extendReservation, splitOffReservation } = require("./reservations");
 const inv = require("./inventory");
 
 const NOTE_MAX = 500;
@@ -117,7 +117,9 @@ function collectionFloorCents(item, today) {
 //     revenue from it at paid_at); reserved_total keeps the reserved total when
 //     less was received (allowed only with a note).
 //   - partial pickup: the active items NOT collected move to a new 'reserved'
-//     order (same customer, same deadline, split_from_order_id = this order).
+//     order (same customer, split_from_order_id = this order; lib/reservations.js
+//     splitOffReservation): the same deadline while it holds books, the end of
+//     the last session when only drop-in seats are left.
 // `amountReceived` (euros) defaults to the total of the collected items and may
 // only be LOWER (a discount given at the till, with a note).
 // It may not go below the legal / till minimum of the collected items (collectionFloorCents): outcome
@@ -220,28 +222,8 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
     }
     if (received < subtotal && !cleanNote) return { outcome: "note_required" };
 
-    let newOrderId = null;
-    if (rest.length) {
-      const restTotal = rest.reduce((sum, i) => sum + toCents(i.price), 0) / 100;
-      const { rows: created } = await client.query(
-        `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, status, withdrawal_waiver_at, lang,
-                             cgv_accepted_at, cgv_version, user_id, reserved_until, reservation_extended_at, confirmation_sent_at,
-                             customer_pickup_reminder_sent_at, pickup_reminder_sent_at, split_from_order_id, is_guest, guest_confirmed_at)
-         SELECT buyer_name, buyer_email, buyer_phone, $2, 'reserved', withdrawal_waiver_at, lang,
-                cgv_accepted_at, cgv_version, user_id, reserved_until, reservation_extended_at, confirmation_sent_at,
-                customer_pickup_reminder_sent_at, pickup_reminder_sent_at, id, is_guest, guest_confirmed_at
-         FROM orders WHERE id = $1 RETURNING id`,
-        [orderId, restTotal]
-      );
-      newOrderId = created[0].id;
-      // A guest's private links (lib/guestOrders.js) follow the part that is still reserved.
-      await client.query("UPDATE guest_order_tokens SET order_id = $2 WHERE order_id = $1", [orderId, newOrderId]);
-      const restCopies = rest.filter((i) => i.book_copy_id != null).map((i) => i.book_copy_id);
-      const restSeats = rest.filter((i) => i.class_dropin_seat_id != null).map((i) => i.class_dropin_seat_id);
-      await client.query("UPDATE order_items SET order_id = $2 WHERE id = ANY($1::int[])", [rest.map((i) => i.id), newOrderId]);
-      if (restCopies.length) await client.query("UPDATE book_copies SET cart_order_id = $2, updated_at = now() WHERE id = ANY($1::int[])", [restCopies, newOrderId]);
-      if (restSeats.length) await client.query("UPDATE class_dropin_seats SET order_id = $2, updated_at = now() WHERE id = ANY($1::int[])", [restSeats, newOrderId]);
-    }
+    // The rest stays reserved on a new reservation (books keep this deadline, seats alone are held until their session).
+    const newOrderId = rest.length ? await splitOffReservation(client, orderId, rest) : null;
     if (inactive.length) await client.query("DELETE FROM order_items WHERE id = ANY($1::int[])", [inactive.map((i) => i.id)]);
 
     const soldCopies = selected.filter((i) => i.book_copy_id != null).map((i) => i.book_copy_id);

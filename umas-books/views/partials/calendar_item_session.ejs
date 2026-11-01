@@ -7,6 +7,8 @@ const c = item;
 const spotsLeft = c.capacity != null ? Math.max(0, c.capacity - c.seats_taken) : null;
 const sellsDropin = c.dropin_price != null;
 const full = sellsDropin && spotsLeft != null && spotsLeft <= 0;
+// Started or over (routes/sessions.js): its seats can no longer be reserved (the cart refuses them too).
+const started = Boolean(c.started);
 %>
 <% if (sellsDropin) { %>
   <details class="fcal-session <%= toneForClassTitle(c.title_en || c.title) %>">
@@ -14,11 +16,14 @@ const full = sellsDropin && spotsLeft != null && spotsLeft <= 0;
       <div class="fcal-session-title"<% if (c.fallback) { %> lang="en"<% } %>><%= c.title %><% if (c.fallback) { %> <span class="fcal-lang"><span aria-hidden="true">EN</span><span class="visually-hidden" lang="fr"> Séance présentée en anglais</span></span><% } %></div>
       <div class="fcal-session-time"><%= formatTime(c.starts_at) %></div>
       <div class="fcal-session-seats">
-        <%= eur(c.dropin_price) %><%= spotsLeft != null ? ' · ' + (spotsLeft === 1 ? tr('1 place left', '1 place restante') : tr('{n} places left', spotsLeft < 2 ? '{n} place restante' : '{n} places restantes', { n: spotsLeft })) : '' %>
+        <%= eur(c.dropin_price) %><%= spotsLeft != null && !started ? ' · ' + (spotsLeft === 1 ? tr('1 place left', '1 place restante') : tr('{n} places left', spotsLeft < 2 ? '{n} place restante' : '{n} places restantes', { n: spotsLeft })) : '' %>
       </div>
     </summary>
     <div class="fcal-session-details">
-      <% if (full) { %>
+      <% if (started) { %>
+        <div class="fcal-session-cta" style="opacity:0.6; cursor:default;"><%= tr('Booking closed', 'Réservation close') %></div>
+        <p class="muted small"><%= tr('This session has already started.', 'Cette séance a déjà commencé.') %></p>
+      <% } else if (full) { %>
         <div class="fcal-session-cta" style="opacity:0.6; cursor:default;"><%= tr('Full', 'Complet') %></div>
       <% } else { %>
         <p class="muted small"><%= tr('Reserve your seat online and pay at the session.', 'Réservez votre place en ligne et réglez à la séance.') %></p>
