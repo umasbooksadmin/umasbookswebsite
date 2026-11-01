@@ -677,17 +677,27 @@ test("add: a second copy of an ISBN already in stock joins the existing book ins
   assert.equal(olCalls.length, 0);
 });
 
-test("add: a second copy backfills the existing book's missing description and cover (no French)", async () => {
+test("add: a second copy backfills the existing book's missing cover but never writes an AI description (review 6B M5)", async () => {
   const isbn = isbn13();
   const b = await seedBook({ isbn, cover: null, description: null });
   openLibrary.isbn.set(isbn, { title: b.title, cover: { large: "https://covers.openlibrary.org/b/id/63-L.jpg" } });
   ai.description = "Backfilled blurb.";
   await post("/admin/inventory", { fields: { title: b.title, isbn } });
   const [book] = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows;
-  assert.equal(book.description, "Backfilled blurb.");
+  assert.equal(book.description, null, "an empty description (perhaps cleared on purpose, migration 110) stays empty");
+  assert.equal(anthropicCalls.length, 0, "no AI call for a book already in the shop");
   await storedImage(book.cover_url);
   assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/63-L.jpg");
   assert.equal((await copiesOf(b.id)).length, 2);
+});
+
+test("add: a description typed with a second copy fills the existing book's empty one", async () => {
+  const isbn = isbn13();
+  const b = await seedBook({ isbn, description: null });
+  await post("/admin/inventory", { fields: { title: b.title, isbn, description: "Typed by the volunteer." } });
+  const [book] = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows;
+  assert.equal(book.description, "Typed by the volunteer.");
+  assert.equal(anthropicCalls.length, 0);
 });
 
 test("add: a second copy never overwrites what the existing book already has", async () => {
@@ -726,6 +736,48 @@ test("edit: updates the book's fields, normalising ISBN and genres; a posted Fre
   assert.equal((await copiesOf(b.id)).length, 1, "copies untouched");
 });
 
+test("edit: the ISBN follows the add-book rules: a wrong one is refused, an ISBN-10 is stored as ISBN-13, another book's is refused in either form (review 6B L1)", async () => {
+  const { isbn10From } = require("../helpers/isbn");
+  const { isbnForms } = require("../../src/lib/bookSources");
+  const b = await seedBook({ isbn: isbn13() });
+  const before = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows[0];
+  // A mistyped ISBN: refused, the form comes back with what was typed, nothing saved.
+  const bad = await followPost(`/admin/inventory/${b.id}`, { fields: { title: `${b.title} changed`, isbn: "12345", description: "d" } });
+  assert.match(bad.text, /That ISBN is not valid/);
+  assert.match(bad.text, /value="12345"/);
+  let row = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows[0];
+  assert.deepEqual([row.title, row.isbn], [before.title, before.isbn]);
+  // A real ISBN-10: stored as its ISBN-13.
+  const ten = isbn10From(`${String(Date.now()).slice(-7)}${String(++seq % 100).padStart(2, "0")}`);
+  await post(`/admin/inventory/${b.id}`, { fields: { title: b.title, isbn: ten, description: "d" } });
+  row = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows[0];
+  assert.equal(row.isbn, isbnForms(ten).isbn13);
+  // Another book's ISBN typed in its other form: refused with a sentence naming that book.
+  const other = await seedBook({ isbn: isbn13From(`978${String(Date.now()).slice(-6)}${String(++seq % 1000).padStart(3, "0")}`) });
+  const otherIsbn = (await pool.query("SELECT isbn FROM books WHERE id = $1", [other.id])).rows[0].isbn;
+  const dup = await followPost(`/admin/inventory/${b.id}`, { fields: { title: b.title, isbn: isbnForms(otherIsbn).isbn10, description: "d" } });
+  assert.match(dup.text, /Another book already has this ISBN/);
+  assert.ok(dup.text.includes(`book #${other.id}`));
+  assert.equal((await pool.query("SELECT isbn FROM books WHERE id = $1", [b.id])).rows[0].isbn, isbnForms(ten).isbn13, "unchanged");
+  // An odd ISBN already stored is kept as it is when other details are edited.
+  await pool.query("UPDATE books SET isbn = $1 WHERE id = $2", [`OLD${seq}`, b.id]);
+  const keep = await post(`/admin/inventory/${b.id}`, { fields: { title: `${b.title} kept`, isbn: `OLD${seq}`, description: "d" } });
+  assert.equal(keep.status, 302);
+  row = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows[0];
+  assert.deepEqual([row.title, row.isbn], [`${b.title} kept`, `OLD${seq}`]);
+});
+
+test("admin search: an ISBN typed in either form, with hyphens, finds the book (review 6B L2)", async () => {
+  const { isbnForms } = require("../../src/lib/bookSources");
+  const isbn = isbn13From(`978${String(Date.now()).slice(-6)}${String(++seq % 1000).padStart(3, "0")}`);
+  const b = await seedBook({ isbn });
+  const ten = isbnForms(isbn).isbn10;
+  for (const q of [ten, `${ten.slice(0, 1)}-${ten.slice(1, 5)}-${ten.slice(5, 9)}-${ten.slice(9)}`.toLowerCase(), `${isbn.slice(0, 3)}-${isbn.slice(3)}`]) {
+    const page = await get(`/admin/inventory?q=${encodeURIComponent(q)}`);
+    assert.ok(page.text.includes(`/admin/inventory/${b.id}"`), `found by ${q}`);
+  }
+});
+
 test("edit: a blank title changes nothing (the redirect still happens)", async () => {
   const b = await seedBook();
   const { status } = await post(`/admin/inventory/${b.id}`, { fields: { title: "  ", author: "Hijack" } });
@@ -735,15 +787,15 @@ test("edit: a blank title changes nothing (the redirect still happens)", async (
   assert.equal(book.authors, "Seed Author");
 });
 
-test("edit: blanking the description regenerates it, blanking the cover looks one up", async () => {
+test("edit: a blanked description stays empty (no AI description, review 6B M5); blanking the cover looks one up", async () => {
   const b = await seedBook({ isbn: isbn13() });
   const isbn = (await pool.query("SELECT isbn FROM books WHERE id=$1", [b.id])).rows[0].isbn;
   openLibrary.isbn.set(isbn, { title: b.title, cover: { large: "https://covers.openlibrary.org/b/id/66-L.jpg" } });
   ai.description = "Regenerated.";
   await post(`/admin/inventory/${b.id}`, { fields: { title: b.title, isbn } });
   const [book] = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows;
-  assert.equal(book.description, "Regenerated.");
-  assert.ok(!anthropicCalls.some((c) => /^Translate/.test(c.messages[0].content)), "no translation call");
+  assert.equal(book.description, null, "the admin can keep a book with no description");
+  assert.equal(anthropicCalls.length, 0, "saving a book never calls the AI");
   await storedImage(book.cover_url);
   assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/66-L.jpg");
 });

@@ -102,7 +102,7 @@ test("search: CORS headers and result shape; only in-stock books; price is the c
   assert.equal(res.headers.get("cross-origin-resource-policy"), "cross-origin");
   assert.equal(res.headers.get("cache-control"), "public, max-age=60");
   const hit = json.find((x) => x.id === b.id);
-  assert.deepEqual(hit, { id: b.id, title: b.title, author: "Some Author", coverUrl: "/c.png", price: 4.5, buy: { choose: true, from: 4.5 }, awards: "", conditions: [{ value: "very_good", label: "Very Good" }], clearance: false, binding: null, bindingLabel: null, url: `${app.base}/books/${b.id}` });
+  assert.deepEqual(hit, { id: b.id, title: b.title, author: "Some Author", coverUrl: "/c.png", price: 4.5, buy: { choose: true, from: 4.5 }, libraryCover: false, awards: "", conditions: [{ value: "very_good", label: "Very Good" }], clearance: false, binding: null, bindingLabel: null, url: `${app.base}/books/${b.id}` });
   assert.ok(!json.some((x) => x.id === gone.id), "books with no in-stock copy are hidden");
 });
 
@@ -122,6 +122,22 @@ test("search: q matches title, author, description and categories case-insensiti
   assert.deepEqual(await ids(isbn), [byIsbn.id]);
   assert.deepEqual(await ids(`${isbn.slice(0, 3)}-${isbn.slice(3)}`), [byIsbn.id], "hyphenated ISBN still matches");
   assert.deepEqual(await ids(`${TAG}-nothing-${uniq()}`), []);
+});
+
+test("search: an ISBN typed in its 10- or 13-digit form finds the book stored under the other one (review 6B L2)", async () => {
+  const { isbn10From } = require("../helpers/isbn");
+  const { isbnForms } = require("../../src/lib/bookSources");
+  // A book stored under its ISBN-13 (every new book), found by the ISBN-10 printed in an older copy, and the reverse.
+  let ten;
+  do { ten = isbn10From(String(Math.floor(Math.random() * 1e9)).padStart(9, "0")); } while (!ten.endsWith("X"));
+  const stored13 = await makeBook({ isbn: isbnForms(ten).isbn13 });
+  const ten2 = isbn10From(String(Math.floor(Math.random() * 1e9)).padStart(9, "0"));
+  const stored10 = await makeBook({ isbn: ten2 });
+  const ids = async (q) => (await api(`/api/books/search?q=${encodeURIComponent(q)}`)).json.map((x) => x.id);
+  assert.deepEqual(await ids(ten), [stored13.id], "ISBN-10 typed, ISBN-13 stored");
+  assert.deepEqual(await ids(ten.toLowerCase()), [stored13.id], "a lower-case x check digit");
+  assert.deepEqual(await ids(`${ten.slice(0, 1)}-${ten.slice(1, 5)}-${ten.slice(5, 9)}-${ten.slice(9).toLowerCase()}`), [stored13.id], "hyphenated");
+  assert.deepEqual(await ids(isbnForms(ten2).isbn13), [stored10.id], "ISBN-13 typed, ISBN-10 stored");
 });
 
 test("search: LIKE wildcards in q are bound as data, not SQL (quote and % do not break or widen the query)", async () => {
@@ -165,7 +181,8 @@ test("search: genre is an exact match on a comma-separated category; topic match
 
 test("JSON shapes and headers of the public book lists are pinned: exact keys in order, CORS-open except by-ids", async () => {
   const b = await makeBook({ title: `${TAG} Shape`, authors: "Shape Author", copies: [{ price: 6.5 }] });
-  const SHARED = ["id", "title", "author", "coverUrl", "price", "buy"]; // buy: the card's cart icon (lib/cardCart.js)
+  // buy: the card's cart icon (lib/cardCart.js); libraryCover: the cover came from an online library (lib/coverNote.js)
+  const SHARED = ["id", "title", "author", "coverUrl", "price", "buy", "libraryCover"];
   const search = await api(`/api/books/search?q=${encodeURIComponent(`${TAG} Shape`)}&paged=1`);
   assert.deepEqual(Object.keys(search.json), ["books", "total", "nextOffset"]);
   assert.deepEqual(Object.keys(search.json.books[0]), [...SHARED, "awards", "conditions", "binding", "bindingLabel", "clearance", "url"]);
@@ -185,7 +202,7 @@ test("JSON shapes and headers of the public book lists are pinned: exact keys in
   assert.equal(ni.res.headers.get("cache-control"), "public, max-age=60, s-maxage=60");
   const ids = await api(`/api/books/by-ids?ids=${b.id}`);
   assert.deepEqual(Object.keys(ids.json[0]), [...SHARED, "inStockCount", "url"]);
-  assert.deepEqual(ids.json[0], { id: b.id, title: `${TAG} Shape`, author: "Shape Author", coverUrl: ids.json[0].coverUrl, price: 6.5, buy: { copyId: ids.json[0].buy.copyId }, inStockCount: 1, url: `/books/${b.id}` });
+  assert.deepEqual(ids.json[0], { id: b.id, title: `${TAG} Shape`, author: "Shape Author", coverUrl: ids.json[0].coverUrl, price: 6.5, buy: { copyId: ids.json[0].buy.copyId }, libraryCover: false, inStockCount: 1, url: `/books/${b.id}` });
   assert.ok(Number.isInteger(ids.json[0].buy.copyId), "one priced copy: the card's icon adds it");
   assert.equal(ids.res.headers.get("access-control-allow-origin"), null, "by-ids is same-origin only");
   assert.equal(ids.res.headers.get("cross-origin-resource-policy"), "same-origin");
@@ -220,7 +237,7 @@ test("new-in: every book of the last 60 days (no cap), newest first by the exact
   assert.ok(batches.total > 200);
   assert.equal(batches.books.length, batches.total, "batches reach every book");
   assert.equal(new Set(batches.books.map((b) => b.id)).size, batches.books.length, "no book twice");
-  assert.deepEqual(Object.keys(batches.books[0]).sort(), ["author", "buy", "coverUrl", "id", "price", "title", "url"]);
+  assert.deepEqual(Object.keys(batches.books[0]).sort(), ["author", "buy", "coverUrl", "id", "libraryCover", "price", "title", "url"]);
   const first = await api("/api/books/new-in?offset=0&limit=60");
   assert.equal(first.json.books.length, 60);
   assert.equal(first.json.nextOffset, 60, "the boundary is at 60");

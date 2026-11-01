@@ -26,6 +26,9 @@ const bookJson = (b) => ({
   price: b.min_price != null ? Number(b.min_price) : null,
   // The card's cart icon (lib/cardCart.js): null (none), { copyId } (adds that copy) or { choose: true, from? } (opens the book page; from = the lowest price when the copies differ in price).
   buy: cardBuy(b.buy_copy_id, b.buy_from_price),
+  // The cover came from an online book library (lib/coverNote.js): the page shows its "cover images come from..." note
+  // only when a book it lists has such a cover. Every query feeding this selects library_cover.
+  libraryCover: b.library_cover === true,
 });
 
 module.exports = { PUBLIC_JSON_CACHE, publicJson, bookJson };

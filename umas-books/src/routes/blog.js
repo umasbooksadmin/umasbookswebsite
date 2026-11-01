@@ -1,5 +1,6 @@
 const express = require("express");
 const { pool } = require("../db");
+const { isFullAdmin } = require("../middleware/auth");
 const blogPosts = require("../lib/blogPosts");
 
 const router = express.Router();
@@ -21,8 +22,8 @@ function setFeedHeaders(req, res) {
   // An admin's own preview (?preview=1): every post including drafts and
   // scheduled ones, so the real blog page can show them before they go public.
   // Anyone else asking for it just gets the public list. Never cached.
-  const u = req.session && req.session.user;
-  const adminPreview = req.query.preview === "1" && Boolean(u && u.isAdmin);
+  // The same two-step condition as the admin pages (middleware/auth.js isFullAdmin).
+  const adminPreview = req.query.preview === "1" && isFullAdmin(req);
   if (adminPreview) res.set("Cache-Control", "no-store");
   return adminPreview;
 }

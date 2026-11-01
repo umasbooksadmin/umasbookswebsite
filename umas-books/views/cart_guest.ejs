@@ -18,8 +18,9 @@
 <% const hasBooks = items.some((i) => i.kind === 'book'); const hasSeats = items.some((i) => i.kind === 'dropin'); %>
 <div class="card">
   <h2 class="section-title"><%= tr('Your details', 'Vos coordonnées') %></h2>
-  <form class="stack" method="post" action="/cart/guest/reserve">
+  <form class="stack" method="post" action="/cart/guest/reserve" data-saving-text="<%= tr('Reserving…', 'Réservation en cours…') %>">
     <%- include('partials/csrf_field') %>
+    <input type="hidden" name="formShownAt" value="<%= Date.now() %>">
     <% items.filter((i) => i.kind === 'book').forEach((i) => { %><input type="hidden" name="seenPrice_<%= i.copyId %>" value="<%= i.price.toFixed(2) %>"><% }) %>
     <label for="name"><%= tr('Name', 'Nom') %></label>
     <input id="name" name="name" type="text" autocomplete="name" maxlength="100" value="<%= values.name %>" required>

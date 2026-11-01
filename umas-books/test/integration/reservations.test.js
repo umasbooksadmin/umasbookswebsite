@@ -271,8 +271,10 @@ test("the same account pressing Reserve twice at once (double click) holds the b
     v.post("/cart/reserve", { name: "Dbl", acceptCgv: "on" }),
     v.post("/cart/reserve", { name: "Dbl", acceptCgv: "on" }),
   ]);
-  assert.equal([r1, r2].filter((r) => r.status === 302).length, 1);
-  assert.equal((await h.ordersOf(buyer)).length, 1);
+  // Both presses land on the one reservation's page (review 6B M6: the second is not told "taken by someone else").
+  const orders = await h.ordersOf(buyer);
+  assert.equal(orders.length, 1);
+  for (const r of [r1, r2]) assert.equal(r.location, `/cart/return?order=${orders[0].access_token}`);
 });
 
 test("a reservation is refused in preview mode: nothing is held, friendly notice (EN/FR)", async () => {

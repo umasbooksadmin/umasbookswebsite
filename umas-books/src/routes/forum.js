@@ -2,7 +2,7 @@ const express = require("express");
 const { CONTACT_EMAIL } = require("../lib/legal");
 const config = require("../lib/config");
 const { pool } = require("../db");
-const { requireMember } = require("../middleware/auth");
+const { requireMember, isFullAdmin } = require("../middleware/auth");
 const { forumPostLimiter, forumReplyLimiter, limit } = require("../middleware/rateLimits");
 const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
 const { clean, parseId, emailSafeName } = require("../lib/validation");
@@ -38,7 +38,8 @@ const forumReportLimiter = limit({
   keyGenerator: (req) => `user:${req.session.user.id}`,
 });
 
-const isAdminReq = (req) => !!(req.session.user && req.session.user.isAdmin);
+// Admin powers on the forum (hidden posts, replying in hidden threads): the same two-step condition as the admin pages.
+const isAdminReq = isFullAdmin;
 
 // Hidden posts (admin moderation, routes/admin/forum.js): members never get
 // the text, so it is blanked here and the views show a placeholder. Admins

@@ -6,6 +6,6 @@
 <div id="favorites-list" class="book-grid">
   <p class="muted"><%= tr('Loading your favorites…', 'Chargement de vos favoris…') %></p>
 </div>
-<%- include('partials/cover_note') %>
+<%- include('partials/cover_note', { coverNoteShow: 'client' }) %>
 
 <%- include('partials/footer', { withUi: true }) %>

@@ -2,7 +2,8 @@ const express = require("express");
 const { localCover } = require("../lib/coverStore");
 const { publicJson, bookJson, PUBLIC_JSON_CACHE } = require("../lib/publicBookJson");
 const { pool } = require("../db");
-const { CONDITIONS, bindingLabel, conditionLabel } = require("../lib/inventory");
+const { CONDITIONS, bindingLabel, conditionLabel, isbnSearchForms, isbnMatchSql } = require("../lib/inventory");
+const { LIBRARY_COVER_SQL, isLibraryCover } = require("../lib/coverNote");
 const { expireStaleReservationsThrottled } = require("../lib/reservations");
 const { baseUrl } = require("../lib/baseUrl");
 const { clean, parseId } = require("../lib/validation");
@@ -128,12 +129,13 @@ router.get("/api/books/search", bookSearchLimiter, publicJson("public, max-age=6
   if (q) {
     params.push(likeContains(q));
     const n = params.length;
-    params.push(q.replace(/[^0-9Xx]/g, ""));
+    // An ISBN typed in either its 10- or 13-digit form (lib/inventory.js isbnSearchForms).
+    params.push(isbnSearchForms(q));
     const isbn = params.length;
     clauses.push(
       // title, author, keyword (the book's description) or genre (categories)
       `(b.title ILIKE $${n} OR b.authors ILIKE $${n}${q.length >= SEARCH_DESCRIPTION_MIN_LENGTH ? ` OR b.description ILIKE $${n}` : ""} OR b.categories ILIKE $${n}` +
-        ` OR ($${isbn} <> '' AND length($${isbn}) >= 10 AND regexp_replace(COALESCE(b.isbn, ''), '[^0-9Xx]', '', 'g') = $${isbn}))`
+        ` OR ${isbnMatchSql("b.isbn", `$${isbn}`)})`
     );
   }
   if (genre) {
@@ -158,7 +160,7 @@ router.get("/api/books/search", bookSearchLimiter, publicJson("public, max-age=6
   }
 
   const { rows } = await pool.query(
-    `SELECT b.id, b.title, b.authors, b.cover_url,
+    `SELECT b.id, b.title, b.authors, b.cover_url, ${LIBRARY_COVER_SQL("b")} AS library_cover,
             (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
             ${awardsTextSql("b.id")} AS awards,
             (SELECT array_agg(DISTINCT c.condition) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS conditions,
@@ -208,7 +210,7 @@ router.get("/api/books/by-ids", async (req, res) => {
   if (!ids.length) return res.json([]);
 
   const { rows } = await pool.query(
-    `SELECT b.id, b.title, b.authors, b.cover_url,
+    `SELECT b.id, b.title, b.authors, b.cover_url, ${LIBRARY_COVER_SQL("b")} AS library_cover,
             (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
             (SELECT COUNT(*) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')::int AS in_stock_count,
             ${BUY_COPY_SQL("b.id")} AS buy_copy_id,
@@ -241,7 +243,7 @@ router.get("/books/:id", async (req, res) => {
   let moreByAuthor = [];
   if (book.authors) {
     const { rows } = await pool.query(
-      `SELECT b.id, b.title, b.cover_url,
+      `SELECT b.id, b.title, b.cover_url, ${LIBRARY_COVER_SQL("b")} AS library_cover,
               (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
               ${BUY_COPY_SQL("b.id")} AS buy_copy_id,
             ${BUY_FROM_SQL("b.id")} AS buy_from_price
@@ -269,6 +271,7 @@ router.get("/books/:id", async (req, res) => {
     ogType: "book",
     jsonLd: seo.jsonLd,
     book,
+    isLibraryCover,
     copies,
     awards: await loadPublicAwards(pool, id),
     conditions: CONDITIONS,

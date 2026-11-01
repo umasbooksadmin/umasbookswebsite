@@ -114,7 +114,10 @@
     resultsTitle.setAttribute('tabindex', '-1');
     try { resultsTitle.focus({ preventScroll: true }); } catch { /* old browser: the scroll is enough */ }
   }
+  // The "cover images come from an online book library" note: only under books whose cover came from one (lib/coverNote.js).
+  var coverNote = resultsEl.querySelector('[data-cover-note]');
   function drawBooks(books) {
+    if (coverNote) coverNote.hidden = !books.some(function (b) { return b.libraryCover; });
     if (!books.length) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.empty')) + ' <a href="' + esc(UI.href('/request-a-book')) + '">' + esc(t('bk.empty.ask')) + '</a></p>'; return; }
     resultsGrid.innerHTML = books.map(function (b) { return UI.bookCardHtml(b, true); }).join('');
     syncFavorites(resultsGrid);

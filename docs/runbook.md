@@ -2449,8 +2449,9 @@ so scanning the same book again, or saving a book just looked up, asks nobody. T
 fetched in parallel and each is given a short wait (1.2 s and 3 s): a slower one is left out of that answer
 (the preview has no cover; the price then comes from the shop's rules alone) and finishes in the background.
 **Saving**: the copy is written and the page answers at once; the cover download, the search for a cover, the
-description (AI, English only), and the awards check all happen **after** the answer
-(`src/lib/bookFill.js`). Nothing already stored is overwritten; a cover that could not be fetched keeps its source
+description (AI, English only, and only for a book new to the shop), and the awards check all happen **after** the answer
+(`src/lib/bookFill.js`). Nothing already stored is overwritten; a later copy of a book already in the shop, and saving a book's
+edit form, never write an AI description (an empty one stays empty: it may have been cleared on purpose, section as); a cover that could not be fetched keeps its source
 address for the 5-minute cover job. Before this change the save waited for all of it (3 to 20 seconds per book).
 
 Measure it: every answer of `GET /admin/inventory/lookup` and `POST /admin/inventory` carries a `Server-Timing`
@@ -2619,7 +2620,7 @@ launch-guard alerts; it holds across restarts). A call that works again deletes 
 is sent. If the mail itself cannot be sent (Gmail down), the next refused call tries again instead of waiting 24 hours.
 
 **Where else it shows.** A red line "Anthropic API credit ran out at <time>" in the Dashboard's **Needs attention** box, and a row in **Diagnostics > Background jobs > Alerts sent**
-(with the time it was last sent). Both disappear after the next successful AI call (the next book saved without a description, for instance). The red banner on the
+(with the time it was last sent). Both disappear after the next successful AI call (the next new book saved without a description, for instance). The red banner on the
 report (above) is separate: it stays 24 hours after the last refused call.
 
 **Test it.** **Reports > Book lookup sources used > Anthropic credit alert > Send a test credit alert**: the same email once, with `[TEST]` in the subject. Once a minute at most;
@@ -3899,5 +3900,6 @@ UPDATE books
 <!-- restore-cleared-descriptions:end -->
 
 It answers `UPDATE <n>`. The backup table is small, holds no personal data and follows the books (a deleted book loses its row).
-The descriptions can be written again from the book page (**Generate description**, or by hand). Once Sharon is happy, a
+The descriptions can be written again from the book page (**Generate description**, or by hand). Saving such a book, or
+adding another copy of it, keeps its description empty: the AI writes one only for a book that is new to the shop. Once Sharon is happy, a
 developer can drop the table with a new migration (`DROP TABLE IF EXISTS cleared_book_descriptions;`).

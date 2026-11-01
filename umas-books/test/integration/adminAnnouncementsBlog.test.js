@@ -183,6 +183,48 @@ test("announcements: update rewrites the fields, can switch to draft, and ignore
   assert.equal(a.title, `${title} v2`, "invalid update leaves the row alone");
 });
 
+test("announcements: editing a published one keeps its publish date (review 6B L3); a draft published from the form is dated now", async () => {
+  const { id, title } = await newAnn();
+  const old = new Date(Date.now() - 21 * 86400000);
+  await h.q("UPDATE announcements SET published_at = $1 WHERE id = $2", [old, id]);
+  await h.post(`/admin/announcements/${id}`, { title: `${title} typo fixed`, body: "<p>fixed</p>", statusAction: "publish" });
+  let a = (await h.q("SELECT * FROM announcements WHERE id = $1", [id]))[0];
+  assert.equal(a.title, `${title} typo fixed`);
+  assert.equal(a.status, "published");
+  assert.equal(a.published_at.getTime(), old.getTime(), "still dated three weeks ago");
+
+  const draft = await newAnn({ status: "draft" });
+  const before = Date.now();
+  await h.post(`/admin/announcements/${draft.id}`, { title: draft.title, body: "<p>x</p>", statusAction: "publish" });
+  a = (await h.q("SELECT * FROM announcements WHERE id = $1", [draft.id]))[0];
+  assert.equal(a.status, "published");
+  assert.ok(a.published_at.getTime() >= before - 1000, "a draft is dated when it is first published");
+});
+
+test("announcements: the expiration date means the end of that day in Paris, the form shows it back, and a bad date is refused (review 6B L3)", async () => {
+  const u = h.uniq();
+  // Winter (UTC+1) and summer (UTC+2): shown until midnight Paris at the end of the chosen day.
+  await h.post("/admin/announcements", { title: `ExpWinter ${u}`, body: "<p>x</p>", expiresEnabled: "on", expiresAt: "2031-01-15" });
+  await h.post("/admin/announcements", { title: `ExpSummer ${u}`, body: "<p>x</p>", expiresEnabled: "on", expiresAt: "2031-07-15" });
+  const winter = await annByTitle(`ExpWinter ${u}`);
+  const summer = await annByTitle(`ExpSummer ${u}`);
+  assert.equal(winter.expires_at.toISOString(), "2031-01-15T23:00:00.000Z");
+  assert.equal(summer.expires_at.toISOString(), "2031-07-15T22:00:00.000Z");
+  const edit = await h.get(`/admin/announcements?edit=${summer.id}`);
+  assert.ok(edit.text.includes('name="expiresAt" aria-label="Expiration date" value="2031-07-15"'), "the form shows the chosen day");
+  // An expiry saved before this change (UTC midnight of the day) still shows that day.
+  await h.q("UPDATE announcements SET expires_at = '2031-03-10T00:00:00Z' WHERE id = $1", [winter.id]);
+  assert.ok((await h.get(`/admin/announcements?edit=${winter.id}`)).text.includes('value="2031-03-10"'));
+  // Saving the edit form again keeps the day (and moves the instant to the end of it).
+  await h.post(`/admin/announcements/${summer.id}`, { title: `ExpSummer ${u}`, body: "<p>x</p>", expiresEnabled: "on", expiresAt: "2031-07-15", statusAction: "publish" });
+  assert.equal((await annByTitle(`ExpSummer ${u}`)).expires_at.toISOString(), "2031-07-15T22:00:00.000Z");
+  // A value that is not a date: refused with a sentence, nothing written (it used to be a 500).
+  const bad = await h.post("/admin/announcements", { title: `ExpBad ${u}`, body: "<p>x</p>", expiresEnabled: "on", expiresAt: "not-a-date" });
+  assert.notEqual(bad.res.status, 500);
+  assert.equal(await annByTitle(`ExpBad ${u}`), undefined);
+  assert.ok(bad.text.includes("The expiration date must be a real date"), "the page says why");
+});
+
 test("announcements: status machine draft/published/archived/trash/restore, unknown actions ignored", async () => {
   const { id } = await newAnn({ status: "draft" });
   const statusOf = async () => (await h.q("SELECT status, published_at FROM announcements WHERE id = $1", [id]))[0];

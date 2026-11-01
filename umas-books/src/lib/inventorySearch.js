@@ -13,7 +13,7 @@
 // them together. Binding is stored on books (books.binding), so it is a plain
 // predicate on the book. Every user value goes in as a bound parameter.
 
-const { CONDITIONS, BINDINGS, normalizeBinding, normalizeLocation, uniqueLocations } = require("./inventory");
+const { CONDITIONS, BINDINGS, normalizeBinding, normalizeLocation, uniqueLocations, isbnSearchForms, isbnMatchSql } = require("./inventory");
 const { parseMoney, parseDay, clean } = require("./validation");
 const { COMMON_GENRES } = require("./bookLookup");
 const { likeContains } = require("./parseParams");
@@ -122,7 +122,10 @@ function buildSearchWhere(f) {
   const conditions = [];
   if (f.q) {
     params.push(likeContains(f.q));
-    conditions.push(`(b.title ILIKE $${params.length} OR b.authors ILIKE $${params.length} OR b.isbn ILIKE $${params.length})`);
+    const n = params.length;
+    // A whole ISBN also matches in its other form, hyphens or not (lib/inventory.js isbnSearchForms).
+    params.push(isbnSearchForms(f.q));
+    conditions.push(`(b.title ILIKE $${n} OR b.authors ILIKE $${n} OR b.isbn ILIKE $${n} OR ${isbnMatchSql("b.isbn", `$${params.length}`)})`);
   }
   addFilterConditions(f, conditions, params);
   return { conditions, params };

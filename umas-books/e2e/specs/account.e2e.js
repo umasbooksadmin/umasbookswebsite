@@ -529,6 +529,7 @@ s.manual("AC40 (must) after the deadline the books go back on sale and the custo
 s.manual("AC41 someone else reserves your book while it is in your cart", "needs a second customer reserving the same copy at the same moment; the app's own tests cover it");
 
 s.manual("AC42 the back button after reserving shows no error page and does not reserve twice", "do it by hand once; the same back-button behaviour for the cart is checked by E3, and the site allows only 10 reservation requests an hour from one address");
+s.manual("AC42a (must) pressing Reserve twice greys the button and lands on one reservation, never the false taken-by-someone-else message (covered by test/integration/doubleReserve.test.js)", "a real double tap on a slow phone: checked by hand; the site allows only 10 reservation requests an hour from one address");
 
 s.manual("AC56 the limit of 10 books: an 11th book in one account's reservations is refused with a clear message", "needs 11 books in stock and would use another of the 10 reservation requests an hour; the app's own tests cover it");
 

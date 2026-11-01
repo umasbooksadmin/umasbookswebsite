@@ -224,10 +224,10 @@
 
         <label class="ann-check">
           <input type="checkbox" name="expiresEnabled" <%= editing && editing.expires_at ? 'checked' : '' %>>
-          <span>Set an expiration date (optional)</span>
+          <span>Set an expiration date (optional; shown until the end of that day)</span>
         </label>
         <div data-show-when="expiresEnabled=on">
-          <input type="date" name="expiresAt" aria-label="Expiration date" value="<%= editing && editing.expires_at ? new Date(editing.expires_at).toISOString().slice(0,10) : '' %>">
+          <input type="date" name="expiresAt" aria-label="Expiration date" value="<%= editing && editing.expires_day ? editing.expires_day : '' %>">
         </div>
 
         <div class="section-title" style="font-size:16px; margin-top:6px;">Status</div>

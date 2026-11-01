@@ -208,6 +208,7 @@ s.test("G12a (must) results are in A-Z order, ignoring a leading The (the title 
   if (titles.length < 2) ctx.skip("data: fewer than two books in stock");
   assertAlphabetical(titles);
 });
+s.manual("G12b (must) an ISBN typed in its 10- or 13-digit form, with hyphens or a small x, finds the book in Browse and in Admin > Inventory (covered by test/integration/publicApis.test.js and test/integration/adminInventory.test.js)", "needs a real book whose printed ISBN-10 differs from the stored ISBN-13: checked by hand");
 
 s.test("G13 genre buttons filter the list and change it when another is chosen", async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
@@ -1200,6 +1201,7 @@ s.test("G61 a book page shows the cover from our own server with its size reserv
   const { html } = await pageHtml(ctx, `/books/${book.id}`);
   assert.doesNotMatch(html, /openlibrary\.org|archive\.org/);
 });
+s.manual("G61a (must) the online-library cover note shows only for covers that came from an online library, not for own photos or no cover (covered by test/integration/coverDisclaimer.test.js)", "which books have own photos depends on the real inventory: checked by hand");
 
 s.test("G62 New In covers are shown whole (contain, 2:3 box, no horizontal overflow)", async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");

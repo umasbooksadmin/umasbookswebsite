@@ -2,7 +2,7 @@
 // routes (to validate/default incoming values) and the views (to build
 // the <select> dropdowns) so the two never drift apart.
 
-const { normalizeIsbn, STATIC_KNOWN_GENRES } = require("./bookLookup");
+const { normalizeIsbn, isValidIsbn, STATIC_KNOWN_GENRES } = require("./bookLookup");
 const { canonicalGenres } = require("./genreClean");
 const { parseMoney } = require("./validation");
 const { parisDateString } = require("./tz");
@@ -304,4 +304,18 @@ function isbnVariants(isbn) {
   return [...out];
 }
 
-module.exports = { CONDITIONS, BINDINGS, DEFAULT_CONDITION, STATUSES, SOURCES, normalizeSource, LOCATION_MAX, normalizeCondition, normalizeBinding, conditionLabel, bindingLabel, resolveCopyPricing, isPublishedOverTwoYearsAgo, isPurchasablePrice, normalizeStatus, normalizeGenres, normalizeLocation, locationKey, sameLocation, uniqueLocations, parseScan, isbnVariants };
+// What a search box's text matches as an ISBN (review 6B L2): a typed real ISBN, with or without hyphens, in either its
+// ISBN-10 or ISBN-13 form (a lower-case x check digit too), so a customer typing the ISBN-10 printed in an old book
+// finds the copy stored under its ISBN-13 and the other way round. Text with fewer than 10 ISBN characters is no ISBN
+// ([]); 10 or more that are not a real ISBN match that exact string only. Compare with the stored ISBN reduced to its
+// digits and X, upper-cased (isbnSearchSql).
+function isbnSearchForms(text) {
+  const typed = normalizeIsbn(text);
+  if (typed.length < 10) return [];
+  return isValidIsbn(typed) ? isbnVariants(typed) : [typed];
+}
+const isbnSearchSql = (column) => `upper(regexp_replace(COALESCE(${column}, ''), '[^0-9Xx]', '', 'g'))`;
+// SQL: the stored ISBN in `column` is one of the forms in the text[] parameter `param` (for example "$3").
+const isbnMatchSql = (column, param) => `${isbnSearchSql(column)} = ANY(${param}::text[])`;
+
+module.exports = { CONDITIONS, BINDINGS, DEFAULT_CONDITION, STATUSES, SOURCES, normalizeSource, LOCATION_MAX, normalizeCondition, normalizeBinding, conditionLabel, bindingLabel, resolveCopyPricing, isPublishedOverTwoYearsAgo, isPurchasablePrice, normalizeStatus, normalizeGenres, normalizeLocation, locationKey, sameLocation, uniqueLocations, parseScan, isbnVariants, isbnSearchForms, isbnSearchSql, isbnMatchSql };

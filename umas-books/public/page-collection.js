@@ -63,6 +63,9 @@
     var frag = document.createDocumentFragment();
     while (tmp.firstChild) frag.appendChild(tmp.firstChild);
     grid.appendChild(frag);
+    // The online-library cover note (lib/coverNote.js): shown once a book with such a cover is on the page.
+    var note = document.querySelector('[data-cover-note]');
+    if (note && fresh.some(function (b) { return b.libraryCover; })) note.hidden = false;
     return first;
   }
 

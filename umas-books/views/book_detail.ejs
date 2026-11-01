@@ -13,7 +13,7 @@
         <div class="book-detail-cover book-thumb-placeholder" aria-hidden="true"><%= tr('No cover', 'Pas de couverture') %></div>
       <% } %>
     </div>
-    <%- include('partials/cover_note') %>
+    <%- include('partials/cover_note', { coverNoteShow: isLibraryCover(book) }) %>
   </div>
 
   <div>
@@ -137,7 +137,7 @@
       </div>
     <% }) %>
   </div>
-  <%- include('partials/cover_note') %>
+  <%- include('partials/cover_note', { coverNoteShow: moreByAuthor.some((b) => b.library_cover) }) %>
 <% } %>
 
 <%# withUi: public/ui.js and public/cart-add.js, for the cart icons of the "More by" cards. %>

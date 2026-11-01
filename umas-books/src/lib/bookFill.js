@@ -36,7 +36,9 @@ async function findCoverUrl({ isbn }) {
 const coverOriginOf = (url) => (/^https:\/\/covers\.openlibrary\.org\/b\/isbn\//.test(String(url || "")) ? "isbn" : "form");
 
 // hints: { isbn, title, author, publisher, publishedYear, description, coverUrl }
-// as typed on the form (all optional). deps: injectable for tests.
+// as typed on the form (all optional), plus aiDescription: false when no AI description may be written (a later copy of
+// a book already in the shop, review 6B M5: the owner cleared AI-guessed descriptions on purpose, migration 110; a
+// description typed on the form is still used). deps: injectable for tests.
 async function fillBookGaps(pool, bookId, hints = {}, deps = {}) {
   const describe = deps.generateBookDescription || generateBookDescription;
   const findCover = deps.findCoverUrl || findCoverUrl;
@@ -51,7 +53,7 @@ async function fillBookGaps(pool, bookId, hints = {}, deps = {}) {
   if (!needDescription && !needCover) return { filled: false };
 
   const [description, coverAddress] = await Promise.all([
-    needDescription ? (hints.description || describe({ title: hints.title, author: hints.author, publisher: hints.publisher, publishedYear: hints.publishedYear })) : null,
+    needDescription ? (hints.description || (hints.aiDescription === false ? null : describe({ title: hints.title, author: hints.author, publisher: hints.publisher, publishedYear: hints.publishedYear }))) : null,
     needCover ? (hints.coverUrl || findCover({ isbn: hints.isbn })) : null,
   ]);
   const cover = needCover ? await prepare(coverAddress) : { cover: null, source: null };

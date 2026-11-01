@@ -95,6 +95,11 @@ router.post("/admin/till/scan", requireTillOrAdmin, scanLimiter, jsonRoute(async
   await expireStaleReservations(pool);
   const have = Array.isArray(parseJson(req.body.have)) ? parseJson(req.body.have) : [];
   const result = await till.lookupScan(pool, String(req.body.code || ""), have.slice(0, 100));
+  // Opening a reservation at the till shows the customer's name: recorded, so a run of ORDER-<n> lookups is visible
+  // in the audit log (review 6A L1).
+  if (result.type === "reservation") {
+    await audit(req, { action: "till.reservation_open", targetType: "order", targetId: result.order.id, detail: `opened at the till${isAdminReq(req) ? "" : " by till account"}` });
+  }
   res.json(result);
 }));
 
