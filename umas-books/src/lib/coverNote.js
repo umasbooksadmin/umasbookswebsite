@@ -1,4 +1,4 @@
-// "Cover images come from an online book library and may not show the actual condition of the copy" (review 6B L4):
+// The cover note (long text on the book page, short on lists; views/partials/cover_note.ejs) (review 6B L4):
 // true only for a cover that really came from an online library, never for the shop's own photo or a book with no cover.
 //
 // books.cover_origin (migration 111): 'isbn' (found for the exact ISBN), 'chosen' (picked from Open Library on the

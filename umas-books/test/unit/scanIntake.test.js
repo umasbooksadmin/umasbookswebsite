@@ -242,3 +242,29 @@ test("the lookup limit is longer than the server's own 4 s lookup limit, and the
   assert.match(src, /\/admin\/inventory\/lookup\?isbn=[^\n]*signal: limit\.signal/);
   assert.match(src, /form\.getAttribute\("action"\)[^\n]*signal: limit\.signal/);
 });
+
+// ---- Find a cover candidates in the preview
+
+test("wantsCoverPicks: only for a found book with no cover and no catalog cover for its exact ISBN, and nothing typed by hand", () => {
+  const found = (book) => ({ found: true, book: { title: "T", coverUrl: null, coverOrigin: null, ...book } });
+  assert.equal(S.wantsCoverPicks(found({})), true);
+  assert.equal(S.wantsCoverPicks(found({ coverUrl: "/img/x.jpg", coverOrigin: "isbn" })), false, "the exact ISBN has a cover");
+  assert.equal(S.wantsCoverPicks(found({ coverUrl: null, coverOrigin: "isbn" })), false, "the catalog has it, only the download is still running");
+  assert.equal(S.wantsCoverPicks(found({}), { coverUrl: true }), false, "an address typed by hand");
+  assert.equal(S.wantsCoverPicks(found({ title: "" })), false, "nothing to search with");
+  assert.equal(S.wantsCoverPicks({ found: false, book: null }), false, "book not found");
+  assert.equal(S.wantsCoverPicks(null), false);
+});
+
+test("coverPicksQuery sends the ISBN and the form's current details; blank ones are left out", () => {
+  assert.equal(S.coverPicksQuery("9780330298117", { title: "A & B", author: " X ", publisher: "", publishedYear: "1999" }), "go=1&isbn=9780330298117&title=A%20%26%20B&author=X&year=1999");
+});
+
+test("a pick is carried as the cover number alone; anything else gives nothing", () => {
+  assert.equal(S.chosenCoverNumber(222), "222");
+  assert.equal(S.chosenCoverNumber("333"), "333");
+  for (const bad of ["", "0", "abc", "1/../../x", "1234567890", null, undefined, "12 3"]) assert.equal(S.chosenCoverNumber(bad), "", `refused: ${bad}`);
+  assert.equal(S.coverPickThumb(222), "/admin/inventory/scan-cover/thumb/222");
+  assert.equal(S.coverPickLabel({ title: "T", publisher: "P", year: 1999 }), "T, P, 1999");
+  assert.equal(S.coverPickLabel({}), "Untitled");
+});

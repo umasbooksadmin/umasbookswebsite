@@ -35,8 +35,8 @@ async function findCoverUrl({ isbn }) {
 // an ISBN (the preview found it by the exact ISBN), otherwise 'form'.
 const coverOriginOf = (url) => (/^https:\/\/covers\.openlibrary\.org\/b\/isbn\//.test(String(url || "")) ? "isbn" : "form");
 
-// hints: { isbn, title, author, publisher, publishedYear, description, coverUrl }
-// as typed on the form (all optional), plus aiDescription: false when no AI description may be written (a later copy of
+// hints: { isbn, title, author, publisher, publishedYear, description, coverUrl, coverOrigin }
+// (coverOrigin "chosen": the admin picked that cover from the scan preview's Find a cover row) as typed on the form (all optional), plus aiDescription: false when no AI description may be written (a later copy of
 // a book already in the shop, review 6B M5: the owner cleared AI-guessed descriptions on purpose, migration 110; a
 // description typed on the form is still used). deps: injectable for tests.
 async function fillBookGaps(pool, bookId, hints = {}, deps = {}) {
@@ -58,7 +58,7 @@ async function fillBookGaps(pool, bookId, hints = {}, deps = {}) {
   ]);
   const cover = needCover ? await prepare(coverAddress) : { cover: null, source: null };
   // How the cover was chosen (migration 111): the address came with the form (catalog preview or typed) or was found by ISBN.
-  const origin = needCover && (cover.cover || cover.source) ? (hints.coverUrl ? coverOriginOf(hints.coverUrl) : "isbn") : null;
+  const origin = needCover && (cover.cover || cover.source) ? (hints.coverUrl ? (hints.coverOrigin === "chosen" ? "chosen" : coverOriginOf(hints.coverUrl)) : "isbn") : null;
 
   if (!description && !cover.cover && !cover.source) return { filled: false };
   await pool.query(

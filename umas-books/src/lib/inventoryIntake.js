@@ -14,6 +14,7 @@
 const { withTransaction } = require("../db");
 const { saveImage, isStoredImageUrl } = require("./imageStore");
 const { isAllowedCoverUrl } = require("./coverStore");
+const { coverAddress } = require("./coverSearch");
 const { sharpFromUpload } = require("./uploadImage");
 const { normalizeIsbn, isValidIsbn } = require("./bookLookup");
 const { isbn10to13 } = require("./bookSources");
@@ -69,12 +70,13 @@ function parseIntakeInput(body, files) {
   // Books have no French genre or description (Sharon, 2026-10-28): a posted French genre or description field (an
   // old form or script) is ignored, never stored.
   const description = (body.description || "").trim() || null;
-  const coverUrl = (body.coverUrl || "").trim() || null;
+  const pickedCover = /^[1-9]\d{0,8}$/.test(String(body.chosenCoverId || "").trim()) ? Number(String(body.chosenCoverId).trim()) : null;
+  const coverUrl = pickedCover ? coverAddress(pickedCover, "L") : ((body.coverUrl || "").trim() || null);
   const binding = normalizeBinding(body.binding);
   const location = normalizeLocation(body.location);
   const source = normalizeSource(body.source);
   const value = {
-    title, author, isbn, publisher, yearCheck, publishedYear, genre, description, coverUrl,
+    title, author, isbn, publisher, yearCheck, publishedYear, genre, description, coverUrl, chosenCoverId: pickedCover,
     binding, location, source,
     condition: normalizeCondition(body.condition),
     status: normalizeStatus(body.status),
@@ -156,6 +158,12 @@ function intakeRefusal(input, kind, message) {
 // Render has no persistent disk, so an uploaded cover photo can't be saved to the filesystem: it's
 // resized/compressed down to a small thumbnail, stored in the images table (lib/imageStore.js), and
 // its short /img/<hash>.jpg URL goes in the same cover_url column a lookup-sourced image URL would.
+// A cover picked from the scan preview's Find a cover row (public/scan-intake.js) arrives as its Open Library cover NUMBER
+// (digits only, field chosenCoverId); the address is built here, never taken from the browser. A photo beats a pick.
+function chosenCoverId(input) {
+  return input.coverPhoto ? null : (input.chosenCoverId || null);
+}
+
 async function processCoverPhoto(file) {
   const resized = await sharpFromUpload(file.buffer)
     .rotate()
@@ -204,6 +212,7 @@ async function createBookAndCopy(pool, input, ctx, time) {
   let bookId = null;
   let isNewBook = false;
   let fillAfterSave = false;
+  let coverChosenApplies = false; // the picked cover will be stored for this book (a new book, or one that still lacks a cover)
   if (isbn) {
     const { rows: existingRows } = await time("db", () => pool.query("SELECT * FROM books WHERE isbn = ANY($1) ORDER BY (isbn = $2) DESC, id LIMIT 1", [isbnVariants(isbn), isbn]));
     if (existingRows.length) {
@@ -218,6 +227,7 @@ async function createBookAndCopy(pool, input, ctx, time) {
       // fills an empty one. No AI description is written for a book already in the shop (review 6B M5): an empty one
       // may have been cleared on purpose (migration 110).
       if (!existing.description || !existing.cover_url) fillAfterSave = true;
+      coverChosenApplies = !existing.cover_url && !existing.cover_removed_at;
     }
   }
 
@@ -229,6 +239,7 @@ async function createBookAndCopy(pool, input, ctx, time) {
       ? { cover: coverUrl, source: null }
       : { cover: null, source: coverUrl && isAllowedCoverUrl(coverUrl) ? coverUrl : null };
     fillAfterSave = true;
+    coverChosenApplies = true;
     // The genre rules of Admin > Genres (lib/genreRules.js): a new book never brings back a name the admin cleaned up.
     // With no rule saved, nothing changes.
     ({ genre } = await applyRulesToBook(pool, genre));
@@ -237,7 +248,7 @@ async function createBookAndCopy(pool, input, ctx, time) {
       `INSERT INTO books (isbn, title, authors, publisher, published_year, description, cover_url, categories, binding, created_by, cover_source_url, cover_origin)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT DO NOTHING RETURNING id`,
-      [isbn || null, title, author, publisher, publishedYear, description, cover.cover, genre, binding, ctx.userId, cover.source, input.coverPhoto ? "photo" : (cover.cover || cover.source ? (input.raw.coverOrigin === "isbn" ? "isbn" : coverOriginOf(coverUrl)) : null)]
+      [isbn || null, title, author, publisher, publishedYear, description, cover.cover, genre, binding, ctx.userId, cover.source, input.coverPhoto ? "photo" : (cover.cover || cover.source ? (chosenCoverId(input) ? "chosen" : input.raw.coverOrigin === "isbn" ? "isbn" : coverOriginOf(coverUrl)) : null)]
     ));
     if (rows.length) {
       bookId = rows[0].id;
@@ -284,7 +295,7 @@ async function createBookAndCopy(pool, input, ctx, time) {
       detail: `price ${other.price != null ? Number(other.price).toFixed(2) : "none"} -> ${Number(settings.clearance.price).toFixed(2)} (clearance)`,
     });
   }
-  return { state: "saved", bookId, copyId: copyRows[0].id, isNewBook, fillAfterSave, coverUrl };
+  return { state: "saved", bookId, copyId: copyRows[0].id, isNewBook, fillAfterSave, coverUrl, chosenCoverId: coverChosenApplies ? chosenCoverId(input) : null };
 }
 
 // ---------- Editing a book's ISBN (POST /admin/inventory/:id) ----------
@@ -336,8 +347,15 @@ async function afterSaveFollowUps(pool, saved, input, ctx) {
   if (saved.fillAfterSave) {
     const { isbn, title, author, publisher, publishedYear, description } = input;
     // The AI writes a description only for a book new to the shop (its first intake), never for a later copy.
-    const hints = { isbn, title, author, publisher, publishedYear, description, coverUrl: saved.coverUrl, aiDescription: saved.isNewBook };
+    const hints = { isbn, title, author, publisher, publishedYear, description, coverUrl: saved.coverUrl, aiDescription: saved.isNewBook, ...(saved.chosenCoverId ? { coverOrigin: "chosen" } : {}) };
     runAfterResponse(`fill book ${saved.bookId}`, () => fillBookGaps(pool, saved.bookId, hints));
+  }
+
+  // A cover picked in the scan preview is logged like the Find a cover pick on the book's page (cover.choose).
+  if (saved.chosenCoverId) {
+    try {
+      await ctx.audit({ action: "cover.choose", targetType: "book", targetId: saved.bookId, detail: `Open Library cover ${saved.chosenCoverId}, added (picked in the scan preview)` });
+    } catch (err) { console.warn("cover.choose audit failed:", err.message); }
   }
 
   // Customers who asked for this book (Requests page): matched now, the
@@ -363,5 +381,5 @@ function intakeAnswer(input, { copyId, bookId, title, requests }, wantsJson) {
 
 module.exports = {
   parseIntakeInput, prepareIntake, intakeRefusal, saveBookAndCopy, afterSaveFollowUps, intakeAnswer,
-  processCoverPhoto, parsePublishedYear, matchBookRequests, resolveEditedIsbn, TITLE_REQUIRED, BUSY_MESSAGE, INVALID_ISBN,
+  processCoverPhoto, chosenCoverId, parsePublishedYear, matchBookRequests, resolveEditedIsbn, TITLE_REQUIRED, BUSY_MESSAGE, INVALID_ISBN,
 };
