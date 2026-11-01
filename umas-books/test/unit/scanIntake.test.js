@@ -257,7 +257,7 @@ test("wantsCoverPicks: only for a found book with no cover and no catalog cover 
 });
 
 test("coverPicksQuery sends the ISBN and the form's current details; blank ones are left out", () => {
-  assert.equal(S.coverPicksQuery("9780330298117", { title: "A & B", author: " X ", publisher: "", publishedYear: "1999" }), "isbn=9780330298117&title=A%20%26%20B&author=X&year=1999");
+  assert.equal(S.coverPicksQuery("9780330298117", { title: "A & B", author: " X ", publisher: "", publishedYear: "1999" }), "go=1&isbn=9780330298117&title=A%20%26%20B&author=X&year=1999");
 });
 
 test("a pick is carried as the cover number alone; anything else gives nothing", () => {

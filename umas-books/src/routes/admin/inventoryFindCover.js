@@ -102,8 +102,10 @@ const scanSearchLimiter = coverEditLimiter({ max: 30, handler: scanTooBusy }); /
 const scanThumbLimiter = coverEditLimiter({ max: 240, handler: (req, res) => res.status(429).type("text/plain").send("Busy") });
 const clip = (v, n) => String(v == null ? "" : v).slice(0, n).trim();
 
-router.get("/admin/inventory/scan-cover/candidates", requireAdmin, scanSearchLimiter, async (req, res) => {
+// Like the book page, the search runs only with go=1 (the page's script sends it): any other address asks nothing outside.
+router.get("/admin/inventory/scan-cover/candidates", requireAdmin, (req, res, next) => (req.query.go === "1" ? scanSearchLimiter(req, res, next) : next()), async (req, res) => {
   res.set("Cache-Control", "no-store");
+  if (req.query.go !== "1") return res.json({ ok: true, state: "idle", candidates: [] });
   const year = Number(clip(req.query.year, 4));
   try {
     const result = await findCoverCandidates({

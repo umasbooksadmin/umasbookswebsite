@@ -61,7 +61,7 @@ const bookRow = async (id) => (await h.q("SELECT * FROM books WHERE id = $1", [i
 const newIsbn = () => isbn13From(`978${String(7100000 + (++seq)).padStart(9, "0")}`);
 
 test("the scan candidates are the Find a cover candidates: same-ISBN first, at most 8, nothing saved or downloaded", async () => {
-  const res = await get(`/admin/inventory/scan-cover/candidates?isbn=${ISBN}&title=Some%20Title&author=An%20Author`);
+  const res = await get(`/admin/inventory/scan-cover/candidates?go=1&isbn=${ISBN}&title=Some%20Title&author=An%20Author`);
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("cache-control"), "no-store");
   const j = await res.json();
@@ -76,10 +76,16 @@ test("the scan candidates are the Find a cover candidates: same-ISBN first, at m
   assert.equal((await h.q("SELECT count(*)::int AS n FROM books WHERE cover_origin = 'chosen'"))[0].n, 0);
 });
 
+test("without go=1 nothing is asked outside (a stray or crafted address costs no request)", async () => {
+  const j = await (await get("/admin/inventory/scan-cover/candidates?isbn=" + ISBN + "&title=Some%20Title")).json();
+  assert.equal(j.state, "idle");
+  assert.deepEqual(searches, []);
+});
+
 test("a second ask for the same book is served from the cache (no new request to Open Library)", async () => {
-  await get(`/admin/inventory/scan-cover/candidates?isbn=${ISBN}&title=Some%20Title&author=An%20Author`);
+  await get(`/admin/inventory/scan-cover/candidates?go=1&isbn=${ISBN}&title=Some%20Title&author=An%20Author`);
   const n = searches.length;
-  await get(`/admin/inventory/scan-cover/candidates?isbn=${ISBN}&title=Some%20Title&author=An%20Author`);
+  await get(`/admin/inventory/scan-cover/candidates?go=1&isbn=${ISBN}&title=Some%20Title&author=An%20Author`);
   assert.equal(searches.length, n);
 });
 
@@ -87,7 +93,7 @@ test("Open Library not answering gives a quiet 'error' state, never an error pag
   const keep = global.fetch;
   global.fetch = async (url, init) => (String(url).includes("openlibrary.org/search.json") ? new Response("down", { status: 503 }) : keep(url, init));
   try {
-    const res = await get("/admin/inventory/scan-cover/candidates?title=Down%20Book");
+    const res = await get("/admin/inventory/scan-cover/candidates?go=1&title=Down%20Book");
     assert.equal(res.status, 200);
     const j = await res.json();
     assert.deepEqual({ ok: j.ok, state: j.state, n: j.candidates.length }, { ok: true, state: "error", n: 0 });

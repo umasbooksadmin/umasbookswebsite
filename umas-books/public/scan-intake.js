@@ -224,7 +224,7 @@
   }
   // The query string of the candidates request, from the form's current values.
   function coverPicksQuery(isbn, values) {
-    var pairs = [["isbn", isbn], ["title", values.title], ["author", values.author], ["publisher", values.publisher], ["year", values.publishedYear]];
+    var pairs = [["go", "1"], ["isbn", isbn], ["title", values.title], ["author", values.author], ["publisher", values.publisher], ["year", values.publishedYear]];
     return pairs.filter(function (p) { return p[1] != null && String(p[1]).trim() !== ""; })
       .map(function (p) { return p[0] + "=" + encodeURIComponent(String(p[1]).trim()); }).join("&");
   }
