@@ -566,8 +566,8 @@ test("the French page is French: language, title, links, texts, and none of the 
   const en = (await get(`/collections/${c.slug}`)).text;
   assert.match(en, /<html lang="en"/);
   assert.match(en, /Back to Browse books/);
-  assert.match(en, /Cover images come from an online book library/);
-  assert.match(text, /Les couvertures proviennent d’une bibliothèque/);
+  assert.match(en, /Covers are shown for illustration and may differ/);
+  assert.match(text, /Les couvertures sont données à titre indicatif/);
 });
 
 // The header and footer are shared with pages at the site root, so their links must not be relative: from
