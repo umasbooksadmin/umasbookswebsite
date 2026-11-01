@@ -152,26 +152,25 @@ test("event signup: stores a trimmed, lower-cased signup and redirects back to t
   const ev = await makeEvent(noon(2092, 8, 5), { capacity: 5 });
   const email = `Guest-${uniq()}@Example.TEST`;
   const r = await c.post(`/events/${ev.id}/signup?month=2092-08`, { name: "  Marie Curie  ", email: ` ${email} ` });
-  assert.equal(r.status, 302);
-  assert.equal(r.location, "/events?month=2092-08");
+  assert.equal(r.seeOther, "/events?month=2092-08");
   const rows = await signups(ev.id);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].name, "Marie Curie");
   assert.equal(rows[0].email, email.toLowerCase());
   const wk = await c.post(`/events/${ev.id}/signup?view=week&week=2092-08-05`, { name: "Wk", email: `wk-${uniq()}@example.test` });
-  assert.equal(wk.location, "/events?view=week&week=2092-08-05");
+  assert.equal(wk.seeOther, "/events?view=week&week=2092-08-05");
   const plain = await c.post(`/events/${ev.id}/signup`, { name: "P", email: `p-${uniq()}@example.test` });
-  assert.equal(plain.location, "/events");
+  assert.equal(plain.seeOther, "/events");
   const page = await c.get("/events?month=2092-08");
   assert.match(page.text, /3 going/);
 });
 
-test("event signup: duplicate email (any case) is a silent no-op, not a second row", async () => {
+test("event signup: duplicate email (any case) is not a second row, and says it is already signed up", async () => {
   const ev = await makeEvent(noon(2092, 8, 6), { capacity: 5 });
   const email = `dup-${uniq()}@example.test`;
   await c.post(`/events/${ev.id}/signup`, { name: "First", email });
   const again = await c.post(`/events/${ev.id}/signup`, { name: "Second", email: email.toUpperCase() });
-  assert.equal(again.status, 302);
+  assert.match(again.text, /This email address is already signed up for/);
   const rows = await signups(ev.id);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].name, "First");
@@ -181,7 +180,8 @@ test("event signup: a full event refuses more people and the calendar shows Full
   const ev = await makeEvent(noon(2092, 9, 7), { capacity: 2 });
   for (const n of ["a", "b", "c"]) {
     const r = await c.post(`/events/${ev.id}/signup?month=2092-09`, { name: n, email: `${n}-${uniq()}@example.test` });
-    assert.equal(r.location, "/events?month=2092-09");
+    assert.equal(r.seeOther, "/events?month=2092-09");
+    if (n === "c") assert.match(r.text, /Sorry, “.*” is full: your sign-up was not recorded\./);
   }
   assert.equal((await signups(ev.id)).length, 2);
   const page = await c.get("/events?month=2092-09");
@@ -200,8 +200,8 @@ test("event signup: missing name, bad or multi-recipient email store nothing; ov
     {},
   ]) {
     const r = await c.post(`/events/${ev.id}/signup`, f);
-    assert.equal(r.status, 302);
-    assert.equal(r.location, "/events");
+    assert.equal(r.seeOther, "/events");
+    assert.match(r.text, /Please give your name and a valid email address to sign up\./);
   }
   assert.equal((await signups(ev.id)).length, 0);
   await c.post(`/events/${ev.id}/signup`, { name: "N".repeat(300), email: `long-${uniq()}@example.test` });

@@ -444,11 +444,16 @@ s.write("G23 sign up for an event with a tagged name; signing up again does not 
     await Promise.all([ctx.page.waitForNavigation(), (await f.$("button[type='submit']")).click()]);
   };
   await signUp();
-  assert.match(new URL(ctx.page.url()).pathname, /^\/events/);
+  assert.match(new URL(ctx.page.url()).pathname, /^\/(fr\/)?events/);
   ctx.created("event sign-up", `${name} <${email}>`, "admin Events > the event > Remove");
+  has(await ctx.text(), /You’re signed up for|Votre inscription à/);
   await signUp();
   hasNot(await ctx.text(), /Something went wrong/);
+  has(await ctx.text(), /already signed up for|déjà inscrite à/);
 });
+
+s.manual("G23a (must) the sign-up email arrives with a cancel link; the link asks first, then frees the place (covered by test/integration/eventSignupFeedback.test.js)", "tests cannot read email");
+s.manual("G23b (must) an event that has started shows no sign-up form and refuses a sign-up (covered by test/integration/eventSignupFeedback.test.js)", "needs an event that has already started in the site's data: checked by hand");
 
 s.manual("G24 Add to My Calendar downloads an .ics file that opens in a calendar app", "a calendar app has to open the file; the download itself is checked by the .ics link test below");
 

@@ -1,11 +1,13 @@
 const express = require("express");
-const { pool, withTransaction } = require("../db");
+const { pool } = require("../db");
 const { groupByDate, monthParam, resolveCalendarRange, calendarBackQuery } = require("../lib/calendar");
 const { baseUrl } = require("../lib/baseUrl");
 const { isEmail, clean } = require("../lib/validation");
 const { eventSignupLimiter } = require("../middleware/rateLimits");
 const { localize, localizeAll } = require("../lib/frenchText");
 const { normLang } = require("../lib/lang");
+const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
+const { signUp, findByCancelToken, cancelByToken } = require("../lib/eventSignups");
 
 const { validateIdParams } = require("../middleware/idParams");
 
@@ -14,6 +16,10 @@ const router = express.Router();
 validateIdParams(router, "id");
 
 // Public — no login required. Anyone can view the calendar and sign up.
+
+// What the calendar says after a sign-up (Post/Redirect/Get, lib/postRedirect.js): one message per outcome
+// (lib/eventSignups.js signUp, plus 'invalid' for a missing name or a bad email).
+const SIGNUP_FLASH = "eventSignup"; // not "events": the admin events page uses that key
 
 // Public JSON, cross-origin — consumed by the marketing site's Events
 // page so it can show the actual upcoming schedule inline instead of
@@ -61,7 +67,8 @@ router.get("/events", async (req, res) => {
   );
 
   const weeks = range.buildWeeks(groupByDate(localizeAll("event", events, req.lang), "starts_at"));
-  res.render("events", { weeks, view: range.view, ...range.nav });
+  const signupNotice = takePageFlash(req, res, SIGNUP_FLASH);
+  res.render("events", { weeks, view: range.view, signupNotice, ...range.nav });
 });
 
 function icsDate(d) {
@@ -115,37 +122,37 @@ router.post("/events/:id/signup", eventSignupLimiter, async (req, res) => {
   const backQuery = calendarBackQuery(req.query);
   const redirectUrl = backQuery ? `/events?${backQuery}` : "/events";
 
-  if (!name || !isEmail(email)) return res.redirect(redirectUrl);
+  if (!name || !isEmail(email)) return redirectWithFlash(req, res, redirectUrl, SIGNUP_FLASH, { outcome: "invalid" });
 
-  try {
-    await withTransaction(pool, async (client) => {
-      // Lock the event row so two signups arriving at the same moment
-      // can't both read the same "spots left" and both squeeze in — the
-      // second one blocks here until the first commits, then re-reads
-      // the count for real within its own transaction. Same pattern as
-      // the drop-in seat checkout in lib/cart.js.
-      const { rows: eventRows } = await client.query("SELECT * FROM events WHERE id = $1 FOR UPDATE", [eventId]);
-      const event = eventRows[0];
-      if (!event) throw new Error("EVENT_NOT_FOUND");
+  const r = await signUp(pool, { eventId, name, email, lang: req.lang, base: baseUrl(req) });
+  if (r.outcome === "not_found") return res.status(404).send(req.tr("Event not found.", "Événement introuvable."));
+  const title = localize("event", r.event, req.lang).title;
+  return redirectWithFlash(req, res, redirectUrl, SIGNUP_FLASH, { outcome: r.outcome, title, email: r.outcome === "signed_up" ? email : "" });
+});
 
-      if (event.capacity != null) {
-        const { rows: countRows } = await client.query(
-          "SELECT COUNT(*)::int AS n FROM event_signups WHERE event_id = $1", [eventId]
-        );
-        if (countRows[0].n >= event.capacity) throw new Error("AT_CAPACITY");
-      }
+// ---------- the cancel link of the "you're signed up" email (lib/eventSignups.js) ----------
 
-      await client.query(
-        "INSERT INTO event_signups (event_id, name, email) VALUES ($1, $2, $3) ON CONFLICT (event_id, email) DO NOTHING",
-        [eventId, name, email]
-      );
-    });
-  } catch (err) {
-    if (err.message === "EVENT_NOT_FOUND") return res.status(404).send(req.tr("Event not found.", "Événement introuvable."));
-    if (err.message === "AT_CAPACITY") return res.redirect(redirectUrl);
-    throw err;
-  }
-  res.redirect(redirectUrl);
+function privatePage(res) {
+  res.set("Cache-Control", "no-store");
+  res.set("Referrer-Policy", "no-referrer");
+}
+
+// Nothing changes on GET (mail scanners open links): the page asks, its button cancels.
+router.get("/events/cancel/:token", async (req, res) => {
+  privatePage(res);
+  const done = takePageFlash(req, res, "eventCancel");
+  if (done) return res.render("event_cancel", { state: done.state, event: done.title ? { title: done.title } : null, token: "" });
+  const signup = await findByCancelToken(pool, req.params.token);
+  if (!signup) return res.status(404).render("event_cancel", { state: "gone", event: null, token: "" });
+  res.render("event_cancel", { state: "ask", event: localize("event", signup, req.lang), token: req.params.token });
+});
+
+router.post("/events/cancel/:token", async (req, res) => {
+  privatePage(res);
+  const gone = await cancelByToken(pool, req.params.token);
+  const path = `/events/cancel/${encodeURIComponent(req.params.token)}`;
+  if (!gone) return redirectWithFlash(req, res, path, "eventCancel", { state: "gone" });
+  return redirectWithFlash(req, res, path, "eventCancel", { state: "cancelled", title: localize("event", gone, req.lang).title });
 });
 
 module.exports = router;
