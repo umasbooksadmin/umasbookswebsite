@@ -9,7 +9,7 @@
 // expected one or whose text contains an email address or a phone-like number.
 
 const { SITE_TIME_ZONE } = require("./tz");
-const { accountingExportReport } = require("./accounting");
+const { accountingExportReport, SUGGESTED_COST_ACCOUNT } = require("./accounting");
 const { toCsv } = require("./reports");
 const till = require("./till");
 
@@ -206,7 +206,25 @@ function sumBy(rows, keyFn) {
   return [...m.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 }
 
-function summaryText({ range, rows, tillRows, counts: c, generatedOn }) {
+// The memo of the cost of educational items sold (lib/accounting.js eduCostMemoRows), as summary lines. Empty when no
+// educational item was sold or refunded in the period, so such a summary is exactly what it always was.
+function eduCostMemoLines(memo) {
+  if (!memo || !memo.length) return [];
+  const units = memo.reduce((a, r) => a + r.units, 0);
+  const cents = memo.reduce((a, r) => a + r.costCents, 0);
+  const unknown = memo.reduce((a, r) => a + r.unknown, 0);
+  return [
+    "MEMO, not an accounting entry and not in the totals above: cost of educational items sold",
+    `  Units sold (refunds deducted): ${units}`,
+    `  Cost of those units (EUR, as recorded when reserved): ${eurText(cents)}`,
+    `  Units with cost unknown (not counted as zero, so the cost above is too low by their cost): ${unknown}`,
+    `  Suggestion for the accountant to confirm: goods bought for resale are usually booked from the supplier invoices in account ${SUGGESTED_COST_ACCOUNT} (Achats de marchandises); this memo is not booked by the app.`,
+    "  The day-by-day rows are in Admin > Reports > Accounting export, second table (Download CSV).",
+    "",
+  ];
+}
+
+function summaryText({ range, rows, tillRows, counts: c, generatedOn, eduCostMemo }) {
   const total = rows.reduce((a, r) => a + r.cents, 0);
   const lines = [
     `Uma's Books - accounting summary ${range.kind === "year" ? "for the year" : "for the month"} ${range.label}`,
@@ -236,6 +254,7 @@ function summaryText({ range, rows, tillRows, counts: c, generatedOn }) {
     `Receipt numbers (voided ones keep theirs): ${c.firstReceipt ? `${c.firstReceipt} to ${c.lastReceipt}` : "none"}`,
     `Till days with sales that were not closed: ${unclosed.length}${unclosed.length ? ` (${unclosed.join(", ")})` : ""}`, ""
   );
+  lines.push(...eduCostMemoLines(eduCostMemo));
   return lines.join("\r\n");
 }
 
@@ -249,7 +268,9 @@ async function buildExport(db, range, { now = new Date() } = {}) {
   const tillCsv = toCsv({ columns: TILL_COLUMNS, rows: tRows, csvTotals: false });
   const c = await counts(db, range);
   const p = parisParts(now);
-  const summary = summaryText({ range, rows: section.rows, tillRows: tRows, counts: c, generatedOn: `${p.y}-${pad(p.m)}-${pad(p.d)}` });
+  const memoSection = report.sections.find((s) => s.key === "edu_cost");
+  const eduCostMemo = memoSection ? memoSection.rows : [];
+  const summary = summaryText({ range, rows: section.rows, tillRows: tRows, counts: c, generatedOn: `${p.y}-${pad(p.m)}-${pad(p.d)}`, eduCostMemo });
   assertNoPersonalData("accounting CSV", accountingCsv, ACCOUNTING_HEADER);
   assertNoPersonalData("till days CSV", tillCsv, TILL_HEADER);
   assertNoPersonalData("summary", summary);
@@ -259,6 +280,9 @@ async function buildExport(db, range, { now = new Date() } = {}) {
     stats: {
       accountingRows: section.rows.length, tillDays: tRows.length, totalCents, ...c,
       unclosedDays: tRows.filter((d) => d.closed === "no" && d.sales > 0).length,
+      eduCost: eduCostMemo.length ? {
+        units: eduCostMemo.reduce((a, r) => a + r.units, 0), cents: eduCostMemo.reduce((a, r) => a + r.costCents, 0), unknown: eduCostMemo.reduce((a, r) => a + r.unknown, 0),
+      } : null,
     },
   };
 }
@@ -283,6 +307,9 @@ function emailBody(range, stats) {
     `Receipt numbers: ${stats.firstReceipt ? `${stats.firstReceipt} to ${stats.lastReceipt}` : "none"}.`,
     `Till days with sales that were not closed: ${stats.unclosedDays}.`,
   ];
+  if (stats.eduCost) {
+    lines.push("", `Memo (not in the accounting file): cost of educational items sold ${eurText(stats.eduCost.cents)} EUR for ${stats.eduCost.units} unit(s)${stats.eduCost.unknown ? `, cost unknown for ${stats.eduCost.unknown} unit(s)` : ""}. The totals are also in the summary file stored with this export, the day-by-day rows in Admin > Reports > Accounting export (second table); the accountant decides how to book it.`);
+  }
   if (!stats.accountingRows && !stats.tillDays) lines.push("", "No sales were recorded in this period: the files contain only their header row.");
   lines.push(
     "", "What to do: save these files in the accounting folder (or in Paheko) and send them to the treasurer if needed. They contain no personal data.",

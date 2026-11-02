@@ -3973,8 +3973,22 @@ public page is **Browse Educational Items** (`/educational-items.html`, French `
   the accounting mapping page like any other). No VAT is computed (TVA non applicable, art. 293 B, as for books). A
   pickup discount on a reservation with educational items is shared in the Sales report between books, educational
   items and seats in proportion to their list prices.
+- **Cost and margin (migration 115):** each item has an optional **Cost per unit (what we paid)**, admins only (never
+  shown to customers, in emails or on public pages). Leave it empty when unknown. The list shows the **Margin per
+  unit** (price minus cost). Every reservation COPIES the cost of that day onto its lines (`order_items.unit_cost`), so
+  changing a cost later never changes past sales; a sale reserved before the cost was typed stays "cost unknown".
+  Admin > Reports > **Sales** has a table **Educational items: cost and margin**: revenue after the pickup discounts,
+  the cost of the units with a known cost, and the margin on those only; units with no cost are counted apart
+  ("Items with cost unknown"), never as zero. Cost changes are in Admin > Activity (`edu_item.edit`, "cost €1.20 -> €1.35").
+- **Cost in the accounting export:** the export rows are unchanged (books have no cost-of-goods line there either).
+  Below the export, Admin > Reports > **Accounting export** shows a separate **Memo** table, "cost of educational items
+  sold" (its own Download CSV, `?table=edu_cost`): per day, the units sold, their recorded cost, and the units whose
+  cost is unknown; a refund gives a negative row on the refund day. The monthly `summary_YYYY-MM.txt` and the email
+  carry the month's memo totals when educational items were sold. Nothing is booked automatically: account **607**
+  (Achats de marchandises) is written there only as a SUGGESTION for the accountant to confirm.
 - **Deleting:** only an item that has never been on a reservation. Otherwise **Hide** it (customers stop seeing it;
   past orders keep its name and price).
 - Walk-in sales of educational items at the till (not reserved) still go under the till's manual categories; there
   is no educational-items button there yet.
 - Undoing migration 113: see the note at the end of `umas-books/migrations/113_educational_items.sql`.
+- Undoing migration 115 (the cost): see the note at the end of `umas-books/migrations/115_edu_item_cost.sql`.
