@@ -5,7 +5,7 @@
 //   GET  /admin/edu-items/new                the add form
 //   POST /admin/edu-items                    add (multipart: optional picture "image", src/app.js runs multer)
 //   GET  /admin/edu-items/:id/edit           the edit form
-//   POST /admin/edu-items/:id                save (name, price, stock, genre, sort, hidden, a new picture)
+//   POST /admin/edu-items/:id                save (name, price, cost, stock, genre, sort, hidden, a new picture)
 //   POST /admin/edu-items/:id/visibility     hide / show
 //   POST /admin/edu-items/:id/image/remove   remove the picture
 //   POST /admin/edu-items/:id/delete         delete: only an item that is on NO order (else it must be hidden; the
@@ -17,6 +17,11 @@
 // Stock: the number of units in the shop, held ones included. A save locks the item row FOR UPDATE (the lock the
 // reservation takes, lib/cart.js) and refuses a stock below what open reservations hold, so a reservation can never be
 // left without its unit. Each stock change is audited with the old and new numbers.
+//
+// Cost (migration 115): "Cost per unit (what we paid)", optional (blank = not known), admin-only. The list shows it with
+// the margin per unit (price minus cost). A change is audited like a price change ("cost €1.20 -> €1.35", "cost not
+// known -> €1.35"). Reservations copy the cost onto their order lines (lib/cart.js), so editing it never changes a
+// past sale's margin.
 
 const express = require("express");
 const { pool, withTransaction } = require("../../db");
@@ -37,6 +42,8 @@ const writeLimiter = limit({ windowMs: 60 * 60 * 1000, max: 300 });
 const FLASH = "adminEduItems";
 const LIST = "/admin/edu-items";
 const money = (v) => Number(v).toFixed(2);
+// The cost in an audit line: "cost €1.20" / "cost not known" (bare: "€1.20" / "not known").
+const costText = (c, bare = false) => `${bare ? "" : "cost "}${c == null ? "not known" : `€${money(c)}`}`;
 
 const back = (req, res, to, message, extra = {}) => redirectWithFlash(req, res, to, FLASH, { error: message, ...extra });
 const done = (req, res, to, notice) => redirectWithFlash(req, res, to, FLASH, { notice });
@@ -68,7 +75,10 @@ router.get(LIST, requireAdmin, async (req, res) => {
      FROM edu_items i LEFT JOIN edu_genres g ON g.id = i.genre_id
      ORDER BY i.is_hidden, i.sort_order, lower(i.name), i.id`
   );
-  for (const i of items) i.available = Math.max(0, i.stock - i.held);
+  for (const i of items) {
+    i.available = Math.max(0, i.stock - i.held);
+    i.margin = edu.unitMargin(i.price, i.cost);
+  }
   const genres = await edu.loadGenres(pool);
   res.render("admin/edu_items", { active: "edu-items", items, genres, error: flash.error || null, notice: flash.notice || null, money });
 });
@@ -78,7 +88,7 @@ async function renderForm(req, res, item) {
   const genres = await edu.loadGenres(pool);
   let held = 0;
   if (item) held = (await pool.query(`SELECT ${edu.HELD_SQL("i")}::int AS held FROM edu_items i WHERE i.id = $1`, [item.id])).rows[0].held;
-  const v = flash.values || (item ? { name: item.name, price: money(item.price), stock: String(item.stock), genreId: item.genre_id == null ? "" : String(item.genre_id), sortOrder: String(item.sort_order), isHidden: item.is_hidden ? "on" : "" } : { name: "", price: "", stock: "0", genreId: genres[0] ? String(genres[0].id) : "", sortOrder: "0", isHidden: "" });
+  const v = flash.values || (item ? { name: item.name, price: money(item.price), cost: item.cost == null ? "" : money(item.cost), stock: String(item.stock), genreId: item.genre_id == null ? "" : String(item.genre_id), sortOrder: String(item.sort_order), isHidden: item.is_hidden ? "on" : "" } : { name: "", price: "", cost: "", stock: "0", genreId: genres[0] ? String(genres[0].id) : "", sortOrder: "0", isHidden: "" });
   res.render("admin/edu_item_form", { active: "edu-items", item, held, values: v, genres, error: flash.error || null, notice: flash.notice || null, maxStock: edu.STOCK_MAX });
 }
 
@@ -91,7 +101,7 @@ router.get(`${LIST}/:id/edit`, requireAdmin, async (req, res) => {
 });
 
 // What the form sent, to put back in the form after a refusal.
-const typed = (b) => ({ name: String(b.name ?? "").slice(0, 200), price: String(b.price ?? "").slice(0, 20), stock: String(b.stock ?? "").slice(0, 10), genreId: String(b.genreId ?? ""), sortOrder: String(b.sortOrder ?? "").slice(0, 10), isHidden: b.isHidden === "on" ? "on" : "" });
+const typed = (b) => ({ name: String(b.name ?? "").slice(0, 200), price: String(b.price ?? "").slice(0, 20), cost: String(b.cost ?? "").slice(0, 20), stock: String(b.stock ?? "").slice(0, 10), genreId: String(b.genreId ?? ""), sortOrder: String(b.sortOrder ?? "").slice(0, 10), isHidden: b.isHidden === "on" ? "on" : "" });
 
 router.post(LIST, requireAdmin, writeLimiter, async (req, res) => {
   const f = edu.parseItemForm(req.body, await genreIds());
@@ -100,10 +110,10 @@ router.post(LIST, requireAdmin, writeLimiter, async (req, res) => {
   if (pic.error) return back(req, res, `${LIST}/new`, pic.error, { values: typed(req.body) });
   const v = f.values;
   const { rows } = await pool.query(
-    `INSERT INTO edu_items (name, price, stock, genre_id, sort_order, is_hidden, image_url) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-    [v.name, v.price, v.stock, v.genreId, v.sortOrder, v.isHidden, pic.url || null]
+    `INSERT INTO edu_items (name, price, cost, stock, genre_id, sort_order, is_hidden, image_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+    [v.name, v.price, v.cost, v.stock, v.genreId, v.sortOrder, v.isHidden, pic.url || null]
   );
-  await audit(req, { action: "edu_item.add", targetType: "edu_item", targetId: rows[0].id, detail: `${v.name}, €${money(v.price)}, stock ${v.stock}${v.isHidden ? ", hidden" : ""}${pic.url ? ", with picture" : ""}` });
+  await audit(req, { action: "edu_item.add", targetType: "edu_item", targetId: rows[0].id, detail: `${v.name}, €${money(v.price)}, ${costText(v.cost)}, stock ${v.stock}${v.isHidden ? ", hidden" : ""}${pic.url ? ", with picture" : ""}` });
   return done(req, res, LIST, `Added "${v.name}".`);
 });
 
@@ -125,8 +135,8 @@ router.post(`${LIST}/:id`, requireAdmin, writeLimiter, async (req, res) => {
     if (v.stock < held) return { outcome: "below_held", held };
     await client.query(
       `UPDATE edu_items SET name = $2, price = $3, stock = $4, genre_id = $5, sort_order = $6, is_hidden = $7,
-              image_url = COALESCE($8, image_url), updated_at = now() WHERE id = $1`,
-      [id, v.name, v.price, v.stock, v.genreId, v.sortOrder, v.isHidden, pic.url || null]
+              image_url = COALESCE($8, image_url), cost = $9, updated_at = now() WHERE id = $1`,
+      [id, v.name, v.price, v.stock, v.genreId, v.sortOrder, v.isHidden, pic.url || null, v.cost]
     );
     return { outcome: "saved", old };
   });
@@ -138,6 +148,7 @@ router.post(`${LIST}/:id`, requireAdmin, writeLimiter, async (req, res) => {
   const changes = [];
   if (o.name !== v.name) changes.push(`name "${o.name}" -> "${v.name}"`);
   if (Math.round(Number(o.price) * 100) !== Math.round(v.price * 100)) changes.push(`price €${money(o.price)} -> €${money(v.price)}`);
+  if ((o.cost == null ? null : Math.round(Number(o.cost) * 100)) !== (v.cost == null ? null : Math.round(v.cost * 100))) changes.push(`cost ${costText(o.cost, true)} -> ${costText(v.cost, true)}`);
   if (o.stock !== v.stock) changes.push(`stock ${o.stock} -> ${v.stock}`);
   if ((o.genre_id ?? null) !== v.genreId) changes.push("genre changed");
   if (o.sort_order !== v.sortOrder) changes.push(`sort ${o.sort_order} -> ${v.sortOrder}`);

@@ -180,11 +180,13 @@ async function reserveInTransaction(client, { user, guest, base, email, name, ph
     // statement (a count in the same statement as the lock would use a snapshot taken before the wait and miss the units
     // another reservation just committed: the same rule as drop-in seats), so two reservations can never both take the
     // last unit. The price is checked under the lock like a book's: a different price is refused (PRICE_CHANGED), never
-    // charged silently. The NAME stored on the order line is the item's name now (a snapshot).
+    // charged silently. The NAME stored on the order line is the item's name now (a snapshot), and so is the COST per
+    // unit (order_items.unit_cost, migration 115; NULL when not known): the Sales report's margin and the accounting
+    // memo use this copy, so editing the item's cost later never changes a past sale.
     const ids = [...new Set(eduItems.map((i) => i.eduItemId))].sort((a, b) => a - b);
     await client.query("SELECT id FROM edu_items WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE", [ids]);
     const { rows: locked } = await client.query(
-      `SELECT i.id, i.name, i.price, i.is_hidden, i.stock, ${HELD_SQL("i")}::int AS held FROM edu_items i WHERE i.id = ANY($1::int[])`,
+      `SELECT i.id, i.name, i.price, i.cost, i.is_hidden, i.stock, ${HELD_SQL("i")}::int AS held FROM edu_items i WHERE i.id = ANY($1::int[])`,
       [ids]
     );
     const byId = new Map(locked.map((r) => [r.id, r]));
@@ -208,8 +210,8 @@ async function reserveInTransaction(client, { user, guest, base, email, name, ph
       const row = byId.get(i.eduItemId);
       for (let n = 0; n < i.qty; n++) {
         await client.query(
-          "INSERT INTO order_items (order_id, edu_item_id, item_title, price) VALUES ($1, $2, $3, $4)",
-          [order.id, row.id, row.name, row.price]
+          "INSERT INTO order_items (order_id, edu_item_id, item_title, price, unit_cost) VALUES ($1, $2, $3, $4, $5)",
+          [order.id, row.id, row.name, row.price, row.cost]
         );
       }
     }

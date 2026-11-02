@@ -408,6 +408,61 @@ async function salesReport(db, ctx) {
     }
     return row;
   });
+  // Educational items: cost and margin (migration 115). The cost is the SNAPSHOT on each order line (order_items.unit_cost,
+  // copied from the item when the unit was reserved), never the item's cost today, so editing a cost never changes a
+  // past sale. Revenue is dated exactly like the table above (units by SOLD_MOMENT, the discount share by paid_at), so
+  // "Revenue after discounts" equals that table's revenue / total revenue, period by period. The margin is computed on
+  // the KNOWN-cost units only: their list price minus their part of the order's educational discount share (shared
+  // in proportion to list price, rounded per order) minus their cost. A unit with no cost is never counted as zero: it
+  // is counted in "Items with cost unknown" and left out of the cost and the margin.
+  const { rows: eduCost } = await db.query(
+    `WITH disc AS (${require("./accounting").DISCOUNT_ORDERS_SQL}), split AS (${DISCOUNT_SPLIT_SQL}), units AS (
+       SELECT date_trunc($1::text, ${SOLD_MOMENT} AT TIME ZONE '${TZ}') AS p, COUNT(*)::int AS n,
+              COUNT(*) FILTER (WHERE oi.unit_cost IS NOT NULL)::int AS n_known,
+              COALESCE(SUM(ROUND(oi.price * 100)), 0)::bigint AS rev_c,
+              COALESCE(SUM(ROUND(oi.price * 100)) FILTER (WHERE oi.unit_cost IS NOT NULL), 0)::bigint AS known_c,
+              COALESCE(SUM(ROUND(oi.unit_cost * 100)), 0)::bigint AS cost_c
+       FROM order_items oi JOIN orders o ON o.id = oi.order_id
+       WHERE o.status = 'paid' AND oi.edu_item_id IS NOT NULL AND ${inRange(SOLD_MOMENT, 2, 3)}
+       GROUP BY 1
+     ), edu_disc AS (
+       SELECT date_trunc($1::text, split.paid_at AT TIME ZONE '${TZ}') AS p, SUM(split.edu_cents)::bigint AS cents,
+              SUM(CASE WHEN k.edu_c = 0 THEN 0 ELSE ROUND(split.edu_cents::numeric * k.known_c / k.edu_c) END)::bigint AS known_cents
+       FROM split JOIN LATERAL (
+         SELECT COALESCE(SUM(ROUND(oi.price * 100)) FILTER (WHERE oi.edu_item_id IS NOT NULL), 0)::bigint AS edu_c,
+                COALESCE(SUM(ROUND(oi.price * 100)) FILTER (WHERE oi.edu_item_id IS NOT NULL AND oi.unit_cost IS NOT NULL), 0)::bigint AS known_c
+         FROM order_items oi WHERE oi.order_id = split.id
+       ) k ON true
+       WHERE split.status = 'paid' AND split.edu_cents <> 0 AND ${inRange("split.paid_at", 2, 3)}
+       GROUP BY 1
+     )
+     SELECT to_char(units.p, 'YYYY-MM-DD') AS period, units.n, units.n_known, units.rev_c, units.known_c, units.cost_c,
+            COALESCE(edu_disc.cents, 0)::bigint AS disc_c, COALESCE(edu_disc.known_cents, 0)::bigint AS known_disc_c
+     FROM units LEFT JOIN edu_disc ON edu_disc.p = units.p ORDER BY 1`,
+    params
+  );
+  const marginRow = (label, c) => {
+    const knownRevenue = c.n_known ? (c.known_c - c.known_disc_c) / 100 : null;
+    const margin = c.n_known ? (c.known_c - c.known_disc_c - c.cost_c) / 100 : null;
+    return {
+      period: label, items: c.n, revenue: money((c.rev_c - c.disc_c) / 100),
+      known_items: c.n_known, known_revenue: knownRevenue == null ? null : money(knownRevenue),
+      cost: c.n_known ? money(c.cost_c / 100) : null, margin: margin == null ? null : money(margin),
+      margin_pct: margin != null && knownRevenue ? (100 * margin) / knownRevenue : null,
+      unknown_items: c.n - c.n_known,
+    };
+  };
+  const costCents = (r) => ({ n: r.n, n_known: r.n_known, rev_c: Number(r.rev_c), known_c: Number(r.known_c), cost_c: Number(r.cost_c), disc_c: Number(r.disc_c), known_disc_c: Number(r.known_disc_c) });
+  const costRows = eduCost.map((r) => marginRow(periodLabel(r.period, group), costCents(r)));
+  const costSum = eduCost.map(costCents).reduce((a, c) => { for (const k of Object.keys(a)) a[k] += c[k]; return a; }, { n: 0, n_known: 0, rev_c: 0, known_c: 0, cost_c: 0, disc_c: 0, known_disc_c: 0 });
+  const costTotals = marginRow("Total", costSum);
+  const unknownRevenue = money((costSum.rev_c - costSum.disc_c - (costSum.known_c - costSum.known_disc_c)) / 100);
+  const costNote = [
+    "Cost = the cost per unit recorded on the item when the unit was reserved (each reservation keeps its own copy, so editing an item's cost later does not change past sales). Revenue is after the educational items' share of pickup discounts, as in the table above.",
+    costSum.n - costSum.n_known > 0
+      ? `Cost unknown for ${costSum.n - costSum.n_known} unit${costSum.n - costSum.n_known === 1 ? "" : "s"} (sold for €${unknownRevenue.toFixed(2)} after discounts): they are NOT counted as zero cost, they are left out of the cost and the margin, so the margin is for the ${costSum.n_known} unit${costSum.n_known === 1 ? "" : "s"} with a known cost only. Enter the cost on the item (Admin > Educational items) so that future sales have it.`
+      : costSum.n ? "Every unit sold in this range has a known cost." : null,
+  ].filter(Boolean).join(" ");
   // Refunds are their own line, counted on the day the admin marked the order
   // refunded (orders.refunded_at). A refunded order is NOT in the sales above.
   const { rows: refunds } = await db.query(
@@ -450,6 +505,20 @@ async function salesReport(db, ctx) {
           ...(hasEduDiscounts ? [{ key: "discounts", label: "Pickup discounts", type: "eur" }, { key: "total_revenue", label: "Total revenue", type: "eur" }] : []),
         ],
         rows: eduRows, totals: { period: "Total", ...sumRows(eduRows, hasEduDiscounts ? ["items", "revenue", "discounts", "total_revenue"] : ["items", "revenue"]) },
+      },
+      {
+        key: "educational_margin", title: "Educational items: cost and margin (from the cost recorded at reservation)",
+        columns: [
+          { key: "period", label: periodHeader, type: "text" }, { key: "items", label: "Items sold", type: "int" },
+          { key: "revenue", label: "Revenue after discounts", type: "eur" },
+          { key: "known_items", label: "Items with known cost", type: "int" },
+          { key: "known_revenue", label: "Revenue of known-cost items", type: "eur" },
+          { key: "cost", label: "Cost of known-cost items", type: "eur" },
+          { key: "margin", label: "Margin (known-cost items only)", type: "eur" },
+          { key: "margin_pct", label: "Margin % (known-cost items only)", type: "pct" },
+          { key: "unknown_items", label: "Items with cost unknown", type: "int" },
+        ],
+        rows: costRows, totals: costTotals, note: costNote,
       },
       {
         key: "refunds", title: "Refunds (reservations refunded in the shop; not included in the sales above)",
@@ -820,7 +889,7 @@ const REPORTS = [
   { slug: "membership", title: "Membership", summary: "Active members, new members and endings per month, and renewals due soon.", usesRange: true, run: membershipReport },
   { slug: "intake", title: "Intake log", summary: "Copies added per month and by source, with acquisition cost, and the latest additions.", usesRange: true, run: intakeReport },
   { slug: "accounts", title: "Accounts", summary: "Everyone with an account by type (admin, volunteer, member, account holder, unconfirmed), with reservations and spend. Shows names and emails.", filters: "accounts", csvTable: "accounts", run: accountsReport },
-  { slug: "accounting", title: "Accounting export", summary: "For the treasurer: one row per day, category and payment method (till, shop, online, membership), no customer data. Download the CSV.", usesRange: true, run: (db, ctx) => require("./accounting").accountingExportReport(db, ctx) },
+  { slug: "accounting", title: "Accounting export", summary: "For the treasurer: one row per day, category and payment method (till, shop, online, membership), no customer data. Download the CSV.", usesRange: true, csvTable: "export", run: (db, ctx) => require("./accounting").accountingExportReport(db, ctx) },
   { slug: "lookup-sources", title: "Book lookup sources used", summary: "How often each book catalog (Open Library, BnF, Google Books, Open Library data API, ISBNdb) was asked, supplied the title, failed or was slow, with cache hits and ISBNs not found; then what the AI features used (calls, tokens, errors, credit). Counts only.", usesPeriod: true, csvTable: "sources", run: (db, ctx) => require("./lookupSourcesReport").run(db, ctx) },
 ];
 

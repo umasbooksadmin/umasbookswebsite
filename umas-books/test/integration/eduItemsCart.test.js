@@ -129,3 +129,38 @@ test("a guest's cart page and guest form say 'items' (EN/FR) for educational ite
     assert.match(bookForm.text, lang === "en" ? /We hold the books at once/ : /Nous gardons les livres tout de suite/, "books only: the existing wording");
   }
 });
+
+test("the cost per unit (migration 115) is copied onto the order lines but never shown to the customer: cart, confirmation, account page, emails", async () => {
+  // A distinctive cost (€1.37) that appears nowhere else: price 2.50, stock 4.
+  const it = await item({ price: 2.5, stock: 4 });
+  await pool.query("UPDATE edu_items SET cost = 1.37 WHERE id = $1", [it.id]);
+  const COST = /1[.,]37|€\s?1[.,]37|137\b/;
+  for (const lang of ["en", "fr"]) {
+    const account = await h.account({ lang });
+    const v = visitor(account, { lang });
+    await v.post("/cart/add-edu", { eduItemId: it.id, qty: "2", backTo: "/educational-items.html" });
+    const cartPage = (await v.get("/cart")).text;
+    assert.match(cartPage, /2[.,]50/, "the cart shows the price");
+    assert.doesNotMatch(cartPage, COST, "the cart never shows the cost");
+    const count = (await v.get("/api/cart/count")).text;
+    assert.doesNotMatch(count, COST);
+    const sentBefore = h.sent.length;
+    const r = await v.post("/cart/reserve", { acceptCgv: "on", name: "Cost Buyer" });
+    assert.equal(r.status, 302, r.text.slice(0, 300));
+    const [order] = await h.ordersOf(account);
+    const lines = (await pool.query("SELECT unit_cost FROM order_items WHERE order_id = $1", [order.id])).rows;
+    assert.deepEqual(lines.map((l) => Number(l.unit_cost)), [1.37, 1.37], "each unit keeps the cost of the day");
+    const confirm = await v.get(r.location);
+    assert.doesNotMatch(confirm.text, COST, "the confirmation page never shows the cost");
+    const accountPage = await v.get("/account");
+    assert.equal(accountPage.status, 200);
+    assert.match(accountPage.text, new RegExp(it.name), "the account page lists the reservation");
+    assert.doesNotMatch(accountPage.text, COST, "the account page never shows the cost");
+    const mails = h.sent.slice(sentBefore);
+    assert.ok(mails.length >= 1, "the confirmation email (and the admin notice, if any) were sent");
+    for (const m of mails) {
+      assert.doesNotMatch(`${m.subject}\n${m.text || ""}\n${m.html || ""}`, COST, `no cost in the email "${m.subject}"`);
+    }
+    await pool.query("UPDATE edu_items SET stock = stock + 2 WHERE id = $1", [it.id]);
+  }
+});
