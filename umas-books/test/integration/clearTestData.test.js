@@ -109,6 +109,8 @@ async function plant() {
   await db.query("INSERT INTO price_reprice_items (run_id, copy_id, new_price) VALUES ($1, 1, 5)", [rr.id]);
   // Admin > Genres: the run history goes with the books, the managed list and the rules are settings (kept)
   const managedGenre = await one("INSERT INTO managed_genres (name_en, browse_slug) VALUES ('Test genre', 'test-genre') RETURNING id");
+  const eduGenre = await one("INSERT INTO edu_genres (name, slug) VALUES ('Test edu genre', 'test-edu-genre') RETURNING id");
+  await db.query("INSERT INTO edu_items (name, price, stock, genre_id) VALUES ('Test edu item', 3, 4, $1)", [eduGenre]);
   await db.query("INSERT INTO genre_rules (kind, pattern, pattern_key, action, target_managed_genre_id) VALUES ('exact', 'Test', 'test', 'map', $1)", [managedGenre]);
   const genreRun = await one("INSERT INTO genre_runs (actor_user_id) VALUES ($1) RETURNING id", [admin]);
   await db.query("INSERT INTO genre_run_changes (run_id, book_id, old_categories, new_categories) VALUES ($1, $2, 'a', 'b')", [genreRun, book]);

@@ -1,0 +1,69 @@
+<%- include('../partials/admin_header', { title: 'Educational items', active: active, pageTitle: 'Educational items', pageSub: 'Worksheets, flash cards and other NEW learning items customers can reserve online (Browse Educational Items). They pay at the shop when they collect, like books.', mainWide: true }) %>
+<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
+
+<div class="card">
+  <p><a class="btn" href="/admin/edu-items/new">Add an item</a> <a class="btn btn-outline" href="/educational-items.html" target="_blank" rel="noopener">See the customer page</a></p>
+  <p class="muted small"><strong>Stock</strong> is how many you have in the shop, reserved ones included. <strong>Held</strong> is how many open reservations are keeping for customers; <strong>available</strong> (stock minus held) is what customers can still reserve. At 0 available the item shows "Sold out". Collecting a reservation (the till or "Mark collected and paid") takes the collected units off the stock; a cancelled or expired reservation gives its units back by itself.</p>
+  <div class="table-scroll"><table class="ann-table" id="edu-items-table">
+    <thead><tr><th scope="col">Picture</th><th scope="col">Name</th><th scope="col">Genre</th><th scope="col">Price</th><th scope="col">Stock</th><th scope="col">Held</th><th scope="col">Available</th><th scope="col">Shown</th><th scope="col">Position</th><th scope="col">Actions</th></tr></thead>
+    <tbody>
+    <% if (!items.length) { %><tr><td colspan="10" class="muted">No educational items yet. Press "Add an item".</td></tr><% } %>
+    <% items.forEach(i => { %>
+      <tr<%- i.is_hidden ? ' class="muted"' : '' %>>
+        <td><% if (i.image_url) { %><img src="<%= i.image_url %>" alt="" width="48" height="48" style="object-fit:contain;background:#f5f0e6"><% } else { %><span class="muted small">none</span><% } %></td>
+        <td><a href="/admin/edu-items/<%= i.id %>/edit"><%= i.name %></a></td>
+        <td><%= i.genre_name || '—' %></td>
+        <td>&euro;<%= money(i.price) %></td>
+        <td><%= i.stock %></td>
+        <td><%= i.held %></td>
+        <td><strong><%= i.available %></strong><%= i.available === 0 ? ' (sold out)' : '' %></td>
+        <td><%= i.is_hidden ? 'Hidden' : 'Shown' %></td>
+        <td><%= i.sort_order %></td>
+        <td style="white-space:nowrap">
+          <a class="btn btn-outline btn-small" href="/admin/edu-items/<%= i.id %>/edit">Edit</a>
+          <form method="post" action="/admin/edu-items/<%= i.id %>/visibility" style="display:inline">
+            <%- include('../partials/csrf_field') %>
+            <input type="hidden" name="hide" value="<%= i.is_hidden ? '0' : '1' %>">
+            <button type="submit" class="btn btn-outline btn-small"><%= i.is_hidden ? 'Show' : 'Hide' %></button>
+          </form>
+          <% if (i.order_lines === 0) { %>
+          <form method="post" action="/admin/edu-items/<%= i.id %>/delete" style="display:inline" data-confirm="Delete &quot;<%= i.name %>&quot;? This cannot be undone.">
+            <%- include('../partials/csrf_field') %>
+            <button type="submit" class="btn btn-outline btn-small">Delete</button>
+          </form>
+          <% } else { %><span class="muted small" title="It is on reservations: hide it instead">on <%= i.order_lines %> order line(s)</span><% } %>
+        </td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table></div>
+</div>
+
+<div class="card" id="edu-genres">
+  <div class="section-title">Genres</div>
+  <p class="muted small">The buttons on Browse Educational Items, in this sequence. Names are shown in English on the French site too (like book genres). A genre with items cannot be deleted: move its items first.</p>
+  <% genres.forEach(g => { %>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:8px">
+      <form method="post" action="/admin/edu-genres/<%= g.id %>" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end">
+        <%- include('../partials/csrf_field') %>
+        <div><label for="gn<%= g.id %>">Name</label><input id="gn<%= g.id %>" name="name" type="text" maxlength="60" value="<%= g.name %>" required></div>
+        <div><label for="go<%= g.id %>">Position</label><input id="go<%= g.id %>" name="sortOrder" type="text" inputmode="numeric" value="<%= g.sort_order %>" style="width:70px"></div>
+        <button class="btn btn-small" type="submit">Save</button>
+        <span class="muted small"><%= g.all_count %> item(s), <%= g.count %> shown</span>
+      </form>
+      <% if (g.all_count === 0) { %>
+      <form method="post" action="/admin/edu-genres/<%= g.id %>/delete" data-confirm="Delete the genre &quot;<%= g.name %>&quot;?">
+        <%- include('../partials/csrf_field') %>
+        <button class="btn btn-outline btn-small" type="submit">Delete</button>
+      </form>
+      <% } %>
+    </div>
+  <% }) %>
+  <form method="post" action="/admin/edu-genres" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-top:12px">
+    <%- include('../partials/csrf_field') %>
+    <div><label for="new-genre">New genre</label><input id="new-genre" name="name" type="text" maxlength="60" required placeholder="e.g. Board games"></div>
+    <button class="btn btn-small" type="submit">Add genre</button>
+  </form>
+</div>
+<%- include('../partials/admin_footer') %>

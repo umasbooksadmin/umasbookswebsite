@@ -91,7 +91,7 @@ async function sendReservationReminders(pool) {
        AND o.buyer_email NOT LIKE '%@erased.invalid' AND ${CONFIRMED_SQL}
        AND o.reserved_until > now()
        AND o.reserved_until <= ${parisPlusDaysSql("now()", legal.RESERVATION_REMINDER_DAYS_BEFORE)}
-       AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.book_copy_id IS NOT NULL)`;
+       AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND (i.book_copy_id IS NOT NULL OR i.edu_item_id IS NOT NULL))`;
   const { rows: candidates } = await pool.query(`SELECT o.id FROM orders o WHERE ${due} ORDER BY o.id LIMIT 200`);
   let sent = 0;
   for (const { id } of candidates) {
@@ -158,7 +158,7 @@ async function sendExpiryNotices(pool) {
   const due = `o.status = 'expired' AND o.release_reason = 'expired' AND o.expiry_notice_sent_at IS NULL
        AND o.buyer_email NOT LIKE '%@erased.invalid'
        AND o.released_at > now() - interval '${EXPIRY_NOTICE_WINDOW_DAYS} days'
-       AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.book_copy_id IS NOT NULL)`;
+       AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND (i.book_copy_id IS NOT NULL OR i.edu_item_id IS NOT NULL))`;
   const { rows: candidates } = await pool.query(`SELECT o.id FROM orders o WHERE ${due} ORDER BY o.id LIMIT 200`);
   let sent = 0;
   for (const { id } of candidates) {
@@ -193,7 +193,7 @@ async function sendAdminReservationDigest(pool) {
     {
       column: "pickup_reminder_sent_at",
       whereSql: `o.status = 'reserved' AND ${CONFIRMED_SQL} AND o.reserved_until > now() AND o.reserved_until <= ${parisPlusDaysSql("now()", ADMIN_DIGEST_DAYS_BEFORE)}
-        AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.book_copy_id IS NOT NULL)`,
+        AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND (i.book_copy_id IS NOT NULL OR i.edu_item_id IS NOT NULL))`,
     },
     async (orders) => {
       const lines = orders

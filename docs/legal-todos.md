@@ -199,3 +199,13 @@ sale, the reservation email and `NO_RETURNS` to be changed together, and bump
 - The Instagram and Facebook pages are linked from the footer and the visit page (a plain
   link, nothing embedded); the privacy policy says the link leads to Instagram,
   a service of Meta. The Facebook page is linked next to it and covered by the same sentence.
+
+## Educational items (new goods) in the legal texts (2026-11-02)
+
+- [ ] The terms of sale, privacy policy and legal notice still talk only about second-hand books (the legal documents were
+  deliberately NOT changed). Owner / lawyer to review, at least: terms of sale `ts.s1.p` (what we sell), `ts.nr.h` / `ts.nr.p`
+  (used books are not taken back), `ts.s3.p`, `ts.s4.p` ("collect your books"), `ts.mb.p`, `ts.s7.sum` and `ts.s10.p`; privacy
+  policy `pp.s1.p`, `pp.s2.list` (reservations: "books or drop-in seats"), `pp.s4.*`, `pp.s5.list`; legal notice `ml.s1.p`,
+  `ml.s4.p`, `ml.s5.p`. The cart, receipt and reservation emails already say "items" for a reservation with educational
+  items (`legalText.forItems`); for an order of educational items only they drop the used-books sentence and say only that the
+  legal guarantees apply. Ask the lawyer whether that wording is right for new goods bought in the shop.

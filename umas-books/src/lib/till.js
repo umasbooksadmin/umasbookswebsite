@@ -40,10 +40,13 @@ const OTHER_CATEGORY_VALUES = new Set(OTHER_CATEGORIES.map((c) => c.value));
 // A drop-in class seat of a reservation collected at the till (never a manual or quick item category):
 // exported as "Class seats" (706), exactly like a seat collected with the admin button.
 const SEAT_CATEGORY = "class_seats";
+// A reserved educational item collected at the till (lib/eduItems.js; never a manual or quick item category): exported as
+// "Educational items" (707), exactly like one collected with the admin button.
+const EDU_CATEGORY = "educational";
 // What the accounting export calls each line category (lib/accounting.js CATEGORY_SQL says the same).
 const EXPORT_CATEGORY = {
   books_used: "Books used", books_new: "Books new", books_other: "Other",
-  merchandise: "Merchandise", refreshments: "Refreshments", donation: "Donation", other: "Other", class_seats: "Class seats",
+  merchandise: "Merchandise", refreshments: "Refreshments", donation: "Donation", other: "Other", class_seats: "Class seats", educational: "Educational items",
 };
 
 // extra: fields sent to the browser with the message (code, newTotalCents...).
@@ -208,7 +211,7 @@ async function lookupScan(db, code, have = []) {
 }
 
 // A reservation's lines for the till: books at the reserved price (nothing to
-// override), seats as plain lines. { type: "reservation", order, lines } or an error.
+// override), seats and educational items as plain lines. { type: "reservation", order, lines } or an error.
 async function reservationResult(db, orderId) {
   const r = await loadReservation(db, orderId);
   if (r.error) return { type: "error", message: r.error };
@@ -218,7 +221,8 @@ async function reservationResult(db, orderId) {
       const base = copyLine({ id: i.book_copy_id, condition: i.condition, price: i.price, publisher_price: i.publisher_price, location: i.location, is_clearance: i.is_clearance, title: i.title, authors: i.authors, isbn: i.isbn });
       return { ...base, priceCents, reserved: true, orderId: r.order.id, itemId: i.item_id };
     }
-    return { kind: "seat", description: i.item_title, title: i.item_title, quantity: 1, priceCents, reserved: true, orderId: r.order.id, itemId: i.item_id };
+    // A drop-in seat or an educational item (edu: true): a plain reserved line, one unit, at the reserved price.
+    return { kind: "seat", edu: i.edu_item_id != null, description: i.item_title, title: i.item_title, quantity: 1, priceCents, reserved: true, orderId: r.order.id, itemId: i.item_id };
   });
   return { type: "reservation", order: r.order, lines };
 }
@@ -326,7 +330,7 @@ async function buildLines(db, rawItems, { isAdmin = true, lock = true } = {}) {
       lines.push({
         kind: "reserved", orderId: Number(it.orderId), itemId: Number(it.itemId), copyId: isBook ? row.book_copy_id : null,
         description: row.item_title, quantity: 1, unitCents: toCents(row.price), expectedCents: expected,
-        category: isBook ? (row.condition === "new" ? "books_new" : "books_used") : SEAT_CATEGORY,
+        category: isBook ? (row.condition === "new" ? "books_new" : "books_used") : row.edu_item_id != null ? EDU_CATEGORY : SEAT_CATEGORY,
       });
     } else if (it.kind === "book") {
       const copy = copies.get(Number(it.copyId));
@@ -910,7 +914,7 @@ async function unclosedDays(db) {
 }
 
 module.exports = {
-  TillError, assignReceiptNumber, receiptNumber, OTHER_CATEGORIES, EXPORT_CATEGORY, SEAT_CATEGORY, DESCRIPTION_MAX, MAX_QTY, MAX_TOTAL_CENTS, OVERRIDE_UP_PERCENT, eur, toCents, parseCents, cashChange, cleanText,
+  TillError, assignReceiptNumber, receiptNumber, OTHER_CATEGORIES, EXPORT_CATEGORY, SEAT_CATEGORY, EDU_CATEGORY, DESCRIPTION_MAX, MAX_QTY, MAX_TOTAL_CENTS, OVERRIDE_UP_PERCENT, eur, toCents, parseCents, cashChange, cleanText,
   parseBarcode, checkBarcodeFree, SHOP_CODE_PREFIX, lookupScan, releaseExpiredCartCopy, buildLines, completeSale, checkSale, voidSale, confirmRefund,
   unrefundedVoids, voidsOfDay, maxTillVoidsPerDay, TILL_VOID_REASON_MIN, daySummary, lockDay, parisToday, openDay, closeDay, reopenDay, unclosedDays, basketHash,
 };

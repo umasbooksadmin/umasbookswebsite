@@ -1,0 +1,26 @@
+/* Browse Educational Items (views/marketing/educational-items.ejs). Built on the Browse Books styles (assets/books.css:
+   .bk-wrap, .bk-search, .bk-genre tiles, .bk-grid, .bk-book cards): only what that page does not have is here. */
+
+/* "All educational items are new": the one fact the owner wants every visitor to see, under the title. */
+.edu-new-note { display: inline-flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 17px; }
+.edu-new-badge, .edu-card-new {
+  display: inline-block; background: var(--green); color: #fff; border-radius: 999px; padding: 1px 10px;
+  font-family: var(--font-nunito); font-size: 13px; font-weight: 700; letter-spacing: .02em;
+}
+
+/* Few genres: a wrapping row of the same round tiles as Browse Books, no carousel. */
+.edu-genres { padding: 6px 0 4px; }
+.edu-genre-row { display: flex; flex-wrap: wrap; gap: 8px 22px; list-style: none; margin: 0; padding: 0; }
+.edu-genre-row .bk-genre { text-decoration: none; color: var(--ink); min-width: 92px; }
+
+/* The card: a square picture (worksheets and card packs are rarely book-shaped), then name, genre, price, button. */
+.edu-card .cover { aspect-ratio: 1 / 1; object-fit: contain; }
+.edu-card .edu-genre { font-size: 15px; margin-top: 2px; }
+.edu-card .p { flex-wrap: wrap; margin-top: 4px; }
+.edu-card form { margin: 6px 0 0; }
+.edu-card .edu-add { min-height: 44px; padding: 6px 14px; font-size: 15px; }
+.edu-card .edu-soldout { opacity: .65; cursor: not-allowed; }
+.edu-card .edu-incart { display: inline-block; margin-top: 6px; font-size: 15px; color: var(--ink); }
+
+.edu-status { margin: 14px 0 0; }
+.edu-empty { padding: 8px 0 20px; max-width: 60ch; }

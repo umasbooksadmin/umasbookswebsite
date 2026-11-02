@@ -7,7 +7,7 @@
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
 <% if (!items.length) { %>
-  <div class="card"><p class="muted"><%= tr('Your cart is empty.', 'Votre panier est vide.') %> <a href="/books.html"><%= tr('Browse books', 'Parcourez les livres') %></a> <%= tr('or', 'ou') %> <a href="/sessions"><%= tr('browse drop-in sessions', 'les séances drop-in') %></a> <%= tr('to add some.', 'pour en ajouter.') %></p></div>
+  <div class="card"><p class="muted"><%= tr('Your cart is empty.', 'Votre panier est vide.') %> <a href="/books.html"><%= tr('Browse books', 'Parcourez les livres') %></a>, <a href="/educational-items.html"><%= tr('educational items', 'les articles éducatifs') %></a> <%= tr('or', 'ou') %> <a href="/sessions"><%= tr('browse drop-in sessions', 'les séances drop-in') %></a> <%= tr('to add some.', 'pour en ajouter.') %></p></div>
 <% } else { %>
   <%- include('partials/cover_note', { coverNoteShow: items.some((i) => i.libraryCover) }) %>
   <div class="cart-list">
@@ -24,6 +24,24 @@
             <div class="muted small"><%- i.authors ? bookText(i.authors) : escHtml(tr('Unknown author', 'Auteur inconnu')) %></div>
             <div style="margin-top:4px;"><span class="condition-badge condition-<%= i.condition %>"><%= conditionLabel(i.condition) %></span></div>
           </div>
+        <% } else if (i.kind === 'edu') { %>
+          <% if (i.imageUrl) { %>
+            <img src="<%= i.imageUrl %>"<% if (coverSrcset(i.imageUrl)) { %> srcset="<%= coverSrcset(i.imageUrl) %>" sizes="48px"<% } %> alt="" class="cart-item-cover" width="48" height="72" loading="lazy" decoding="async" data-cover>
+          <% } else { %>
+            <div class="cart-item-cover book-thumb-placeholder" aria-hidden="true"><%= tr('No picture', 'Pas d’image') %></div>
+          <% } %>
+          <div class="cart-item-body">
+            <div class="cart-item-title"<% if (lang === 'fr') { %> lang="en"<% } %>><%= i.title %></div>
+            <div class="muted small"><%= tr('Educational item', 'Article éducatif') %> &middot; <%= eur(i.price) %> <%= tr('each', 'l’unité') %></div>
+            <div style="margin-top:4px;"><span class="condition-badge condition-new"><%= conditionLabel('new') %></span></div>
+            <form method="post" action="/cart/update-qty" class="cart-qty-form">
+              <%- include('partials/csrf_field') %>
+              <input type="hidden" name="lineId" value="<%= i.lineId %>">
+              <label for="qty-<%= i.lineId %>" class="small"><%= tr('Quantity', 'Quantité') %></label>
+              <select id="qty-<%= i.lineId %>" name="qty"><% for (let n = 1; n <= i.maxQty; n++) { %><option value="<%= n %>"<%= n === i.qty ? ' selected' : '' %>><%= n %></option><% } %></select>
+              <button type="submit" class="btn-outline btn-small"><%= tr('Update', 'Mettre à jour') %></button>
+            </form>
+          </div>
         <% } else { %>
           <div class="cart-item-cover book-thumb-placeholder"><%= tr('Session', 'Séance') %></div>
           <div class="cart-item-body">
@@ -32,7 +50,7 @@
             <div class="muted small"><%= tr('Drop-in seat', 'Place drop-in') %> &middot; <%= formatDateTime(i.startsAt) %></div>
           </div>
         <% } %>
-        <div class="cart-item-price"><%= eur(i.price) %></div>
+        <div class="cart-item-price"><%= eur(i.kind === 'edu' ? Math.round(i.price * 100) * i.qty / 100 : i.price) %></div>
         <form method="post" action="/cart/remove">
           <%- include('partials/csrf_field') %>
           <input type="hidden" name="lineId" value="<%= i.lineId %>">
@@ -44,6 +62,7 @@
 
   <div class="cart-total"><%= tr('Total:', 'Total :') %> <strong><%= eur(total) %></strong></div>
   <p class="muted small cart-vat"><%= legalText.priceLine %></p>
+  <% if (items.some((i) => i.kind === 'edu')) { %><p class="muted small" id="edu-new-note"><%= tr('All educational items are new.', 'Tous les articles éducatifs sont neufs.') %></p><% } %>
 
   <% if (locals.preview) { %>
     <div role="status" class="notice-box"><%= tr('Online reservations open when we launch. This is a preview, so you can fill a cart to see how it works, but nothing can be reserved yet.', 'Les réservations en ligne ouvriront au lancement. Ceci est un aperçu : vous pouvez remplir un panier pour voir comment cela fonctionne, mais rien ne peut encore être réservé.') %></div>
@@ -64,13 +83,15 @@
   <% } else if (locals.checkoutState === 'unconfirmed') { %>
     <div role="status" class="notice-box"><%= tr('Please confirm your email address before reserving: open the link we sent you when you signed up.', 'Veuillez confirmer votre adresse e-mail avant de réserver : ouvrez le lien que nous vous avons envoyé lors de votre inscription.') %></div>
   <% } else { %>
-    <% const hasBooks = items.some((i) => i.kind === 'book'); const hasSeats = items.some((i) => i.kind === 'dropin'); %>
+    <% const hasBooks = items.some((i) => i.kind === 'book' || i.kind === 'edu'); const hasSeats = items.some((i) => i.kind === 'dropin'); const hasEdu = items.some((i) => i.kind === 'edu'); %>
+    <% const _kind = items.some((i) => i.kind === 'edu') ? (items.some((i) => i.kind === 'book') ? 'mixed' : 'edu') : 'books'; const lt = legalText.forItems(_kind); /* the sentences name books, or items when the cart holds educational items */ %>
     <div class="card">
       <h2 class="section-title"><%= tr('Reservation', 'Réservation') %></h2>
       <form class="stack" method="post" action="/cart/reserve" data-saving-text="<%= tr('Reserving…', 'Réservation en cours…') %>">
         <%- include('partials/csrf_field') %>
         <input type="hidden" name="formShownAt" value="<%= Date.now() %>">
         <% items.filter((i) => i.kind === 'book').forEach((i) => { %><input type="hidden" name="seenPrice_<%= i.copyId %>" value="<%= i.price.toFixed(2) %>"><% }) %>
+        <% items.filter((i) => i.kind === 'edu').forEach((i) => { %><input type="hidden" name="seenEduPrice_<%= i.eduItemId %>" value="<%= i.price.toFixed(2) %>"><% }) %>
         <label for="name"><%= tr('Name', 'Nom') %></label>
         <input id="name" name="name" type="text" autocomplete="name" value="<%= locals.accountName || '' %>" required>
         <label for="accountEmail"><%= tr('Email', 'E-mail') %></label>
@@ -78,12 +99,12 @@
         <p class="muted small" id="accountEmailHelp"><%= tr('This is your account email: your confirmation is sent there.', 'Voici l’adresse e-mail de votre compte : votre confirmation y sera envoyée.') %></p>
         <label for="phone"><%= tr('Phone (optional)', 'Téléphone (facultatif)') %></label>
         <input id="phone" name="phone" type="tel" value="<%= locals.typedPhone || '' %>">
-        <p class="muted small reserve-note" id="nothing-paid-online"><%= legalText.nothingPaidOnline %></p>
-        <% if (hasBooks) { %><p class="muted small"><%= legalText.pickupWhere %></p><% } %>
+        <p class="muted small reserve-note" id="nothing-paid-online"><%= lt.nothingPaidOnline %></p>
+        <% if (hasBooks) { %><p class="muted small"><%= lt.pickupWhere %></p><% } %>
         <% if (hasSeats) { %><p class="muted small"><%= tr('Drop-in seats: you pay at the session. You can cancel a seat online until {hours} hours before it starts.', 'Places « drop-in » : vous réglez à la séance. Vous pouvez annuler une place en ligne jusqu’à {hours} heures avant le début.', { hours: limits.seatHours }) %></p><% } %>
         <label class="ann-check"><input type="checkbox" name="acceptCgv" required> <span><%= tr('I have read and accept the', 'J’ai lu et j’accepte les') %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('terms of sale', 'conditions générales de vente (CGV)') %></a>.</span></label>
         <%- include('partials/privacy_note', { en: 'We use your details only to process your reservation. See our', fr: 'Vos données servent uniquement à traiter votre réservation. Consultez notre' }) %>
-        <p class="muted small no-returns-note"><%= legalText.noReturns %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('Terms of sale', 'Conditions de vente') %></a></p>
+        <p class="muted small no-returns-note"><%= lt.noReturns %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('Terms of sale', 'Conditions de vente') %></a></p>
         <button class="btn" type="submit"><%= tr('Reserve (free, no commitment)', 'Réserver (gratuit, sans engagement)') %></button>
       </form>
     </div>

@@ -181,7 +181,7 @@
         meta.appendChild(el("span", "muted", "UB-" + l.copyId));
         if (l.reserved) meta.appendChild(el("span", "till-grade", "Reservation #" + l.orderId));
       } else if (l.kind === "seat") {
-        meta.appendChild(el("span", "till-grade", "Drop-in seat, reservation #" + l.orderId));
+        meta.appendChild(el("span", "till-grade", (l.edu ? "Educational item (new)" : "Drop-in seat") + ", reservation #" + l.orderId));
       } else {
         meta.appendChild(el("span", "till-grade", l.kind === "quick" ? "Quick item" : "Manual item"));
       }

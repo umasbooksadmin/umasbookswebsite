@@ -30,6 +30,10 @@ const ALLOW = [
   // English labels (marked lang="en"). Stored content, not interface text; the "All Genres" button stays French.
   ...require("./fixtures/browseGenres.golden.json").genres.filter((g) => g.slug !== "all")
     .map((g) => ({ match: g.en, reason: "genre button on Browse Books: book genres are English on the French site too (stored content, marked lang=\"en\")" })),
+  // Educational item genres (migration 113 seeds these two): English on the French site too, like book genres
+  // (owner decision 2026-11-02: item names and genres are English only). Stored content, marked lang="en".
+  { match: "Worksheets", reason: "genre button on Browse Educational Items (edu_genres, migration 113): English on the French site too, marked lang=\"en\"" },
+  { match: "Flash Cards", reason: "genre button on Browse Educational Items (edu_genres, migration 113): English on the French site too, marked lang=\"en\"" },
 ];
 
 module.exports = { ALLOW };

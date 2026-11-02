@@ -267,7 +267,7 @@ function createApp() {
   app.use(noStoreForUsers);
   app.use(require("./middleware/noStoreForUsers").noStoreForTokenPages);
   app.use((req, res, next) => {
-    res.locals.cartCount = Array.isArray(req.session.cart) ? req.session.cart.length : 0;
+    res.locals.cartCount = require("./routes/cart").cartUnits(req.session.cart);
     // Does the cart hold a book (a bare number is an old-style book line)? Only the sign-in and sign-up notice asks (partials/cart_waiting.ejs).
     res.locals.cartHasBooks = Array.isArray(req.session.cart) && req.session.cart.some((l) => typeof l === "number" || (l && l.kind === "book"));
     next();
@@ -318,6 +318,21 @@ function createApp() {
       if (err) return next(err);
       collapseRepeatedFields(req.body);
       next();
+    });
+  });
+
+  // Same again, for an Educational item's picture (routes/admin/eduItems.js). 8 MB, like a book cover photo; a refusal
+  // returns to the list with a sentence.
+  const eduUpload = multer({ storage: multer.memoryStorage(), limits: { ...MULTIPART_LIMITS, fileSize: 8 * 1024 * 1024 } });
+  const eduUploadFields = eduUpload.fields([{ name: "image", maxCount: 1 }]);
+  app.use("/admin/edu-items", requireAdmin, (req, res, next) => {
+    eduUploadFields(req, res, (err) => {
+      if (!err) { collapseRepeatedFields(req.body); return next(); }
+      console.warn(`Educational item upload refused: ${err.code || err.name}: ${err.message}`);
+      const message = err.code === "LIMIT_FILE_SIZE"
+        ? "That picture is larger than 8 MB. Please choose a smaller one. Nothing was saved."
+        : "The upload could not be read. Please try again. Nothing was saved.";
+      redirectWithFlash(req, res, "/admin/edu-items", "adminEduItems", { error: message }).catch(next);
     });
   });
 
@@ -393,7 +408,7 @@ function createApp() {
     res.set("Cache-Control", "no-store");
     const cartBooks = await cartBookIds(pool, req.session).catch(() => []);
     res.json({
-      cartCount: Array.isArray(req.session.cart) ? req.session.cart.length : 0,
+      cartCount: require("./routes/cart").cartUnits(req.session.cart),
       cartBookIds: cartBooks,
       loggedIn: Boolean(req.session.user),
       // Signed in and the browser's favourites not merged into the account yet this session (public/favorites.js).
@@ -465,6 +480,31 @@ function createApp() {
         res.locals.iconAttrs = browseGenres.ICON_ATTRS;
         res.locals.collectionButtons = await listButtonCollections(pool).catch(() => []);
         res.locals.collectionsHidden = browseFilterActive(req.query);
+      }
+      if (file === "educational-items.html") {
+        // Browse Educational Items (lib/eduItems.js): drawn on the server from ?genre= and ?q=. Its Add to cart forms carry
+        // the CSRF token and the page shows this session's cart, so it is never stored in a shared cache.
+        res.set("Cache-Control", "private, no-store");
+        await require("./lib/reservations").expireStaleReservationsThrottled(pool); // an expired reservation's units count as available again at once
+        const eduItems = require("./lib/eduItems");
+        const browseGenres = require("./lib/browseGenres");
+        const genres = (await eduItems.loadGenres(pool)).map(eduItems.genreTile);
+        const wanted = String(req.query.genre || "").slice(0, 60);
+        res.locals.eduGenres = genres;
+        res.locals.eduGenre = genres.some((g) => g.slug === wanted) ? wanted : "";
+        res.locals.eduQuery = typeof req.query.q === "string" ? req.query.q.trim().slice(0, eduItems.SEARCH_MAX) : "";
+        res.locals.eduItemsList = await eduItems.loadPublicItems(pool, { genre: res.locals.eduGenre, q: res.locals.eduQuery });
+        res.locals.iconAttrs = browseGenres.ICON_ATTRS;
+        res.locals.allTile = browseGenres.ALL_BUTTON;
+        const cart = Array.isArray(req.session.cart) ? req.session.cart : [];
+        res.locals.eduInCart = new Map(cart.filter((l) => l && l.kind === "edu").map((l) => [Number(l.eduItemId), eduItems.parseQty(l.qty) || 1]));
+        res.locals.eduAdded = /^\d{1,9}$/.test(String(req.query.added || ""));
+        res.locals.eduNotAdded = ["unavailable", "full"].includes(req.query.notadded) ? req.query.notadded : null;
+        // Where Add to cart comes back to: this page with its genre and search, never another site.
+        const back = new URLSearchParams();
+        if (res.locals.eduGenre) back.set("genre", res.locals.eduGenre);
+        if (res.locals.eduQuery) back.set("q", res.locals.eduQuery);
+        res.locals.eduBackTo = `${req.lang === "fr" && req.originalUrl.startsWith("/fr/") ? "/fr" : ""}/educational-items.html${back.toString() ? `?${back}` : ""}`;
       }
       if (marketingFormRoutes.FORM_PAGES.includes("/" + file)) {
         // Server-side forms (routes/marketingForms.js): the page carries a CSRF token, so no shared cache.

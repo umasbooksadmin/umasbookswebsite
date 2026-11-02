@@ -292,15 +292,21 @@ function periodLabel(iso, group) {
 const SOLD_MOMENT = `COALESCE((SELECT MIN(ts.created_at) FROM till_sale_items ti JOIN till_sales ts ON ts.id = ti.sale_id
   WHERE ti.reservation_order_id = o.id AND ts.status = 'completed'), o.paid_at)`;
 
-// A pickup discount (list price of the lines - what was received) is shared between the order's books and its
-// drop-in seats in proportion to their list prices, in whole cents (the books get the rounded share, the seats
-// the rest, so the two always add up to the discount). An order with neither (not possible today) keeps it all on
-// the books side, as before. Needs a CTE `disc` (accounting.DISCOUNT_ORDERS_SQL).
+// A pickup discount (list price of the lines - what was received) is shared between the order's books, its
+// educational items and its drop-in seats in proportion to their list prices, in whole cents, by CUMULATIVE rounding:
+// books get round(d * books / all), educational items round(d * (books + edu) / all) minus the books' share, and the
+// seats the rest. So the three shares are never negative and always add up to the discount exactly, and an order
+// without educational items splits exactly as before (edu_cents 0). An order with none of them (not possible) keeps it
+// all on the books side, as before. Needs a CTE `disc` (accounting.DISCOUNT_ORDERS_SQL).
 const DISCOUNT_SPLIT_SQL = `SELECT d.id, d.status, d.paid_at, d.cents,
-         CASE WHEN x.book_c + x.seat_c = 0 THEN d.cents
-              ELSE ROUND(d.cents::numeric * x.book_c / (x.book_c + x.seat_c))::bigint END AS book_cents
+         CASE WHEN x.book_c + x.edu_c + x.seat_c = 0 THEN d.cents
+              ELSE ROUND(d.cents::numeric * x.book_c / (x.book_c + x.edu_c + x.seat_c))::bigint END AS book_cents,
+         CASE WHEN x.book_c + x.edu_c + x.seat_c = 0 THEN 0
+              ELSE ROUND(d.cents::numeric * (x.book_c + x.edu_c) / (x.book_c + x.edu_c + x.seat_c))::bigint
+                 - ROUND(d.cents::numeric * x.book_c / (x.book_c + x.edu_c + x.seat_c))::bigint END AS edu_cents
        FROM disc d JOIN LATERAL (
-         SELECT COALESCE(SUM(ROUND(oi.price * 100)) FILTER (WHERE oi.class_dropin_seat_id IS NULL AND oi.book_copy_id IS NOT NULL), 0)::bigint AS book_c,
+         SELECT COALESCE(SUM(ROUND(oi.price * 100)) FILTER (WHERE oi.book_copy_id IS NOT NULL), 0)::bigint AS book_c,
+                COALESCE(SUM(ROUND(oi.price * 100)) FILTER (WHERE oi.edu_item_id IS NOT NULL), 0)::bigint AS edu_c,
                 COALESCE(SUM(ROUND(oi.price * 100)) FILTER (WHERE oi.class_dropin_seat_id IS NOT NULL), 0)::bigint AS seat_c
          FROM order_items oi WHERE oi.order_id = d.id
        ) x ON true`;
@@ -359,7 +365,7 @@ async function salesReport(db, ctx) {
        GROUP BY 1
      ), seat_disc AS (
        -- the seats' share of the pickup discounts, in cents (see DISCOUNT_SPLIT_SQL)
-       SELECT date_trunc($1::text, split.paid_at AT TIME ZONE '${TZ}') AS p, SUM(split.cents - split.book_cents)::bigint AS cents
+       SELECT date_trunc($1::text, split.paid_at AT TIME ZONE '${TZ}') AS p, SUM(split.cents - split.book_cents - split.edu_cents)::bigint AS cents
        FROM split WHERE split.status = 'paid' AND ${inRange("split.paid_at", 2, 3)}
        GROUP BY 1
      )
@@ -371,6 +377,32 @@ async function salesReport(db, ctx) {
   const dropinRows = dropin.map((r) => {
     const row = { period: periodLabel(r.period, group), seats: r.seats, revenue: money(r.revenue) };
     if (hasSeatDiscounts) {
+      row.discounts = money(-Number(r.discount_cents) / 100);
+      row.total_revenue = money(row.revenue + row.discounts);
+    }
+    return row;
+  });
+  // Educational items (lib/eduItems.js): reserved online and paid in the shop, one order line per unit. Their own table,
+  // like the drop-in seats, with their share of the pickup discounts (DISCOUNT_SPLIT_SQL).
+  const { rows: edu } = await db.query(
+    `WITH disc AS (${require("./accounting").DISCOUNT_ORDERS_SQL}), split AS (${DISCOUNT_SPLIT_SQL}), units AS (
+       SELECT date_trunc($1::text, ${SOLD_MOMENT} AT TIME ZONE '${TZ}') AS p, COUNT(*)::int AS n, COALESCE(SUM(oi.price), 0)::float8 AS rev
+       FROM order_items oi JOIN orders o ON o.id = oi.order_id
+       WHERE o.status = 'paid' AND oi.edu_item_id IS NOT NULL AND ${inRange(SOLD_MOMENT, 2, 3)}
+       GROUP BY 1
+     ), edu_disc AS (
+       SELECT date_trunc($1::text, split.paid_at AT TIME ZONE '${TZ}') AS p, SUM(split.edu_cents)::bigint AS cents
+       FROM split WHERE split.status = 'paid' AND split.edu_cents <> 0 AND ${inRange("split.paid_at", 2, 3)}
+       GROUP BY 1
+     )
+     SELECT to_char(units.p, 'YYYY-MM-DD') AS period, units.n AS items, units.rev AS revenue, COALESCE(edu_disc.cents, 0)::bigint AS discount_cents
+     FROM units LEFT JOIN edu_disc ON edu_disc.p = units.p ORDER BY 1`,
+    params
+  );
+  const hasEduDiscounts = edu.some((r) => Number(r.discount_cents) !== 0);
+  const eduRows = edu.map((r) => {
+    const row = { period: periodLabel(r.period, group), items: r.items, revenue: money(r.revenue) };
+    if (hasEduDiscounts) {
       row.discounts = money(-Number(r.discount_cents) / 100);
       row.total_revenue = money(row.revenue + row.discounts);
     }
@@ -412,13 +444,21 @@ async function salesReport(db, ctx) {
         rows: dropinRows, totals: { period: "Total", ...sumRows(dropinRows, hasSeatDiscounts ? ["seats", "revenue", "discounts", "total_revenue"] : ["seats", "revenue"]) },
       },
       {
+        key: "educational", title: "Educational items (new; not included in the book sales above)",
+        columns: [
+          { key: "period", label: periodHeader, type: "text" }, { key: "items", label: "Items sold", type: "int" }, { key: "revenue", label: "Revenue", type: "eur" },
+          ...(hasEduDiscounts ? [{ key: "discounts", label: "Pickup discounts", type: "eur" }, { key: "total_revenue", label: "Total revenue", type: "eur" }] : []),
+        ],
+        rows: eduRows, totals: { period: "Total", ...sumRows(eduRows, hasEduDiscounts ? ["items", "revenue", "discounts", "total_revenue"] : ["items", "revenue"]) },
+      },
+      {
         key: "refunds", title: "Refunds (reservations refunded in the shop; not included in the sales above)",
         columns: [{ key: "period", label: periodHeader, type: "text" }, { key: "orders", label: "Reservations refunded", type: "int" }, { key: "amount", label: "Amount refunded", type: "eur" }],
         rows: refundRows, totals: { period: "Total", ...sumRows(refundRows, ["orders", "amount"]) },
         note: "Counted on the day the reservation was marked refunded. A refunded reservation no longer appears in the reserved-online sales and drop-in figures.",
       },
     ],
-    notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = books sold at the Till (and older sales from the retired Sell in shop page). Days are Paris days.", "Pickup discounts: when a reservation is collected for less than its list price, the difference is shown here as a negative amount (on the day it was paid) and deducted from Total revenue, so the total is what was really received. When a reservation holds both books and drop-in seats, the discount is shared between them in proportion to their list prices (the books' share is shown here, the seats' share in the drop-in table), so each table adds up to what was really received. A reservation collected at the Till is counted on the day of the Till sale, even if the sale was entered later with an earlier time."],
+    notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = books sold at the Till (and older sales from the retired Sell in shop page). Days are Paris days.", "Pickup discounts: when a reservation is collected for less than its list price, the difference is shown here as a negative amount (on the day it was paid) and deducted from Total revenue, so the total is what was really received. When a reservation holds books, educational items and/or drop-in seats, the discount is shared between them in proportion to their list prices (the books' share is shown here, the others' shares in their own tables), so each table adds up to what was really received. A reservation collected at the Till is counted on the day of the Till sale, even if the sale was entered later with an earlier time."],
   };
 }
 
@@ -774,7 +814,7 @@ async function reservationsReport(db, ctx) {
 const REPORTS = [
   { slug: "inventory", title: "Inventory on hand", summary: "Copies in stock and reserved, with their asking value, by genre, condition, location and source.", run: inventoryReport },
   { slug: "aging", title: "Aging stock", summary: "How long copies have been in stock (0-3, 3-6, 6-12, 12+ months), and the oldest ones.", run: agingReport },
-  { slug: "sales", title: "Sales over time", summary: "Book sales (reserved online, paid in the shop) and walk-in shop sales by day, week, month or year, plus drop-in seats separately.", usesRange: true, usesGroup: true, run: salesReport },
+  { slug: "sales", title: "Sales over time", summary: "Book sales (reserved online, paid in the shop) and walk-in shop sales by day, week, month or year, plus educational items and drop-in seats separately.", usesRange: true, usesGroup: true, run: salesReport },
   { slug: "reservations", title: "Reservations", summary: "Reserved online, collected and paid in the shop, expired and cancelled, by month, with the conversion rate.", usesRange: true, run: reservationsReport },
   { slug: "sellthrough", title: "Sell-through by genre", summary: "Of the copies acquired in a period, how many have sold, and how fast.", usesRange: true, run: sellthroughReport },
   { slug: "membership", title: "Membership", summary: "Active members, new members and endings per month, and renewals due soon.", usesRange: true, run: membershipReport },

@@ -3926,3 +3926,26 @@ developer can drop the table with a new migration (`DROP TABLE IF EXISTS cleared
 **What it cannot see.** It does not look inside Backblaze: the app has no Backblaze key (those are GitHub secrets only), and this safety net deliberately adds none. So it proves that the nightly jobs **reported success**, not that the file is in the bucket; the daily freshness check still looks at the bucket. If you want the site to check Backblaze itself, a developer would add a read-only Backblaze application key (limited to the backup bucket) as three Render environment variables (bucket, endpoint, key id and key); say so and it will be built.
 
 **Checking it works (once after it is live).** See the manual test A144 in `docs/testing/manual-test-scripts.md`.
+
+## au) Educational items (worksheets, flash cards): stock, holds and the money
+
+Admin > **Educational items** (`/admin/edu-items`, admins only) lists every item with **Stock** (the units in the shop),
+**Held** (units on open reservations) and **Available** (stock minus held, what customers can still reserve). The
+public page is **Browse Educational Items** (`/educational-items.html`, French `/fr/educational-items.html`).
+
+- **Receiving new units:** edit the item and raise **Stock** by what arrived. Every change is in Admin > Activity
+  (`edu_item.edit`, "stock 5 -> 12").
+- **Stock cannot be set below Held.** The page says how many are held. Collect or cancel those reservations first.
+- **Holds release themselves:** a cancelled or expired reservation frees its units straight away. Nothing to do.
+- **Collecting** (Till `ORDER-<n>`, or **Collected and paid** / **Collect selected** on the order page) takes the
+  collected units off Stock. A **refund** puts them back on Stock. If the units really did not come back (damaged,
+  kept by the customer), lower Stock by editing the item.
+- **Accounting:** the export has an **Educational items** category, credit account **707** by default (change it in
+  the accounting mapping page like any other). No VAT is computed (TVA non applicable, art. 293 B, as for books). A
+  pickup discount on a reservation with educational items is shared in the Sales report between books, educational
+  items and seats in proportion to their list prices.
+- **Deleting:** only an item that has never been on a reservation. Otherwise **Hide** it (customers stop seeing it;
+  past orders keep its name and price).
+- Walk-in sales of educational items at the till (not reserved) still go under the till's manual categories; there
+  is no educational-items button there yet.
+- Undoing migration 113: see the note at the end of `umas-books/migrations/113_educational_items.sql`.

@@ -125,6 +125,10 @@
  },
  {
   "file": "src/lib/orderSweeps.js",
+  "text": "o.status = 'reserved' AND {} AND o.reserved_until > now() AND o.reserved_until <= {} AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND (i.book"
+ },
+ {
+  "file": "src/lib/orderSweeps.js",
   "text": "o.status = 'expired' AND o.release_reason = 'expired' AND o.expiry_notice_sent_at IS NULL AND o.buyer_email NOT LIKE '%@erased.invalid' AND o.released_at > now("
  },
  {
