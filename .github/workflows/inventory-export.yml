@@ -222,6 +222,15 @@ jobs:
 
             Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
+      - name: Tell the site this job ran (its own watch for silent GitHub schedules)
+        # A few lines of curl, no secret: the site stamps the time (umas-books/src/lib/scheduledJobWatch.js)
+        # and emails ALERT_TO if a successful end-of-day export has not reported in for 50 hours. Never fails the job.
+        if: steps.gate.outputs.run == 'true' && steps.gate.outputs.manual != 'true'
+        continue-on-error: true
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://umasbooks.org' }}
+        run: curl -fsS -o /dev/null --max-time 60 --retry 3 --retry-delay 20 -H "X-Umas-Probe: inventory" "${SITE_URL%/}/healthz"
+
       - name: Alert admin if any step above failed
         if: failure()
         uses: ./.github/actions/send-alert-mail

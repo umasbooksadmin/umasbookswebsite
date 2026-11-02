@@ -51,7 +51,7 @@ test("uses the existing secrets and variables by name only, no new ones, no lite
   const used = new Set([...code.matchAll(/(secrets|vars)\.(\w+)/g)].map((m) => `${m[1]}.${m[2]}`));
   const allowed = new Set([
     "secrets.DATABASE_URL", "secrets.BACKUP_S3_KEY_ID", "secrets.BACKUP_S3_APPLICATION_KEY", "secrets.GMAIL_USER", "secrets.GMAIL_APP_PASSWORD",
-    "vars.BACKUP_S3_BUCKET", "vars.BACKUP_S3_ENDPOINT", "vars.BACKUP_S3_REGION", "vars.ALERT_TO",
+    "vars.BACKUP_S3_BUCKET", "vars.BACKUP_S3_ENDPOINT", "vars.BACKUP_S3_REGION", "vars.ALERT_TO", "vars.SITE_URL", // SITE_URL: only the "tell the site this job ran" step (a public address, not a secret)
   ]);
   for (const u of used) assert.ok(allowed.has(u), `${u} is not an existing setting`);
   assert.doesNotMatch(code, /postgres(ql)?:\/\/|AKIA|age1[a-z0-9]{20}/);
@@ -86,7 +86,9 @@ test("emails ALERT_TO with the attachments, the counts subject and a failure ale
 
 test("installs only runtime dependencies and logs counts only", () => {
   assert.match(code, /npm ci --omit=dev/);
-  assert.doesNotMatch(code, /\bcat\b[^\n]*inventory_[^\n]*\.csv|\bhead\b|\btail\b|\bcurl\b/);
+  // The only curl is the report to the site's own /healthz (lib/scheduledJobWatch.js); it carries no data.
+  const withoutProbe = code.replace(/curl -fsS -o \/dev\/null[^\n]*X-Umas-Probe: inventory[^\n]*\/healthz"/, "");
+  assert.doesNotMatch(withoutProbe, /\bcat\b[^\n]*inventory_[^\n]*\.csv|\bhead\b|\btail\b|\bcurl\b/);
   assert.match(code, /GITHUB_STEP_SUMMARY/);
 });
 

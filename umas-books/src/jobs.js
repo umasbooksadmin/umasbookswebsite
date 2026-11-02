@@ -113,6 +113,7 @@ function jobSpecs(pool) {
   const aiUsageStats = require("./lib/aiUsageStats");
   const { pruneStaleGuestSessions } = require("./lib/sessionPrune");
   const { runDbSizeCheck } = require("./lib/dbSize");
+  const { checkScheduledJobs } = require("./lib/scheduledJobWatch");
 
   return [
     // Belt-and-suspenders backstop for the 2-week reservation expiry (page reads already
@@ -260,6 +261,19 @@ function jobSpecs(pool) {
       run: async () => {
         const r = await runDbSizeCheck(pool);
         console.log("Database size check:", JSON.stringify(r));
+      },
+    },
+    // The app's own check that GitHub Actions is still running the nightly backup, the nightly inventory export and the
+    // hourly uptime check (lib/scheduledJobWatch.js): each reports in at the end of a successful run; silence emails ALERT_TO,
+    // at most once a day per job. Not at boot (a restart-heavy host would repeat it): first run 15 minutes after boot.
+    {
+      name: "Scheduled-job watchdog",
+      label: "Email the admin when the GitHub nightly backup, inventory export or uptime check has not reported in for too long.",
+      everyMs: 60 * MINUTE,
+      firstRunAfterMs: 15 * MINUTE,
+      run: async () => {
+        const r = await checkScheduledJobs(pool);
+        if (r.silent.length) console.warn("Scheduled-job watchdog: no report from", r.silent.join(", "));
       },
     },
     // Awards & best-seller lists (lib/awards): every 2 minutes a few never-checked books, retries, a yearly

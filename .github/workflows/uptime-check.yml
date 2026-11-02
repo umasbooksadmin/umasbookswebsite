@@ -54,7 +54,9 @@ jobs:
           # request slow for a while. A single slow or failed check is not
           # an outage — a real outage keeps failing on the *next* check
           # too (see the "decide" step).
-          STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 60 "${SITE_URL%/}/healthz" || echo "000")
+          # The X-Umas-Probe header lets the site note that this scheduled run happened: if GitHub ever
+          # stops running scheduled workflows, the site's own watchdog emails (umas-books/src/lib/scheduledJobWatch.js).
+          STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 60 -H "X-Umas-Probe: uptime" "${SITE_URL%/}/healthz" || echo "000")
           echo "status=$STATUS" >> "$GITHUB_OUTPUT"
           echo "Response: $(cat /tmp/health.json 2>/dev/null)"
 

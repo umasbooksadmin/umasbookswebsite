@@ -29,6 +29,7 @@ const { noStoreForUsers } = require("./middleware/noStoreForUsers");
 const { langMiddleware } = require("./middleware/lang");
 const { resolveTrustProxyHops } = require("./lib/trustProxy");
 const { healthzHandler } = require("./lib/health");
+const { probeMiddleware } = require("./lib/scheduledJobWatch");
 const seoRoutes = require("./routes/seo");
 const { MARKETING_PAGES, setMarketingSeoLocals, seoLocals } = seoRoutes;
 
@@ -123,7 +124,8 @@ function createApp() {
   // the process is alive. Registered before session/helmet/csrf so a
   // broken DB can't also break the session store's own read on the way
   // to this route.
-  app.get("/healthz", healthzHandler(pool));
+  // The probe middleware only notes the X-Umas-Probe header of the GitHub workflows (lib/scheduledJobWatch.js); it never changes the answer.
+  app.get("/healthz", probeMiddleware(pool), healthzHandler(pool));
 
   // robots.txt and sitemap.xml: also before the session, so crawlers never
   // create a session row (and so they bypass CSRF/attachUser entirely).
