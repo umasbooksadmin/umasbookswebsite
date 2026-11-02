@@ -1,0 +1,15 @@
+/* Admin > Educational items: the barcode box of the add / edit form and the list's "Find by barcode". */
+.edu-barcode-box { border: 1px solid #e3dccd; border-radius: 8px; padding: 10px 12px; background: #fbf8f2; }
+.edu-barcode-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.edu-barcode-row input { flex: 1 1 160px; min-width: 0; }
+.edu-lookup-result { margin-top: 8px; }
+.edu-lookup-result p { margin: 4px 0; overflow-wrap: anywhere; }
+.edu-lookup-found { font-weight: 600; color: #2f5d34; }
+.edu-lookup-none { font-weight: 600; color: #6b5a3a; }
+.edu-lookup-warn { color: #8a4b08; background: #fff4e0; border-left: 3px solid #d98c1f; padding: 6px 8px; border-radius: 4px; }
+.edu-lookup-picture { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; margin-top: 6px; }
+.edu-lookup-picture img { object-fit: contain; background: #f5f0e6; border-radius: 4px; }
+.edu-lookup-picture > div { flex: 1 1 180px; min-width: 0; }
+.edu-lookup-picture button[aria-pressed="true"] { background: #2f5d34; color: #fff; border-color: #2f5d34; }
+.edu-find { margin-bottom: 12px; }
+.edu-find-none p { margin: 4px 0; }

@@ -1,11 +1,21 @@
 <% const _title = item ? 'Edit educational item' : 'Add an educational item'; %>
-<%- include('../partials/admin_header', { title: _title, active: active, pageTitle: _title, pageSub: 'A picture, a name, a price, what it cost us and how many are in stock. Every educational item is sold as NEW.' }) %>
+<%- include('../partials/admin_header', { title: _title, active: active, pageTitle: _title, pageSub: 'A picture, a name, a price, what it cost us, how many are in stock and (optional) the barcode. Every educational item is sold as NEW.', extraCss: ['/edu-item-form.css'] }) %>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 
 <div class="card">
   <form class="stack" method="post" action="<%= item ? "/admin/edu-items/" + item.id : "/admin/edu-items" %>" enctype="multipart/form-data" id="edu-item-form">
     <%- include('../partials/csrf_field') %>
+    <div class="edu-barcode-box" data-edu-barcode<%- item ? ` data-item-id="${item.id}"` : '' %><%- autoLookup ? ' data-auto-lookup' : '' %>>
+      <label for="edu-barcode">Scan or type barcode (optional)</label>
+      <div class="edu-barcode-row">
+        <input id="edu-barcode" name="barcode" type="text" inputmode="numeric" autocomplete="off" maxlength="30" value="<%= values.barcode %>" aria-describedby="edu-barcode-help" style="max-width:220px">
+        <button class="btn btn-outline btn-small" type="button" data-edu-lookup hidden>Look up</button>
+      </div>
+      <p class="muted small" id="edu-barcode-help">The number under the barcode: 8, 12, 13 or 14 digits, or an ISBN (an old 10-digit ISBN is saved as its 13-digit form). With a scanner, scan it here: the name is looked up and filled in if the Name box is empty. Nothing is saved until you press <%= item ? 'Save' : 'Add item' %>. Only admins see the barcode.</p>
+      <div class="edu-lookup-result" data-edu-lookup-result role="status" aria-live="polite"<%- bookWarning ? '' : ' hidden' %>><% if (bookWarning) { %><p class="edu-lookup-warn"><%= bookWarning %></p><% } %></div>
+      <input type="hidden" name="useIsbnCover" value="" data-edu-use-cover>
+    </div>
     <label for="edu-name">Name (English, shown on both sites)</label>
     <input id="edu-name" name="name" type="text" maxlength="120" value="<%= values.name %>" required>
     <label for="edu-price">Price (euros)</label>
@@ -39,4 +49,5 @@
   </form>
   <% } %>
 </div>
+<script src="<%= assetUrl('/edu-item-form.js') %>"></script>
 <%- include('../partials/admin_footer') %>

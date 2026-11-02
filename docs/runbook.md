@@ -3992,3 +3992,28 @@ public page is **Browse Educational Items** (`/educational-items.html`, French `
   is no educational-items button there yet.
 - Undoing migration 113: see the note at the end of `umas-books/migrations/113_educational_items.sql`.
 - Undoing migration 115 (the cost): see the note at the end of `umas-books/migrations/115_edu_item_cost.sql`.
+
+### Barcodes of educational items (migration 116)
+
+- **Where:** the add / edit form has a **Scan or type barcode** box; the list has **Find by barcode**. A scanner types
+  the digits and Enter. The barcode is **admin only**: no customer page, cart, email, sitemap or data export shows it.
+- **What is accepted:** 8, 12, 13 or 14 digits (EAN-8, UPC-A, EAN-13, GTIN-14) with a correct last (check) digit, or an
+  ISBN. An old 10-digit ISBN is saved as its 13-digit form (978...). A wrong digit is refused with the digit it should
+  be. One barcode per item: a UPC-A and the same code with a leading 0 count as the same, and the refusal names the
+  item that already has it.
+- **Lookup (only suggests, never saves):** an ISBN (978 / 979) goes through the same book lookup as Add Books (Open
+  Library first). The page fills the **Name** only when it is empty, otherwise it offers **Use this name**; price, stock
+  and genre are never filled. For an ISBN, Open Library's picture for that exact ISBN is offered with **Use this
+  picture** (covers decision: no Google / ISBNdb / product-database pictures); it is saved only after that press, and
+  a photo chosen in the form always wins. Any other barcode asks **Open Products Facts**, then **UPCitemdb** (free trial,
+  about **100 lookups a day** per server address), for the name only.
+- **"Lookup unavailable right now: type the details in."** means a source was slow, failing or over its free limit
+  (UPCitemdb answers 429 after about 100 a day; the app then leaves it alone for 15 minutes). Nothing to fix: type the
+  name. Answers are remembered in memory (found: a day, not found: 6 hours), so scanning the same item again costs no
+  call. The lookup is limited to 30 a minute per admin.
+- **"This ISBN is already a book in the shop":** a warning only. Owner's rule: a workbook with an ISBN stays an
+  educational item; make sure its copies are not also in Books & Reservations, so they are not counted twice.
+- **Find by barcode:** an item with that barcode opens its edit page; otherwise "No item with that barcode" and
+  **Add a new item with this barcode** (the form opens with it filled in and looks it up).
+- Changes are in Admin > Activity (`edu_item.edit`, "barcode none -> 978...").
+- Undoing migration 116: see the note at the end of `umas-books/migrations/116_edu_item_barcode.sql`.
