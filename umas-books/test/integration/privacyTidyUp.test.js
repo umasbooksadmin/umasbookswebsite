@@ -219,6 +219,8 @@ const COVERAGE = {
   "charity_ideas.submitted_by": { erase: "setnull", export: "charity_ideas" },
   "charity_options.name": NOT_PERSON("name of a charity option"),
   "charities.name": NOT_PERSON("name of a charity"),
+  "edu_genres.name": NOT_PERSON("name of a genre of educational items (Worksheets, Flash Cards)"),
+  "edu_items.name": NOT_PERSON("name of an educational item for sale (a product, not a person)"),
   "charity_votes.user_id": CASCADE("charity_votes"),
   "class_signups.email": SQL("class_signups"), "class_signups.name": SQL("class_signups"),
   "event_signups.email": SQL("event_signups"), "event_signups.name": SQL("event_signups"),

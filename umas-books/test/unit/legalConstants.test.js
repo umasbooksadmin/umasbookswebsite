@@ -80,7 +80,7 @@ test("the two opening-hours texts (SHORT and FIRM), in English and French", () =
 
 test("where each text is used: SHORT on the visit and volunteer pages, FIRM in the pickup clauses, emails, cart and terms", () => {
   for (const f of ["marketing/visit.ejs", "marketing/volunteer.ejs"]) assert.match(view(f), /legalText\.shopHoursShort/, `${f} shows the SHORT text`);
-  assert.match(view("cart_return.ejs"), /legalText\.shopHoursFirm/);
+  assert.match(view("cart_return.ejs"), /lt\.shopHoursFirm/, "the receipt line: legalText.forItems(kind).shopHoursFirm, books or items");
   assert.match(view("marketing/terms-of-sale.ejs"), /\{shopHoursFirm\}/);
   const fs2 = (f) => fs.readFileSync(path.join(root, f), "utf8");
   assert.match(fs2("src/lib/orderEmail.js"), /legal\.shopHoursFirm/);

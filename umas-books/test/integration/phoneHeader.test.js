@@ -49,7 +49,7 @@ for (const [label, path] of [["app page (book)", () => `/books/${ids.stored}`], 
       const head = header(await get(path(), lang));
       assert.match(head, /<nav class="h-nav" aria-label="[^"]+">\s*(<%#.*?%>)?\s*<details class="h-menu">\s*<summary class="h-menu-btn">/s, `${lang}: nav > details > summary`);
       const links = [...head.matchAll(/<a href="([^"]+)"[^>]*data-i18n="nav\.[a-z]+"/g)].map((m) => m[1]);
-      assert.equal(links.length, 4, `${lang}: Home, Browse Books, English Programs, Events`);
+      assert.equal(links.length, 5, `${lang}: Home, Browse Books, Browse Educational Items, English Programs, Events`);
       const nav = head.slice(head.indexOf('<nav class="h-nav"'), head.indexOf("</nav>")).replace(/<svg[\s\S]*?<\/svg>/g, ""); // the icon is decoration: aria-hidden is right there
       assert.doesNotMatch(nav, /aria-hidden|tabindex="-1"|\shidden[\s>]|display:\s*none|inert/, `${lang}: nothing in the nav is hidden from keyboard or screen reader users`);
       assert.doesNotMatch(nav, /<details[^>]*\sopen/, `${lang}: the server never renders the menu open (it is closed on phones before the page paints)`);

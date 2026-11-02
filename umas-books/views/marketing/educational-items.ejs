@@ -1,0 +1,84 @@
+<%# Browse Educational Items (lib/eduItems.js; src/app.js sets the locals: eduGenres, eduItemsList, eduGenre, eduQuery, eduInCart,
+    eduAdded, eduNotAdded). Drawn entirely on the server: a genre is a link (?genre=<slug>), the search is a plain GET form (?q=), so the
+    page works without JavaScript. Item names and genre names are English on both sites (marked lang="en" on /fr/), like book titles and
+    genres; every other text is EN / FR. The page carries a CSRF token (the Add to cart forms), so it is never cached for others. -%>
+<% const eduPageI18n = {
+  en: {
+    "meta.title": "Educational items — Uma's Books and Adventures",
+    "meta.description": "Browse new English-learning worksheets and flash cards, reserve them online and pick them up at Uma's Books in Albi.",
+  },
+  fr: {
+    "meta.title": "Articles éducatifs — Uma’s Books and Adventures",
+    "meta.description": "Parcourez nos fiches d’exercices et cartes d’apprentissage d’anglais neuves, réservez-les en ligne et retirez-les chez Uma’s Books à Albi.",
+  },
+}; -%>
+<%- include('partials/mkt_header', {
+  title: "Educational items — Uma's Books and Adventures",
+  description: "Browse new English-learning worksheets and flash cards, reserve them online and pick them up at Uma's Books in Albi.",
+  extraCss: ['assets/books.css', 'assets/edu.css'],
+  activeNav: 'edu',
+}) %>
+<% const _enAttr = lang === 'fr' ? ' lang="en"' : ''; const _current = eduGenres.find((g) => g.slug === eduGenre); -%>
+  <div class="bk-wrap">
+    <section class="bk-top">
+      <h1><%= tr('Browse educational items', 'Parcourir les articles éducatifs') %></h1>
+      <p class="edu-new-note" id="edu-new-note"><span class="edu-new-badge"><%= tr('New', 'Neuf') %></span> <%= tr('All educational items are new.', 'Tous les articles éducatifs sont neufs.') %></p>
+    </section>
+
+    <% if (eduAdded) { %><p class="notice-box edu-status" role="status"><%= tr('Added to your cart.', 'Ajouté à votre panier.') %> <a href="/cart"><%= tr('See your cart', 'Voir votre panier') %></a></p><% } %>
+    <% if (eduNotAdded) { %><p class="error-box edu-status" role="alert"><%= eduNotAdded === 'full' ? tr('Your cart is full: reserve or remove something first.', 'Votre panier est plein : réservez ou retirez d’abord un article.') : tr('Sorry, that item is no longer available.', 'Désolé, cet article n’est plus disponible.') %></p><% } %>
+
+    <div class="bk-search-row">
+      <form class="bk-search" method="get" action="/educational-items.html" role="search">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></span>
+        <% if (eduGenre) { %><input type="hidden" name="genre" value="<%= eduGenre %>"><% } %>
+        <input type="search" name="q" maxlength="100" value="<%= eduQuery %>" placeholder="<%= tr('Search educational items…', 'Rechercher un article…') %>" aria-label="<%= tr('Search educational items by name or genre', 'Rechercher un article éducatif par nom ou par genre') %>">
+        <button type="submit"><%= tr('Search', 'Rechercher') %></button>
+      </form>
+      <p class="bk-selnote"><%= tr('What you see online is a selection: more educational items may be waiting in the shop.', 'Ce que vous voyez en ligne n’est qu’une sélection : d’autres articles éducatifs vous attendent peut-être en boutique.') %></p>
+    </div>
+
+    <section class="edu-genres" aria-labelledby="edu-genres-label">
+      <h2 class="bk-sec-title" id="edu-genres-label"><%= tr('Browse by genre', 'Parcourir par genre') %></h2>
+      <ul class="edu-genre-row">
+        <% eduGenres.forEach(function (g) { %><li><a class="bk-genre<%= g.slug === eduGenre ? ' is-active' : '' %>" href="/educational-items.html?genre=<%= g.slug %>"<%- g.slug === eduGenre ? ' aria-current="page"' : '' %>><span class="chip" style="background:<%= g.bg %>;color:<%= g.fg %>"><svg <%- iconAttrs %> aria-hidden="true"><%- g.svg %></svg></span><span<%- _enAttr %>><%= g.name %></span></a></li><% }) %>
+        <li><a class="bk-genre<%= !eduGenre ? ' is-active' : '' %>" href="/educational-items.html"<%- !eduGenre ? ' aria-current="page"' : '' %>><span class="chip" style="background:<%= allTile.bg %>;color:<%= allTile.fg %>"><svg <%- iconAttrs %> aria-hidden="true"><%- allTile.svg %></svg></span><span><%= tr('All genres', 'Tous les genres') %></span></a></li>
+      </ul>
+    </section>
+
+    <section class="bk-results" aria-labelledby="edu-results-title">
+      <div class="bk-results-head">
+        <h2 id="edu-results-title"><% if (eduQuery) { %><%= tr('Results for “{q}”', 'Résultats pour « {q} »', { q: eduQuery }) %><% } else if (_current) { %><span<%- _enAttr %>><%= _current.name %></span><% } else { %><%= tr('All educational items', 'Tous les articles éducatifs') %><% } %></h2>
+      </div>
+      <% if (!eduItemsList.length) { %>
+        <div class="edu-empty" role="status">
+          <p><%= eduQuery ? tr('No educational items match that search — try another word.', 'Aucun article éducatif ne correspond — essayez un autre mot.') : tr('There are no educational items here yet. New ones arrive regularly: come back soon, or ask us in the shop.', 'Il n’y a pas encore d’articles éducatifs ici. De nouveaux arrivent régulièrement : revenez bientôt, ou demandez-nous en boutique.') %></p>
+          <p><a class="btn btn-outline" href="/educational-items.html"><%= tr('See all educational items', 'Voir tous les articles éducatifs') %></a></p>
+        </div>
+      <% } else { %>
+        <div class="bk-grid" id="edu-grid">
+          <% eduItemsList.forEach(function (it) { const srcset = coverSrcset(it.image_url); const inCart = eduInCart.has(it.id); const soldOut = !(it.available > 0); %>
+          <div class="bk-book edu-card" id="edu-item-<%= it.id %>">
+            <% if (it.image_url) { %><img class="cover" src="<%= it.image_url %>"<% if (srcset) { %> srcset="<%= srcset %>" sizes="(max-width: 700px) 45vw, 200px"<% } %> alt="" width="200" height="200" loading="lazy" decoding="async"><% } else { %><div class="cover cover-none" aria-hidden="true"><%= tr('No picture', 'Pas d’image') %></div><% } %>
+            <div class="t"<%- _enAttr %>><%= it.name %></div>
+            <% if (it.genre_name) { %><div class="a edu-genre"<%- _enAttr %>><%= it.genre_name %></div><% } %>
+            <div class="p"><span><%= eur(it.price) %></span> <span class="edu-card-new"><%= tr('New', 'Neuf') %></span></div>
+            <% if (soldOut) { %>
+              <button type="button" class="btn btn-outline edu-add edu-soldout" disabled><%= tr('Sold out', 'Épuisé') %></button>
+            <% } else { %>
+              <form method="post" action="/cart/add-edu">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="eduItemId" value="<%= it.id %>">
+                <input type="hidden" name="backTo" value="<%= eduBackTo %>">
+                <button type="submit" class="btn btn-outline edu-add" aria-label="<%= tr('Add {t} to cart', 'Ajouter {t} au panier', { t: it.name }) %>"><%= tr('Add to cart', 'Ajouter au panier') %></button>
+              </form>
+              <% if (inCart) { %><a class="edu-incart" href="/cart"><%= tr('In your cart ({n})', 'Dans votre panier ({n})', { n: eduInCart.get(it.id) }) %></a><% } %>
+            <% } %>
+          </div>
+          <% }) %>
+        </div>
+      <% } %>
+      <p class="bk-covernote"><%= tr('Reserve online, then pay and collect at the shop. Nothing is paid online.', 'Réservez en ligne, puis réglez et retirez à la boutique. Rien n’est payé en ligne.') %></p>
+    </section>
+  </div>
+<%- include('partials/mkt_footer', { pageI18nEn: eduPageI18n.en, pageI18nFr: eduPageI18n.fr, extraScripts: [] }) %>

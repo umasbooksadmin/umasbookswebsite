@@ -25,9 +25,9 @@ const NOT_OPEN = {
 };
 
 // Rows of the reservation's items. A copy is held when it is 'reserved' FOR THIS
-// ORDER; a seat when it is 'reserved'.
+// ORDER; a seat when it is 'reserved'; an educational item always (its line on the open order is the hold, lib/eduItems.js).
 const ITEMS_SQL = `
-  SELECT oi.id AS item_id, oi.price, oi.item_title, oi.book_copy_id, oi.class_dropin_seat_id,
+  SELECT oi.id AS item_id, oi.price, oi.item_title, oi.book_copy_id, oi.class_dropin_seat_id, oi.edu_item_id,
          bc.condition, bc.publisher_price, bc.location, bc.status AS copy_status, bc.cart_order_id, bc.is_clearance,
          b.title, b.authors, b.isbn, ds.status AS seat_status, c.title AS class_title, c.starts_at AS class_starts_at
   FROM order_items oi
@@ -37,7 +37,7 @@ const ITEMS_SQL = `
   LEFT JOIN classes c ON c.id = ds.class_id
   WHERE oi.order_id = $1 ORDER BY oi.id`;
 
-const held = (r, orderId) => (r.book_copy_id != null ? r.copy_status === "reserved" && r.cart_order_id === orderId : r.seat_status === "reserved");
+const held = (r, orderId) => (r.edu_item_id != null ? true : r.book_copy_id != null ? r.copy_status === "reserved" && r.cart_order_id === orderId : r.seat_status === "reserved");
 
 // -> { error } | { order: { id, name, reservedUntil }, items: [row...] } (only items still held). The buyer's email is
 // never read here: this answer goes to the till page, which a till-only account (no admin, no two-step) can use, and

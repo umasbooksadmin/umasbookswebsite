@@ -11,7 +11,7 @@ const { conditionLabel } = require("./inventory");
 // Selects an order's lines with the class behind each drop-in seat.
 // class_title / class_title_fr / class_starts_at are NULL for books and for deleted classes.
 const ORDER_ITEMS_SQL = `
-  SELECT i.item_title, i.price, i.class_dropin_seat_id, c.title AS class_title, c.title_fr AS class_title_fr, c.starts_at AS class_starts_at,
+  SELECT i.item_title, i.price, i.class_dropin_seat_id, i.edu_item_id, c.title AS class_title, c.title_fr AS class_title_fr, c.starts_at AS class_starts_at,
          bc.condition AS copy_condition
   FROM order_items i
   LEFT JOIN book_copies bc ON bc.id = i.book_copy_id
@@ -30,6 +30,9 @@ function dropinLabel(title, startsAt, lang) {
   return `${title} — ${day}, ${time}`;
 }
 
+// An educational item line (lib/eduItems.js): a row with edu_item_id, or the account page's JSON (eduItemId).
+const isEduLine = (item) => (item.edu_item_id ?? item.eduItemId) != null;
+
 // Accepts a row from ORDER_ITEMS_SQL (snake_case), or the account page's JSON
 // (title / classTitle / classStartsAt).
 function orderItemLabel(item, lang) {
@@ -41,8 +44,9 @@ function orderItemLabel(item, lang) {
     return dropinLabel(normLang(lang) === "fr" && titleFr ? titleFr : title, startsAt, lang);
   }
   const label = item.item_title ?? item.title;
-  // A book line carries the grade of the copy that was bought: "Title (Very Good)".
-  const condition = item.copy_condition ?? item.condition;
+  // A book line carries the grade of the copy that was bought: "Title (Very Good)". An educational item is always new
+  // (lib/eduItems.js): "Flash cards (New)".
+  const condition = isEduLine(item) ? "new" : item.copy_condition ?? item.condition;
   return condition ? `${label} (${conditionLabel(condition, lang)})` : label;
 }
 
@@ -52,7 +56,7 @@ function orderItemParts(item, lang) {
   const title = item.class_title ?? item.classTitle;
   const startsAt = item.class_starts_at ?? item.classStartsAt;
   if (title != null && startsAt != null) return { bookTitle: null, grade: "" };
-  const condition = item.copy_condition ?? item.condition;
+  const condition = isEduLine(item) ? "new" : item.copy_condition ?? item.condition;
   return { bookTitle: item.item_title ?? item.title, grade: condition ? conditionLabel(condition, lang) : "" };
 }
 
@@ -68,4 +72,4 @@ function reservationLastDay(order) {
   return order.reserved_until ? new Date(new Date(order.reserved_until).getTime() - 60 * 1000) : null;
 }
 
-module.exports = { ORDER_ITEMS_SQL, dropinLabel, orderItemLabel, orderItemParts, loadOrderItems, reservationLastDay };
+module.exports = { ORDER_ITEMS_SQL, isEduLine, dropinLabel, orderItemLabel, orderItemParts, loadOrderItems, reservationLastDay };

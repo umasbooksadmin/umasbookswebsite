@@ -2,7 +2,8 @@
 
 <% if (state === 'ask') { %>
   <h1><%= tr('Confirm your reservation', 'Confirmer votre réservation') %></h1>
-  <p class="muted"><%= tr('Press the button to confirm reservation #{n}. We then hold your books for the usual time and email you the details.', 'Appuyez sur le bouton pour confirmer la réservation n°{n}. Nous gardons alors vos livres le temps habituel et vous envoyons les détails par e-mail.', { n: order.id }) %></p>
+  <% const _goods = locals.hasEdu ? 'items' : 'books'; %>
+  <p class="muted"><%= _goods === 'books' ? tr('Press the button to confirm reservation #{n}. We then hold your books for the usual time and email you the details.', 'Appuyez sur le bouton pour confirmer la réservation n°{n}. Nous gardons alors vos livres le temps habituel et vous envoyons les détails par e-mail.', { n: order.id }) : tr('Press the button to confirm reservation #{n}. We then hold your items for the usual time and email you the details.', 'Appuyez sur le bouton pour confirmer la réservation n°{n}. Nous gardons alors vos articles le temps habituel et vous envoyons les détails par e-mail.', { n: order.id }) %></p>
   <form class="stack" method="post" action="/cart/guest/confirm/<%= token %>">
     <%- include('partials/csrf_field') %>
     <button class="btn" type="submit"><%= tr('Confirm my reservation', 'Confirmer ma réservation') %></button>

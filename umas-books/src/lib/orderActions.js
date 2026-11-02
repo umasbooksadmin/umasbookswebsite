@@ -94,6 +94,7 @@ const toCents = (v) => Math.round(Number(v) * 100);
 //     freely (with a reason), so 0 here (the note is the reason).
 //   - a drop-in class seat: 0. Sharon decided (2026-10-28) a seat may be discounted at pickup, with a
 //     note like any other discount; no law sets a minimum for it.
+//   - an educational item (lib/eduItems.js): 0, like a seat (it is not a book: the fixed book price law does not apply).
 // item: { price, book_copy_id, condition, publisher_price, published_year }. `today` ("YYYY-MM-DD") is for tests.
 function collectionFloorCents(item, today) {
   const price = toCents(item.price);
@@ -160,7 +161,7 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
     if (order.status !== "reserved") return { outcome: "not_reserved", status: order.status };
 
     const { rows: items } = await client.query(
-      `SELECT oi.id, oi.price, oi.item_title, oi.book_copy_id, oi.class_dropin_seat_id,
+      `SELECT oi.id, oi.price, oi.item_title, oi.book_copy_id, oi.class_dropin_seat_id, oi.edu_item_id,
               bc.status AS copy_status, bc.cart_order_id AS copy_order_id, ds.status AS seat_status,
               bc.condition, bc.publisher_price, b.published_year
        FROM order_items oi
@@ -175,6 +176,9 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
     // Lock what we are about to change, in id order, then read the state again.
     if (copyIds.length) await client.query("SELECT id FROM book_copies WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE", [copyIds]);
     if (seatIds.length) await client.query("SELECT id FROM class_dropin_seats WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE", [seatIds]);
+    // Educational items: their stock row, locked like the reservation step locks it (lib/cart.js), before it changes below.
+    const eduIds = [...new Set(items.filter((i) => i.edu_item_id != null).map((i) => i.edu_item_id))].sort((a, b) => a - b);
+    if (eduIds.length) await client.query("SELECT id FROM edu_items WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE", [eduIds]);
     const { rows: fresh } = await client.query(
       `SELECT oi.id, bc.status AS copy_status, bc.cart_order_id AS copy_order_id, ds.status AS seat_status
        FROM order_items oi
@@ -187,6 +191,8 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
     const isActive = (i) => {
       const st = state.get(i.id);
       if (!st) return false;
+      // An educational line of an open reservation is always held: the line itself is the hold (lib/eduItems.js).
+      if (i.edu_item_id != null) return true;
       return i.book_copy_id != null
         ? st.copy_status === "reserved" && st.copy_order_id === orderId
         : st.seat_status === "reserved";
@@ -240,6 +246,14 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
     if (soldSeats.length) {
       await client.query("UPDATE class_dropin_seats SET status = 'sold', updated_at = now() WHERE id = ANY($1::int[])", [soldSeats]);
     }
+    // Educational items: the collected units leave the shop, so they come off stock (the hold ends as the order becomes
+    // 'paid' below). GREATEST: an admin cannot set stock below what is held (routes/admin/eduItems.js), so it never goes
+    // under 0; the guard only keeps a till sale from failing on a row someone corrected by hand.
+    const soldEdu = new Map();
+    for (const i of selected) if (i.edu_item_id != null) soldEdu.set(i.edu_item_id, (soldEdu.get(i.edu_item_id) || 0) + 1);
+    for (const [eduId, n] of soldEdu) {
+      await client.query("UPDATE edu_items SET stock = GREATEST(stock - $2, 0), updated_at = now() WHERE id = $1", [eduId, n]);
+    }
     await client.query(
       `UPDATE orders SET status = 'paid', paid_at = now(), total_amount = $2, amount_received = $2,
               reserved_total = CASE WHEN $3::numeric <> $2::numeric THEN $3 END,
@@ -266,7 +280,8 @@ const markReservationNoShow = (pool, orderId) => releaseReservation(pool, orderI
 //     has since been sold again (a shop sale after this order was paid, or
 //     another paid order): that one is left alone and reported in `kept`;
 //   - the order's drop-in seats become 'released', so they stop counting
-//     against the session's capacity.
+//     against the session's capacity;
+//   - the order's educational items go back on stock (edu_items.stock + the units).
 //   - `refundMethod` (REFUND_METHODS) records HOW the money went back. "cash" means it came out of
 //     the till drawer: it is deducted from that Paris day's expected cash (lib/till.js daySummary) so the
 //     closing count is right, and it needs the day not to be closed yet (refund_till_day). No method
@@ -322,7 +337,18 @@ async function markOrderRefunded(pool, orderId, { note, refundMethod } = {}) {
       "UPDATE class_dropin_seats SET status = 'released', updated_at = now() WHERE order_id = $1 AND status = 'sold'",
       [orderId]
     );
-    return { outcome: "refunded", restocked: restock.length, kept, seatsReleased: seats.rowCount, refundMethod: method, tillDay, amount: Number(order.total_amount) };
+    // Educational items come back on stock, like a refunded book goes back on the shelf (rows locked in id order).
+    const { rows: eduRows } = await client.query(
+      "SELECT edu_item_id AS id, COUNT(*)::int AS n FROM order_items WHERE order_id = $1 AND edu_item_id IS NOT NULL GROUP BY 1 ORDER BY 1",
+      [orderId]
+    );
+    let eduRestocked = 0;
+    for (const r of eduRows) {
+      await client.query("SELECT id FROM edu_items WHERE id = $1 FOR UPDATE", [r.id]);
+      await client.query("UPDATE edu_items SET stock = LEAST(stock + $2, 100000), updated_at = now() WHERE id = $1", [r.id, r.n]);
+      eduRestocked += r.n;
+    }
+    return { outcome: "refunded", restocked: restock.length, eduRestocked, kept, seatsReleased: seats.rowCount, refundMethod: method, tillDay, amount: Number(order.total_amount) };
   });
 }
 

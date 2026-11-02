@@ -17,6 +17,7 @@ const { CART_RETURN, safeReturnTo } = require("../lib/returnTo");
 const { checkoutLimiter, cartEditLimiter, limit, ipKey } = require("../middleware/rateLimits");
 const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
 const { findJustMadeReservation, parseFormShownAt, rememberReservation, justReservedInSession } = require("../lib/duplicateReservation");
+const eduItems = require("../lib/eduItems");
 
 const router = express.Router();
 
@@ -47,6 +48,8 @@ function isSafeLocalPath(value) {
 // migrations/015_dropin_seats.sql. Each line gets a lineId (from
 // cartSeq) so multiple seats for the same session can be added and
 // removed independently, unlike book copies which are unique already.
+// An educational item (lib/eduItems.js) is { kind: "edu", eduItemId, qty }: ONE line per item, with a quantity
+// (1..MAX_EDU_QTY, and never more than is still available: stock minus the units held by open reservations).
 
 function getCart(req) {
   if (!Array.isArray(req.session.cart)) req.session.cart = [];
@@ -93,11 +96,23 @@ function accountView(account) {
   };
 }
 
+// The session line of a loaded cart item (what is kept between requests).
+function cartLine(i) {
+  if (i.kind === "book") return { kind: "book", lineId: i.lineId, copyId: i.copyId };
+  if (i.kind === "edu") return { kind: "edu", lineId: i.lineId, eduItemId: i.eduItemId, qty: i.qty };
+  return { kind: "dropin", lineId: i.lineId, classId: i.classId };
+}
+const toCartLines = (items) => items.map(cartLine);
+// What a loaded line costs: an educational line is its unit price times its quantity.
+const lineCents = (i) => Math.round(Number(i.price) * 100) * (i.kind === "edu" ? i.qty : 1);
+const cartTotal = (items) => items.reduce((sum, i) => sum + lineCents(i), 0) / 100;
+
 // `started` (optional array): collects { title, titleFr } of each drop-in session dropped because it has already
 // started (its seats can no longer be reserved), so the caller can say why the line went.
 async function loadCartItems(cart, { started = null } = {}) {
   const bookLines = cart.filter((l) => l.kind === "book");
   const dropinLines = cart.filter((l) => l.kind === "dropin");
+  const eduLines = cart.filter((l) => l.kind === "edu");
   const items = [];
 
   if (bookLines.length) {
@@ -151,14 +166,37 @@ async function loadCartItems(cart, { started = null } = {}) {
     }
   }
 
+  if (eduLines.length) {
+    const byId = await eduItems.loadCartEduItems(pool, [...new Set(eduLines.map((l) => Number(l.eduItemId)))]);
+    const left = new Map([...byId].map(([id, r]) => [id, r.available]));
+    for (const line of eduLines) {
+      const r = byId.get(Number(line.eduItemId));
+      if (!r) continue; // hidden, removed or unpriced since: dropped
+      // Never more than is still available (others may have reserved some meanwhile): the quantity is lowered, and a
+      // sold-out item is dropped, so the total shown is what Reserve would hold. The reservation re-checks under a lock.
+      const qty = Math.min(eduItems.parseQty(line.qty) || 1, left.get(r.id) || 0);
+      if (qty < 1) continue;
+      left.set(r.id, left.get(r.id) - qty);
+      items.push({
+        kind: "edu", lineId: line.lineId, eduItemId: r.id, title: r.name, imageUrl: r.image_url, price: Number(r.price), qty,
+        maxQty: Math.min(eduItems.MAX_EDU_QTY, qty + (left.get(r.id) || 0)),
+      });
+    }
+  }
+
   return items;
+}
+
+// The number shown on the header's cart badge: an educational line counts its quantity.
+function cartUnits(cart) {
+  return Array.isArray(cart) ? cart.reduce((n, l) => n + (l && l.kind === "edu" ? eduItems.parseQty(l.qty) || 1 : 1), 0) : 0;
 }
 
 // Same-origin JSON for the site header's "Cart (n)" (assets/site.js).
 router.get("/api/cart/count", (req, res) => {
   res.set("Cache-Control", "no-store");
   // Read without getCart() so a person with no cart doesn't get a session created.
-  res.json({ count: Array.isArray(req.session.cart) ? req.session.cart.length : 0 });
+  res.json({ count: cartUnits(req.session.cart) });
 });
 
 function cartNotice(req) {
@@ -201,11 +239,8 @@ router.get("/cart", async (req, res) => {
   // Drop anything that's no longer actually available (someone else
   // bought it, or a drop-in session filled up, while it sat in this
   // cart) so the total shown always matches what checkout would charge.
-  req.session.cart = items.map((i) => ({
-    kind: i.kind, lineId: i.lineId,
-    ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
-  }));
-  const total = items.reduce((sum, i) => sum + i.price, 0);
+  req.session.cart = toCartLines(items);
+  const total = cartTotal(items);
   const account = await accountForCheckout(req);
   // A refused reservation (POST /cart/reserve) left its message, and the name and phone typed, here once.
   const flash = takePageFlash(req, res, "cart") || {};
@@ -268,7 +303,7 @@ router.post("/cart/add", cartEditLimiter, async (req, res) => {
   if (wantsJson) {
     res.set("Cache-Control", "no-store");
     if (outcome !== "added") return res.json({ ok: false, error: outcome });
-    return res.json({ ok: true, inCart: true, cartCount: req.session.cart.length, bookId });
+    return res.json({ ok: true, inCart: true, cartCount: cartUnits(req.session.cart), bookId });
   }
   res.redirect(fromCard ? safeReturnTo(backTo) || backTo : backTo);
 });
@@ -304,6 +339,54 @@ router.post("/cart/add-dropin", cartEditLimiter, async (req, res) => {
   res.redirect(backTo);
 });
 
+// Educational items (lib/eduItems.js): from the Browse Educational Items page. One line per item: adding it again raises
+// the quantity, never above MAX_EDU_QTY nor above what is still available (stock minus the units held by open
+// reservations). A sold-out or hidden item adds nothing. The reservation re-checks everything under a lock (lib/cart.js).
+const EDU_PAGE = "/educational-items.html";
+function eduBackTo(raw) {
+  const s = typeof raw === "string" ? raw : "";
+  return isSafeLocalPath(s) && /^(\/fr)?\/educational-items\.html(\?|$)/.test(s) ? s : EDU_PAGE;
+}
+router.post("/cart/add-edu", cartEditLimiter, async (req, res) => {
+  const id = parseId(req.body.eduItemId);
+  const want = eduItems.parseQty(req.body.qty ?? "1") || 1;
+  const backTo = eduBackTo(req.body.backTo);
+  let outcome = "unavailable";
+  if (id !== null) {
+    const byId = await eduItems.loadCartEduItems(pool, [id]);
+    const r = byId.get(id);
+    if (r && r.available > 0) {
+      const cart = getCart(req);
+      const line = cart.find((l) => l.kind === "edu" && Number(l.eduItemId) === id);
+      const cap = Math.min(eduItems.MAX_EDU_QTY, r.available);
+      if (line) {
+        line.qty = Math.min((eduItems.parseQty(line.qty) || 1) + want, cap);
+        outcome = "added";
+      } else if (cart.length < MAX_CART_LINES) {
+        cart.push({ kind: "edu", lineId: nextLineId(req), eduItemId: id, qty: Math.min(want, cap) });
+        outcome = "added";
+      } else {
+        outcome = "full";
+      }
+    }
+  }
+  await saveSession(req);
+  const sep = backTo.includes("?") ? "&" : "?";
+  res.redirect(303, `${backTo}${sep}${outcome === "added" ? `added=${id}` : `notadded=${outcome}`}#edu-item-${id || 0}`);
+});
+
+// The quantity select of an educational line in the cart. Capped at what is available (loadCartItems lowers it again
+// when the cart is shown, if others reserved some meanwhile).
+router.post("/cart/update-qty", cartEditLimiter, async (req, res) => {
+  const lineId = Number(req.body.lineId);
+  const qty = eduItems.parseQty(req.body.qty);
+  const cart = getCart(req);
+  const line = cart.find((l) => l.lineId === lineId && l.kind === "edu");
+  if (line && qty) line.qty = qty;
+  await saveSession(req);
+  res.redirect(303, "/cart");
+});
+
 router.post("/cart/remove", async (req, res) => {
   // Only compared against the session's own lines, never sent to SQL.
   const lineId = Number(req.body.lineId);
@@ -314,14 +397,15 @@ router.post("/cart/remove", async (req, res) => {
 });
 
 // The policy numbers shown to customers (lib/legal.js is the single source).
-const LIMITS = { copies: MAX_RESERVED_COPIES, reservations: MAX_ACTIVE_RESERVATIONS, seatHours: SEAT_CANCEL_HOURS };
+const LIMITS = { copies: MAX_RESERVED_COPIES, reservations: MAX_ACTIVE_RESERVATIONS, seatHours: SEAT_CANCEL_HOURS, eduQty: eduItems.MAX_EDU_QTY };
 
 // The seen prices of the cart form (hidden seenPrice_<copyId> fields): the reservation is refused, not silently
 // re-priced, when the copy's price under the row lock differs (lib/cart.js). A missing field falls back to the price just loaded.
+// An educational line's seen unit price is seenEduPrice_<eduItemId>.
 function withSeenPrices(req, items) {
   return items.map((i) => {
-    if (i.kind !== "book") return i;
-    const raw = String(req.body[`seenPrice_${i.copyId}`] ?? "").trim().replace(",", ".");
+    if (i.kind !== "book" && i.kind !== "edu") return i;
+    const raw = String(req.body[i.kind === "book" ? `seenPrice_${i.copyId}` : `seenEduPrice_${i.eduItemId}`] ?? "").trim().replace(",", ".");
     const seen = Number(raw);
     return raw !== "" && Number.isFinite(seen) && seen > 0 ? { ...i, price: Math.round(seen * 100) / 100 } : i;
   });
@@ -330,10 +414,7 @@ function withSeenPrices(req, items) {
 // Keeps only the lines that are still available (after SOLD_OUT / NOT_FOR_SALE).
 async function prune(req, cart) {
   const fresh = await loadCartItems(cart);
-  req.session.cart = fresh.map((i) => ({
-    kind: i.kind, lineId: i.lineId,
-    ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
-  }));
+  req.session.cart = toCartLines(fresh);
 }
 
 // The customer's message for a refused createReservation (lib/cart.js); `guest`: the limits are per email address.
@@ -341,6 +422,11 @@ async function reservationRefusal(req, err, cart, { guest }) {
   // A guest (anonymous) gets ONE neutral sentence for every limit: the specific ones would tell anybody who types an
   // address whether it has open reservations or was mailed recently. Signed-in users keep the specific messages.
   if (guest && ["TOO_MANY_RESERVATIONS", "TOO_MANY_COPIES", "MAIL_THROTTLED", "GUEST_IP_HOLDS", "GUEST_HOLDS_FULL"].includes(err.message)) {
+    if (Array.isArray(cart) && cart.some((l) => l && l.kind === "edu")) {
+      return req.tr(
+        "We cannot hold these items right now: too many reservations are waiting to be confirmed. Please try again in a little while, or create an account.",
+        "Nous ne pouvons pas garder ces articles pour le moment : trop de réservations attendent d’être confirmées. Veuillez réessayer dans un moment, ou créer un compte.");
+    }
     return req.tr(
       "We cannot hold these books right now: too many reservations are waiting to be confirmed. Please try again in a little while, or create an account.",
       "Nous ne pouvons pas garder ces livres pour le moment : trop de réservations attendent d’être confirmées. Veuillez réessayer dans un moment, ou créer un compte.");
@@ -369,6 +455,15 @@ async function reservationRefusal(req, err, cart, { guest }) {
     return req.tr(
       `${names} is no longer for sale at the moment (it has no price), so nothing was reserved. Please review your cart and try again.`,
       `${namesFr} n’est plus en vente pour le moment (il n’a plus de prix), donc rien n’a été réservé. Veuillez vérifier votre panier et réessayer.`);
+  }
+  if (err.message === "EDU_UNAVAILABLE") {
+    // An educational item was hidden or removed after the customer saw the cart.
+    await prune(req, cart);
+    const names = (err.titles || []).map((t) => `"${t}"`).join(", ");
+    const namesFr = (err.titles || []).map((t) => `« ${t} »`).join(", ");
+    return req.tr(
+      `${names} is no longer available, so nothing was reserved. Please review your cart and try again.`,
+      `${namesFr} n’est plus disponible, donc rien n’a été réservé. Veuillez vérifier votre panier et réessayer.`);
   }
   if (err.message === "SESSION_STARTED") {
     // It started between loading the cart and the class lock (lib/cart.js).
@@ -417,10 +512,7 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
 
   const started = [];
   const items = await loadCartItems(cart, { started });
-  req.session.cart = items.map((i) => ({
-    kind: i.kind, lineId: i.lineId,
-    ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
-  }));
+  req.session.cart = toCartLines(items);
 
   const account = await accountForCheckout(req);
 
@@ -500,10 +592,7 @@ router.get(GUEST_FORM, async (req, res) => {
   const cart = getCart(req);
   const started = [];
   const items = await loadCartItems(cart, { started });
-  req.session.cart = items.map((i) => ({
-    kind: i.kind, lineId: i.lineId,
-    ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
-  }));
+  req.session.cart = toCartLines(items);
   if (!items.length) {
     if (started.length) return redirectWithFlash(req, res, CART_RETURN, "cart", { error: startedNotice(req, started) });
     await saveSession(req);
@@ -512,7 +601,7 @@ router.get(GUEST_FORM, async (req, res) => {
   const flash = takePageFlash(req, res, "cartGuest") || {};
   res.set("Cache-Control", "private, no-store");
   res.render("cart_guest", {
-    items, total: items.reduce((sum, i) => sum + i.price, 0), error: flash.error || (started.length ? startedNotice(req, started) : null), limits: LIMITS, confirmHours: GUEST_CONFIRM_HOURS,
+    items, total: cartTotal(items), error: flash.error || (started.length ? startedNotice(req, started) : null), limits: LIMITS, confirmHours: GUEST_CONFIRM_HOURS,
     values: { name: flash.name || "", email: flash.email || "", phone: flash.phone || "" },
   });
 });
@@ -526,10 +615,7 @@ router.post("/cart/guest/reserve", checkoutLimiter, async (req, res) => {
   const phone = clean(req.body.phone, 30) || null;
   const started = [];
   const items = await loadCartItems(cart, { started });
-  req.session.cart = items.map((i) => ({
-    kind: i.kind, lineId: i.lineId,
-    ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
-  }));
+  req.session.cart = toCartLines(items);
   const refuse = (error) => redirectWithFlash(req, res, GUEST_FORM, "cartGuest", { error, name, email, phone: phone || "" });
   // A double tap whose first press has already reserved: the same address from the same connection (see the lib).
   const formShownAt = parseFormShownAt(req.body.formShownAt);
@@ -570,9 +656,13 @@ router.get("/cart/guest/confirm/:token", guestLinkLimiter, async (req, res) => {
   privatePage(res);
   const peek = await guestOrders.peekConfirmToken(pool, req.params.token);
   let order = null;
-  if (peek.state === "ask") order = (await pool.query("SELECT id, reserved_until FROM orders WHERE id = $1", [peek.orderId])).rows[0];
+  let hasEdu = false; // the sentence says "items" instead of "books" when the reservation holds educational items
+  if (peek.state === "ask") {
+    order = (await pool.query("SELECT id, reserved_until FROM orders WHERE id = $1", [peek.orderId])).rows[0];
+    hasEdu = (await pool.query("SELECT 1 FROM order_items WHERE order_id = $1 AND edu_item_id IS NOT NULL LIMIT 1", [peek.orderId])).rowCount > 0;
+  }
   res.status(peek.state === "ask" ? 200 : 400).render("cart_guest_confirm", {
-    state: peek.state, order, token: peek.state === "ask" ? req.params.token : "", confirmHours: GUEST_CONFIRM_HOURS,
+    state: peek.state, order, token: peek.state === "ask" ? req.params.token : "", confirmHours: GUEST_CONFIRM_HOURS, hasEdu,
   });
 });
 
@@ -650,7 +740,7 @@ router.get("/cart/return", async (req, res) => {
 // The reservation page (by its access token, or a guest's manage link: manageToken). A guest reservation whose email
 // link was not opened yet shows "check your email" (awaitingConfirm) with the hold's deadline.
 async function renderReservationPage(req, res, order, { manageToken = null, notice = null }) {
-  const orderItems = (await loadOrderItems(pool, order.id)).map((i) => ({ label: orderItemLabel(i, req.lang), ...orderItemParts(i, req.lang), price: i.price, isSeat: i.class_dropin_seat_id != null }));
+  const orderItems = (await loadOrderItems(pool, order.id)).map((i) => ({ label: orderItemLabel(i, req.lang), ...orderItemParts(i, req.lang), price: i.price, isSeat: i.class_dropin_seat_id != null, isEdu: i.edu_item_id != null }));
   const sessionUser = req.session && req.session.user;
   const isOwner = !!(sessionUser && order.user_id && sessionUser.id === order.user_id);
   const awaitingConfirm = order.status === "reserved" && order.is_guest && !order.guest_confirmed_at;
@@ -662,3 +752,4 @@ async function renderReservationPage(req, res, order, { manageToken = null, noti
 }
 
 module.exports = router;
+module.exports.cartUnits = cartUnits;

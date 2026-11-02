@@ -21,6 +21,7 @@ const { SITE_TIME_ZONE } = require("./tz");
 const { RESERVATION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SESSION_OVER_SQL, expireOrderReservations } = require("./reservations");
 const { startGuestHold, queueGuestResend, assertGuestHoldCapacity } = require("./guestOrders");
 const { findJustMadeReservation } = require("./duplicateReservation");
+const { HELD_SQL } = require("./eduItems");
 
 // ---------- the reservation ----------
 
@@ -30,12 +31,14 @@ const { findJustMadeReservation } = require("./duplicateReservation");
 //   guest:  { email } a reservation WITHOUT an account (lib/guestOrders.js): user_id NULL,
 //           is_guest TRUE, held GUEST_CONFIRM_HOURS until the emailed link is opened;
 //           the limits below count per email address; `base` builds the links
-//   items:  cart lines as loaded by routes/cart.js (kind 'book' | 'dropin', price > 0)
+//   items:  cart lines as loaded by routes/cart.js (kind 'book' | 'dropin' | 'edu', price > 0; an 'edu' line, an
+//           educational item (lib/eduItems.js), has eduItemId and qty: it becomes qty order lines at its unit price)
 // Resolves the new order row. Rejects with an Error whose message is one of
 //   SOLD_OUT                 something in the cart was taken in the meantime
 //   SESSION_STARTED          a drop-in session in the cart has started since (err.sessions lists it: { classId, title, titleFr })
 //   NOT_FOR_SALE             a copy is still on the shelf but its price was cleared or set to 0 since the customer
 //                            saw the cart (err.titles lists them): not "taken by someone else"
+//   EDU_UNAVAILABLE          an educational item in the cart was hidden or removed since (err.titles lists them)
 //   TOO_MANY_RESERVATIONS    the account (a guest: the email) already has MAX_ACTIVE_RESERVATIONS open
 //   TOO_MANY_COPIES          the account (a guest: the email) would hold more than MAX_RESERVED_COPIES books
 //   GUEST_IP_HOLDS / GUEST_HOLDS_FULL  a guest: too many unconfirmed guest holds from this connection / shop-wide (lib/guestOrders.js)
@@ -49,11 +52,13 @@ async function createReservation(pool, { user = null, guest = null, base = "", n
   if (!user === !guest) throw new Error("createReservation: exactly one of user and guest");
   const bookItems = items.filter((i) => i.kind === "book");
   const dropinItems = items.filter((i) => i.kind === "dropin");
-  const cents = items.reduce((sum, i) => sum + Math.round(Number(i.price) * 100), 0);
+  const eduItems = items.filter((i) => i.kind === "edu");
+  // An educational line counts qty times (one order line per unit, see below).
+  const cents = items.reduce((sum, i) => sum + Math.round(Number(i.price) * 100) * (i.kind === "edu" ? i.qty : 1), 0);
   const total = cents / 100;
   const email = String((user || guest).email).toLowerCase();
 
-  const attempt = (client) => reserveInTransaction(client, { user, guest, base, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion, formShownAt });
+  const attempt = (client) => reserveInTransaction(client, { user, guest, base, email, name, phone, bookItems, dropinItems, eduItems, total, lang, hasDropin, acceptedVersion, formShownAt });
   let order;
   try {
     order = await withTransaction(pool, attempt);
@@ -79,12 +84,12 @@ function priceChangedError(changes) {
   return err;
 }
 
-async function reserveInTransaction(client, { user, guest, base, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion, formShownAt = null }) {
+async function reserveInTransaction(client, { user, guest, base, email, name, phone, bookItems, dropinItems, eduItems = [], total, lang, hasDropin, acceptedVersion, formShownAt = null }) {
   // One reservation at a time per account (a guest: per email address), so the limits below cannot be raced past.
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [user ? `reserve-user:${user.id}` : `reserve-guest:${email}`]);
   // Under that lock a double tap's second request sees the first one's reservation (committed by now): answered with
   // it, before the limits and the copies (which it holds) could refuse with a wrong reason.
-  const same = await findJustMadeReservation(client, user ? { userId: user.id } : { email, ip: guest.ip || null }, [...bookItems, ...dropinItems], { formShownAt });
+  const same = await findJustMadeReservation(client, user ? { userId: user.id } : { email, ip: guest.ip || null }, [...bookItems, ...dropinItems, ...eduItems], { formShownAt });
   if (same) {
     const { rows: existing } = await client.query("SELECT * FROM orders WHERE id = $1", [same.id]);
     return { ...existing[0], confirmationId: null, duplicate: true };
@@ -104,15 +109,15 @@ async function reserveInTransaction(client, { user, guest, base, email, name, ph
   // A guest (anonymous): shop-wide and per-connection caps on holds nobody has confirmed yet (lib/guestOrders.js).
   if (guest) await assertGuestHoldCapacity(client, { ip: guest.ip || null, copies: bookItems.length });
 
-  // The deadline: the end of the RESERVATION_DAYS-th day (Paris time) for books.
-  // An order with only seats is set below, once its seats exist.
+  // The deadline: the end of the RESERVATION_DAYS-th day (Paris time) for books and educational items (both are
+  // collected at the shop). An order with only seats is set below, once its seats exist.
   const { rows: orderRows } = await client.query(
     `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, status, withdrawal_waiver_at, lang,
                          cgv_accepted_at, cgv_version, user_id, reserved_until, is_guest, client_ip)
      VALUES ($1, $2, $3, $4, 'reserved', CASE WHEN $5::boolean THEN now() END, $6, now(), $7, $8,
              CASE WHEN $10::boolean THEN (((now() AT TIME ZONE '${SITE_TIME_ZONE}')::date + $9::int + 1)::timestamp AT TIME ZONE '${SITE_TIME_ZONE}') END, $11, $12)
      RETURNING *`,
-    [name, email, phone, total, hasDropin, lang, acceptedVersion, user ? user.id : null, RESERVATION_DAYS, bookItems.length > 0, Boolean(guest), guest ? guest.ip || null : null]
+    [name, email, phone, total, hasDropin, lang, acceptedVersion, user ? user.id : null, RESERVATION_DAYS, bookItems.length > 0 || eduItems.length > 0, Boolean(guest), guest ? guest.ip || null : null]
   );
   const order = orderRows[0];
 
@@ -169,6 +174,47 @@ async function reserveInTransaction(client, { user, guest, base, email, name, ph
     }
   }
 
+  if (eduItems.length) {
+    // Educational items (lib/eduItems.js): the order lines written below ARE the hold (an open reservation's lines
+    // count as held). The item rows are locked FOR UPDATE in id order, then the held units are counted in a SECOND
+    // statement (a count in the same statement as the lock would use a snapshot taken before the wait and miss the units
+    // another reservation just committed: the same rule as drop-in seats), so two reservations can never both take the
+    // last unit. The price is checked under the lock like a book's: a different price is refused (PRICE_CHANGED), never
+    // charged silently. The NAME stored on the order line is the item's name now (a snapshot).
+    const ids = [...new Set(eduItems.map((i) => i.eduItemId))].sort((a, b) => a - b);
+    await client.query("SELECT id FROM edu_items WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE", [ids]);
+    const { rows: locked } = await client.query(
+      `SELECT i.id, i.name, i.price, i.is_hidden, i.stock, ${HELD_SQL("i")}::int AS held FROM edu_items i WHERE i.id = ANY($1::int[])`,
+      [ids]
+    );
+    const byId = new Map(locked.map((r) => [r.id, r]));
+    const gone = eduItems.filter((i) => { const r = byId.get(i.eduItemId); return !r || r.is_hidden || !(Number(r.price) > 0); });
+    if (gone.length) {
+      const err = new Error("EDU_UNAVAILABLE");
+      err.titles = gone.map((i) => i.title);
+      throw err;
+    }
+    const eduChanges = eduItems
+      .filter((i) => Math.round(Number(byId.get(i.eduItemId).price) * 100) !== Math.round(Number(i.price) * 100))
+      .map((i) => ({ kind: "edu", id: i.eduItemId, title: i.title, oldPrice: Number(i.price), newPrice: Number(byId.get(i.eduItemId).price) }));
+    if (eduChanges.length) throw priceChangedError(eduChanges);
+    const wantedUnits = new Map();
+    for (const i of eduItems) wantedUnits.set(i.eduItemId, (wantedUnits.get(i.eduItemId) || 0) + i.qty);
+    for (const [id, n] of wantedUnits) {
+      const r = byId.get(id);
+      if (r.stock - r.held < n) throw new Error("SOLD_OUT"); // fewer left than the cart asks for: nothing is reserved
+    }
+    for (const i of eduItems) {
+      const row = byId.get(i.eduItemId);
+      for (let n = 0; n < i.qty; n++) {
+        await client.query(
+          "INSERT INTO order_items (order_id, edu_item_id, item_title, price) VALUES ($1, $2, $3, $4)",
+          [order.id, row.id, row.name, row.price]
+        );
+      }
+    }
+  }
+
   if (dropinItems.length) {
     const wanted = new Map(); // classId -> requested seat count
     for (const i of dropinItems) wanted.set(i.classId, (wanted.get(i.classId) || 0) + 1);
@@ -215,7 +261,7 @@ async function reserveInTransaction(client, { user, guest, base, email, name, ph
         );
       }
     }
-    if (!bookItems.length) {
+    if (!bookItems.length && !eduItems.length) {
       // Only seats: held until the last of the sessions is over.
       await client.query(
         `UPDATE orders SET reserved_until = (

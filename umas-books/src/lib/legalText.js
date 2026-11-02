@@ -39,12 +39,13 @@ const TERMS_PATH = "/terms-of-sale.html";
 // The short notice as one plain-text sentence group with the full address of the terms of sale
 // (the French page under /fr/ for a French reader). `base` is the site's origin; with none (no public
 // address configured) the sentence is given without the link rather than with a relative one.
-function noReturnsShortPlain(lang, base) {
+function noReturnsShortPlain(lang, base, kind = "books") {
   const l = lang === "fr" ? "fr" : "en";
-  if (!base) return NO_RETURNS_SHORT[l];
+  const short = kind === "edu" ? NO_RETURNS_SHORT_EDU[l] : NO_RETURNS_SHORT[l]; // educational items only: no used book in the reservation
+  if (!base) return short;
   const url = `${String(base || "").replace(/\/$/, "")}${l === "fr" ? "/fr" : ""}${TERMS_PATH}`;
   const { see, label } = noReturnsLink(l);
-  return `${NO_RETURNS_SHORT[l]} ${see} ${label}${l === "fr" ? NB : ""}: ${url}`;
+  return `${short} ${see} ${label}${l === "fr" ? NB : ""}: ${url}`;
 }
 
 // Shown on the book page next to the price, before the NO_RETURNS notice.
@@ -87,6 +88,48 @@ const NOTHING_PAID_ONLINE = {
   en: `Nothing is paid online. We hold your books for ${legal.RESERVATION_DAYS} days: come to the shop and pay when you collect them.`,
   fr: `Rien n’est payé en ligne. Nous gardons vos livres ${legal.RESERVATION_DAYS} jours${NB}: passez à la boutique et réglez-les au moment du retrait.`,
 };
+
+// WHAT THE RESERVATION HOLDS. The sentences above talk about books. A reservation that holds educational items (new
+// goods, lib/eduItems.js) needs "items" instead, and must not say that "used books" are not taken back when there is
+// no used book in it. kind: "books" (second-hand books and/or drop-in seats: the sentences above, unchanged), "edu"
+// (educational items only) or "mixed" (books and educational items). Not a legal document: the terms of sale keep
+// their own text, and the lawyer is asked about the new-goods wording (docs/legal-todos.md).
+function itemsKind({ books = false, edu = false } = {}) {
+  return edu ? (books ? "mixed" : "edu") : "books";
+}
+const NO_RETURNS_ITEMS = {
+  edu: {
+    en: "Reserving is free and commits you to nothing. You pay and the sale is made in the shop, after you have seen the items. The legal guarantees still apply.",
+    fr: `Réserver est gratuit et ne vous engage à rien. Vous payez et la vente est conclue en boutique, après avoir vu les articles${NB}; les garanties légales restent applicables.`,
+  },
+  mixed: {
+    en: "Reserving is free and commits you to nothing. You pay and the sale is made in the shop, after you have seen the items. Used books are not taken back, exchanged or refunded for a change of mind once bought in the shop; the legal guarantees still apply.",
+    fr: `Réserver est gratuit et ne vous engage à rien. Vous payez et la vente est conclue en boutique, après avoir vu les articles. Les livres d’occasion ne sont ni repris, ni échangés, ni remboursés pour simple changement d’avis une fois achetés en boutique${NB}; les garanties légales restent applicables.`,
+  },
+};
+const NO_RETURNS_SHORT_EDU = { en: "Your legal guarantees still apply.", fr: "Vos garanties légales restent applicables." };
+
+// The sentences that name the goods, for one kind of reservation and one language.
+function forItems(lang, kind = "books") {
+  const l = lang === "fr" ? "fr" : "en";
+  if (kind !== "edu" && kind !== "mixed") {
+    return { noReturns: NO_RETURNS[l], noReturnsShort: NO_RETURNS_SHORT[l], pickup: PICKUP[l], pickupWhere: PICKUP_WHERE[l], nothingPaidOnline: NOTHING_PAID_ONLINE[l], shopHoursFirm: legal.shopHoursFirm(l) };
+  }
+  return {
+    noReturns: NO_RETURNS_ITEMS[kind][l],
+    noReturnsShort: kind === "edu" ? NO_RETURNS_SHORT_EDU[l] : NO_RETURNS_SHORT[l],
+    pickup: l === "fr"
+      ? `Nous gardons vos articles ${legal.RESERVATION_DAYS} jours. Réglez-les et retirez-les à la boutique, ${legal.shopStreet("fr", false)}, Albi. ${legal.shopHoursFirm("fr", true)}`
+      : `We hold your items for ${legal.RESERVATION_DAYS} days. Pay and collect them at the shop, ${legal.shopStreet("en")}, Albi. ${legal.shopHoursFirm("en", true)}`,
+    pickupWhere: l === "fr"
+      ? `Réglez-les et retirez-les à la boutique, ${legal.shopStreet("fr", false)}, Albi. ${legal.shopHoursFirm("fr", true)}`
+      : `Pay and collect them at the shop, ${legal.shopStreet("en")}, Albi. ${legal.shopHoursFirm("en", true)}`,
+    nothingPaidOnline: l === "fr"
+      ? `Rien n’est payé en ligne. Nous gardons vos articles ${legal.RESERVATION_DAYS} jours${NB}: passez à la boutique et réglez-les au moment du retrait.`
+      : `Nothing is paid online. We hold your items for ${legal.RESERVATION_DAYS} days: come to the shop and pay when you collect them.`,
+    shopHoursFirm: legal.shopHoursFirm(l, true),
+  };
+}
 
 // "TVA non applicable" (+ ", art. <article> du CGI" once the accountant has
 // said which article). French in both languages: it is a legal mention.
@@ -134,6 +177,7 @@ function legalFor(lang) {
     shopOpens: legal.SHOP_OPENS,
     shopCloses: legal.SHOP_CLOSES,
     membershipPrice: legal.membershipPrice(l),
+    forItems: (kind) => forItems(l, kind), // views: legalText.forItems(kind).nothingPaidOnline ... (kind from itemsKind)
   };
 }
 
@@ -164,4 +208,4 @@ function fillVat(dict, lang = "en") {
   return out;
 }
 
-module.exports = { NO_RETURNS, NO_RETURNS_SHORT, noReturnsShortPlain, BOOK_FRIENDLY, GRADE_NOTE, PICKUP, PICKUP_WHERE, NOTHING_PAID_ONLINE, vatNotice, priceLine, legalFor, fillVat };
+module.exports = { NO_RETURNS, NO_RETURNS_SHORT, noReturnsShortPlain, BOOK_FRIENDLY, GRADE_NOTE, PICKUP, PICKUP_WHERE, NOTHING_PAID_ONLINE, itemsKind, forItems, vatNotice, priceLine, legalFor, fillVat };

@@ -117,6 +117,8 @@ const TABLES = {
   curated_collections: "kept", // the 19 seeded shelves (titles, prompts, published or not) are settings, not test data; only their book lists (curated_collection_books) are shop data
   nonfiction_rename_backup: "kept", // migration 114's copy of the old genre name / label / rule it respelled: settings, not test data
   managed_genres: "kept", // the managed genre list (names, Browse buttons): settings, not test data
+  edu_genres: "kept", // the Educational items genres (Worksheets, Flash Cards...): settings, not test data
+  edu_items: "kept", // the Educational items catalogue (name, price, picture, stock): entered for real before launch, like settings; their order lines (order_items) are shop data
   genre_rules: "kept", // the rules that slot raw genres into the managed ones: settings
   db_size_snapshots: "kept", // weekly database-size snapshots (monitoring numbers only, no personal data)
   lookup_source_stats: "kept", // aggregate lookup counts per day and catalog (no personal data)

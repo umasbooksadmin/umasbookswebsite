@@ -29,7 +29,7 @@ const MEMBERS_PAGE_SIZE = 10;
 // Every activity/spend figure here is matched to an account by email —
 // like the HelloAsso membership sync, this is the only link available
 // since the shop, events and classes are all guest-checkout by email
-// rather than user_id. Only books and drop-in seats are ever actually
+// rather than user_id. Only books (with educational items, counted together) and drop-in seats are ever actually
 // paid for today (event/class sign-ups are free — see event_signups/
 // class_signups), so only those two get a euro total; the other two
 // show a real count with no fabricated spend figure attached.
@@ -37,7 +37,7 @@ const MEMBER_ACTIVITY_JOIN = `
   LEFT JOIN (
     SELECT o.buyer_email, COUNT(i.id) AS book_count, COALESCE(SUM(i.price), 0) AS book_spend
     FROM order_items i JOIN orders o ON o.id = i.order_id
-    WHERE o.status = 'paid' AND i.book_copy_id IS NOT NULL
+    WHERE o.status = 'paid' AND (i.book_copy_id IS NOT NULL OR i.edu_item_id IS NOT NULL) -- books and educational items
     GROUP BY o.buyer_email
   ) bo ON lower(bo.buyer_email) = lower(u.email)
   LEFT JOIN (
@@ -156,8 +156,8 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
     SELECT
       (SELECT COUNT(*)::int FROM users) AS total_members,
       (SELECT COUNT(*)::int FROM users WHERE is_admin) AS total_admins,
-      (SELECT COUNT(*)::int FROM order_items i JOIN orders o ON o.id = i.order_id WHERE o.status = 'paid' AND i.book_copy_id IS NOT NULL) AS book_order_count,
-      (SELECT COALESCE(SUM(i.price), 0) FROM order_items i JOIN orders o ON o.id = i.order_id WHERE o.status = 'paid' AND i.book_copy_id IS NOT NULL) AS book_order_total,
+      (SELECT COUNT(*)::int FROM order_items i JOIN orders o ON o.id = i.order_id WHERE o.status = 'paid' AND (i.book_copy_id IS NOT NULL OR i.edu_item_id IS NOT NULL)) AS book_order_count,
+      (SELECT COALESCE(SUM(i.price), 0) FROM order_items i JOIN orders o ON o.id = i.order_id WHERE o.status = 'paid' AND (i.book_copy_id IS NOT NULL OR i.edu_item_id IS NOT NULL)) AS book_order_total,
       (SELECT COUNT(*)::int FROM event_signups) AS event_signup_count,
       (SELECT COUNT(*)::int FROM class_signups) AS program_signup_count,
       (SELECT COUNT(*)::int FROM order_items i JOIN orders o ON o.id = i.order_id WHERE o.status = 'paid' AND i.class_dropin_seat_id IS NOT NULL) AS dropin_count,
