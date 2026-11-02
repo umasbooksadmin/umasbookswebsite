@@ -1,8 +1,21 @@
-<%- include('../partials/admin_header', { title: 'Educational items', active: active, pageTitle: 'Educational items', pageSub: 'Worksheets, flash cards and other NEW learning items customers can reserve online (Browse Educational Items). They pay at the shop when they collect, like books.', mainWide: true }) %>
+<%- include('../partials/admin_header', { title: 'Educational items', active: active, pageTitle: 'Educational items', pageSub: 'Worksheets, flash cards and other NEW learning items customers can reserve online (Browse Educational Items). They pay at the shop when they collect, like books.', mainWide: true, extraCss: ['/edu-item-form.css'] }) %>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 
 <div class="card">
+  <form class="edu-find" method="get" action="/admin/edu-items/find" role="search" aria-label="Find an item by its barcode">
+    <label for="edu-find-barcode">Find by barcode</label>
+    <div class="edu-barcode-row">
+      <input id="edu-find-barcode" name="barcode" type="text" inputmode="numeric" autocomplete="off" maxlength="30" value="<%= findValue %>" placeholder="Scan or type the barcode" style="max-width:240px"<%- notFound ? ' aria-describedby="edu-find-none"' : '' %>>
+      <button class="btn btn-outline btn-small" type="submit">Find</button>
+    </div>
+  </form>
+  <% if (notFound) { %>
+  <div class="notice-box edu-find-none" id="edu-find-none" role="status">
+    <p>No item with that barcode (<%= notFound %>).</p>
+    <p><a class="btn btn-small" href="/admin/edu-items/new?barcode=<%= encodeURIComponent(notFound) %>">Add a new item with this barcode</a></p>
+  </div>
+  <% } %>
   <p><a class="btn" href="/admin/edu-items/new">Add an item</a> <a class="btn btn-outline" href="/educational-items.html" target="_blank" rel="noopener">See the customer page</a></p>
   <p class="muted small"><strong>Stock</strong> is how many you have in the shop, reserved ones included. <strong>Held</strong> is how many open reservations are keeping for customers; <strong>available</strong> (stock minus held) is what customers can still reserve. At 0 available the item shows "Sold out". Collecting a reservation (the till or "Mark collected and paid") takes the collected units off the stock; a cancelled or expired reservation gives its units back by itself.</p>
   <div class="table-scroll"><table class="ann-table" id="edu-items-table">
@@ -12,7 +25,7 @@
     <% items.forEach(i => { %>
       <tr<%- i.is_hidden ? ' class="muted"' : '' %>>
         <td><% if (i.image_url) { %><img src="<%= i.image_url %>" alt="" width="48" height="48" style="object-fit:contain;background:#f5f0e6"><% } else { %><span class="muted small">none</span><% } %></td>
-        <td><a href="/admin/edu-items/<%= i.id %>/edit"><%= i.name %></a></td>
+        <td><a href="/admin/edu-items/<%= i.id %>/edit"><%= i.name %></a><% if (i.barcode) { %><br><span class="muted small">Barcode <%= i.barcode %></span><% } %></td>
         <td><%= i.genre_name || '—' %></td>
         <td>&euro;<%= money(i.price) %></td>
         <td><%= i.stock %></td>

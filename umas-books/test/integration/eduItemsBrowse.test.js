@@ -126,3 +126,13 @@ test("admin: the list shows stock / held / available; add with stock (audited); 
   assert.equal((await h.pool.query("SELECT name FROM edu_items WHERE id = $1", [items.phonics.id])).rows[0].name, "Phonics Picture Cards");
   assert.notEqual((await visit("/admin/edu-items")).res.status, 200);
 });
+
+test("the barcode (admin only, migration 116) is on neither Browse page, nor the search, nor the sitemap", async () => {
+  await h.pool.query("UPDATE edu_items SET barcode = '5901234123457' WHERE id = $1", [items.phonics.id]);
+  for (const p of ["/educational-items.html", "/fr/educational-items.html", "/sitemap-pages.xml"]) {
+    const { text } = await visit(p);
+    assert.ok(!text.includes("5901234123457"), `the barcode is on ${p}`);
+  }
+  assert.match((await visit("/educational-items.html")).text, /Phonics Picture Cards/);
+  assert.match((await visit("/educational-items.html?q=5901234123457")).text, /No educational items match that search/, "a barcode is not a public search key (the page only echoes what was typed)");
+});

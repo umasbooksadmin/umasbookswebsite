@@ -2,7 +2,12 @@
 // required, like every other admin page), CSRF-protected (src/app.js), every change audit-logged.
 //
 //   GET  /admin/edu-items                    the list (stock, held by open reservations, available) and the genres
-//   GET  /admin/edu-items/new                the add form
+//   GET  /admin/edu-items/new                the add form (?barcode=... pre-fills the barcode: "Add a new item" after a
+//                                            find-by-barcode found nothing)
+//   GET  /admin/edu-items/lookup?barcode=... JSON: the name (and, for an ISBN, the exact-ISBN picture) the outside
+//                                            catalogues suggest for a barcode. Saves nothing. See "Barcodes" below.
+//   GET  /admin/edu-items/find?barcode=...   find by barcode: to the item's edit page, or the list with "No item with
+//                                            that barcode" and a button to add one
 //   POST /admin/edu-items                    add (multipart: optional picture "image", src/app.js runs multer)
 //   GET  /admin/edu-items/:id/edit           the edit form
 //   POST /admin/edu-items/:id                save (name, price, stock, genre, sort, hidden, a new picture)
@@ -17,6 +22,15 @@
 // Stock: the number of units in the shop, held ones included. A save locks the item row FOR UPDATE (the lock the
 // reservation takes, lib/cart.js) and refuses a stock below what open reservations hold, so a reservation can never be
 // left without its unit. Each stock change is audited with the old and new numbers.
+//
+// Barcodes (edu_items.barcode, migration 116, lib/barcode.js; owner-approved 2026-11-02). ADMIN ONLY: customers never see
+// it (no public page, JSON or email reads the column). Optional, unique among items (a clear refusal names the other
+// item), check digit verified, an ISBN-10 saved as its ISBN-13. The lookup only ever SUGGESTS: the page fills the Name
+// when it is empty and offers the rest (lib/productLookup.js for a UPC / EAN, lib/bookLookup.js for an ISBN). The picture
+// is never taken from a product database: for an ISBN, the exact-ISBN Open Library cover may be offered, and is used only
+// when the admin presses "Use this picture" (the hidden field useIsbnCover); the server then fetches it again for the
+// SAVED barcode (the page never sends an address). An ISBN that is also a book in the shop gets a warning, not a refusal:
+// workbooks with an ISBN stay educational items (owner's rule) and must not also be counted as books.
 
 const express = require("express");
 const { pool, withTransaction } = require("../../db");
@@ -29,11 +43,24 @@ const { coverFromPhoto, CoverEditError, COVER_ERRORS } = require("../../lib/cove
 const { redirectWithFlash, takePageFlash } = require("../../lib/postRedirect");
 const edu = require("../../lib/eduItems");
 const { PALETTE_KEYS } = require("../../lib/browseGenres");
+const { parseBarcode, gtinKey, isIsbnBarcode } = require("../../lib/barcode");
+const { isbnVariants } = require("../../lib/inventory");
 
 const router = express.Router();
 validateIdParams(router, "id");
 
 const writeLimiter = limit({ windowMs: 60 * 60 * 1000, max: 300 });
+// The barcode lookup calls outside services (UPCitemdb allows about 100 a day): 30 a minute per admin account is far
+// above a run of scans by hand, and stops a stuck scanner or a script.
+const LOOKUP_PER_MINUTE = 30;
+const lookupLimiter = limit({
+  windowMs: 60 * 1000,
+  max: LOOKUP_PER_MINUTE,
+  keyGenerator: (req) => `edu-lookup-${req.session && req.session.user ? req.session.user.id : "anon"}`,
+  handler: (req, res) => res.status(429).json({ ok: false, state: "unavailable", message: "Too many lookups in a minute: wait a moment, or type the details in." }),
+  validate: { keyGeneratorIpFallback: false },
+});
+const UNAVAILABLE = "Lookup unavailable right now: type the details in.";
 const FLASH = "adminEduItems";
 const LIST = "/admin/edu-items";
 const money = (v) => Number(v).toFixed(2);
@@ -55,6 +82,50 @@ async function pictureFrom(req) {
   }
 }
 
+// The other item that already has this barcode (compared padded to 14 digits, like the unique index), or null.
+async function itemWithBarcode(db, code, exceptId = 0) {
+  if (!code) return null;
+  const { rows } = await db.query("SELECT id, name FROM edu_items WHERE barcode IS NOT NULL AND lpad(barcode, 14, '0') = $1 AND id <> $2 ORDER BY id LIMIT 1", [gtinKey(code), exceptId]);
+  return rows[0] || null;
+}
+
+// A BOOK of the shop with this ISBN (either form), or null: the duplicate-with-book warning.
+async function bookWithIsbn(code) {
+  if (!isIsbnBarcode(code)) return null;
+  const { rows } = await pool.query("SELECT id, title FROM books WHERE isbn = ANY($1) ORDER BY id LIMIT 1", [isbnVariants(code)]);
+  return rows[0] || null;
+}
+const bookWarning = (b) => `This ISBN is already a book in the shop ("${b.title}"). You can still save it here: a workbook with an ISBN stays an educational item, so make sure the same copies are not also counted as books.`;
+const usedBy = (o) => `The barcode is already on the item "${o.name}". Each barcode can be on one item only: open that item instead, or check the number. Nothing was saved.`;
+
+// "Use this picture" for an ISBN: Open Library's cover for this EXACT ISBN (lib/bookLookup.js exactIsbnCover), stored on
+// our server (lib/coverStore.js prepareCover) -> "/img/<hash>.jpg" or null. Never throws.
+async function isbnPicture(code, { waitMs } = {}) {
+  if (!isIsbnBarcode(code)) return null;
+  try {
+    const { exactIsbnCover } = require("../../lib/bookLookup");
+    const { prepareCover } = require("../../lib/coverStore");
+    const exact = await exactIsbnCover(code);
+    if (!exact.url) return null;
+    const task = prepareCover(exact.url).then((c) => c.cover || null, () => null);
+    if (!waitMs) return await task;
+    let timer;
+    const late = new Promise((resolve) => { timer = setTimeout(() => resolve(null), waitMs); });
+    return await Promise.race([task, late]).finally(() => clearTimeout(timer));
+  } catch {
+    return null;
+  }
+}
+
+// The item form (lib/eduItems.js parseItemForm) plus its barcode (lib/barcode.js) -> { values } | { error }.
+async function parseForm(body) {
+  const f = edu.parseItemForm(body, await genreIds());
+  if (f.error) return f;
+  const b = parseBarcode(body.barcode);
+  if (b.error) return { error: `${b.error} Nothing was saved.` };
+  return { values: { ...f.values, barcode: b.value } };
+}
+
 async function genreIds() {
   const { rows } = await pool.query("SELECT id FROM edu_genres");
   return rows.map((r) => r.id);
@@ -70,19 +141,93 @@ router.get(LIST, requireAdmin, async (req, res) => {
   );
   for (const i of items) i.available = Math.max(0, i.stock - i.held);
   const genres = await edu.loadGenres(pool);
-  res.render("admin/edu_items", { active: "edu-items", items, genres, error: flash.error || null, notice: flash.notice || null, money });
+  res.render("admin/edu_items", { active: "edu-items", items, genres, error: flash.error || null, notice: flash.notice || null, money, notFound: flash.notFound || null, findValue: flash.findValue || "" });
 });
 
-async function renderForm(req, res, item) {
+async function renderForm(req, res, item, { barcode = "" } = {}) {
   const flash = takePageFlash(req, res, FLASH) || {};
   const genres = await edu.loadGenres(pool);
   let held = 0;
   if (item) held = (await pool.query(`SELECT ${edu.HELD_SQL("i")}::int AS held FROM edu_items i WHERE i.id = $1`, [item.id])).rows[0].held;
-  const v = flash.values || (item ? { name: item.name, price: money(item.price), stock: String(item.stock), genreId: item.genre_id == null ? "" : String(item.genre_id), sortOrder: String(item.sort_order), isHidden: item.is_hidden ? "on" : "" } : { name: "", price: "", stock: "0", genreId: genres[0] ? String(genres[0].id) : "", sortOrder: "0", isHidden: "" });
-  res.render("admin/edu_item_form", { active: "edu-items", item, held, values: v, genres, error: flash.error || null, notice: flash.notice || null, maxStock: edu.STOCK_MAX });
+  const v = flash.values || (item ? { name: item.name, price: money(item.price), stock: String(item.stock), genreId: item.genre_id == null ? "" : String(item.genre_id), sortOrder: String(item.sort_order), isHidden: item.is_hidden ? "on" : "", barcode: item.barcode || "" } : { name: "", price: "", stock: "0", genreId: genres[0] ? String(genres[0].id) : "", sortOrder: "0", isHidden: "", barcode });
+  if (v.barcode === undefined) v.barcode = "";
+  // The saved barcode is also a book of the shop: the same gentle warning as the lookup gives.
+  const book = item && item.barcode ? await bookWithIsbn(item.barcode) : null;
+  res.render("admin/edu_item_form", {
+    active: "edu-items", item, held, values: v, genres, error: flash.error || null, notice: flash.notice || null, maxStock: edu.STOCK_MAX,
+    bookWarning: book ? bookWarning(book) : null,
+    // Arriving from "Add a new item with this barcode": the page looks the barcode up at once.
+    autoLookup: !item && !flash.values && Boolean(barcode),
+  });
 }
 
-router.get(`${LIST}/new`, requireAdmin, (req, res) => renderForm(req, res, null));
+router.get(`${LIST}/new`, requireAdmin, (req, res) => {
+  const b = parseBarcode(String(req.query.barcode ?? "").slice(0, 30));
+  return renderForm(req, res, null, { barcode: b.value || "" });
+});
+
+// ---------- barcodes: lookup and find ----------
+
+// JSON for the form's "Scan or type barcode" box (public/edu-item-form.js). Saves nothing. Never an error page: every
+// failure is a sentence the page shows, and the admin types the details in.
+//   { ok, barcode, kind: "isbn" | "product", state: "found" | "missing" | "unavailable", source, name, details,
+//     picture: "/img/..." | null (ISBN only: Open Library's cover for this exact ISBN, offered with "Use this picture"),
+//     bookInShop: sentence | null, usedBy: { id, name } | null, message }
+router.get(`${LIST}/lookup`, requireAdmin, lookupLimiter, async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const b = parseBarcode(String(req.query.barcode ?? "").slice(0, 30));
+  if (b.error) return res.status(400).json({ ok: false, state: "invalid", message: b.error });
+  if (!b.value) return res.status(400).json({ ok: false, state: "invalid", message: "Scan or type a barcode first." });
+  const code = b.value;
+  const exceptId = Number.isSafeInteger(Number(req.query.itemId)) ? Number(req.query.itemId) : 0;
+  const [other, book] = await Promise.all([itemWithBarcode(pool, code, exceptId), bookWithIsbn(code)]);
+  const out = {
+    ok: true, barcode: code, convertedFrom: b.fromIsbn10 || null, kind: isIsbnBarcode(code) ? "isbn" : "product",
+    state: "unavailable", source: null, name: null, details: null, picture: null,
+    bookInShop: book ? bookWarning(book) : null,
+    usedBy: other ? { id: other.id, name: other.name, href: `${LIST}/${other.id}/edit` } : null,
+    message: UNAVAILABLE,
+  };
+  try {
+    if (out.kind === "isbn") {
+      const { lookupByIsbnDetailed } = require("../../lib/bookLookup");
+      const [r, picture] = await Promise.all([lookupByIsbnDetailed(code), isbnPicture(code, { waitMs: 3000 })]);
+      out.picture = picture;
+      if (r.state === "found" && r.book && r.book.title) {
+        const names = { openlibrary: "Open Library", "openlibrary-data": "Open Library", bnf: "BnF", google: "Google Books", isbndb: "ISBNdb" };
+        const bk = r.book;
+        out.state = "found";
+        out.source = names[(r.via || [])[0]] || "Open Library";
+        out.name = [bk.title, bk.subtitle].filter(Boolean).join(": ").slice(0, edu.NAME_MAX);
+        out.details = [bk.author && `by ${bk.author}`, bk.publisher, bk.publishedYear].filter(Boolean).join(", ") || null;
+      } else if (r.state === "missing" || r.state === "invalid") out.state = "missing";
+    } else {
+      const { lookupProductName } = require("../../lib/productLookup");
+      const r = await lookupProductName(code);
+      if (r.state === "found") Object.assign(out, { state: "found", source: r.source, name: r.name });
+      else if (r.state === "missing") out.state = "missing";
+      else console.warn(`Barcode lookup unavailable (${r.reason})`);
+    }
+  } catch (err) {
+    console.warn("Barcode lookup failed:", err.message);
+    out.state = "unavailable";
+  }
+  if (out.state === "found") out.message = `Found at ${out.source}. Check the suggestion before saving.`;
+  else if (out.state === "missing") out.message = "Nothing found for this barcode: type the details in.";
+  // An ISBN the catalogues do not know may still have an exact-ISBN picture: it is offered either way.
+  return res.json(out);
+});
+
+// The list's "Find by barcode" box (a plain GET form: a scanner types the digits and Enter).
+router.get(`${LIST}/find`, requireAdmin, async (req, res) => {
+  const raw = String(req.query.barcode ?? "").slice(0, 30);
+  const b = parseBarcode(raw);
+  if (b.error) return redirectWithFlash(req, res, LIST, FLASH, { error: b.error, findValue: raw });
+  if (!b.value) return redirectWithFlash(req, res, LIST, FLASH, { error: "Scan or type a barcode to find an item.", findValue: "" });
+  const hit = await itemWithBarcode(pool, b.value);
+  if (hit) return res.redirect(303, `${LIST}/${hit.id}/edit`);
+  return redirectWithFlash(req, res, LIST, FLASH, { notFound: b.value, findValue: b.value });
+});
 
 router.get(`${LIST}/:id/edit`, requireAdmin, async (req, res) => {
   const { rows } = await pool.query("SELECT * FROM edu_items WHERE id = $1", [Number(req.params.id)]);
@@ -91,30 +236,55 @@ router.get(`${LIST}/:id/edit`, requireAdmin, async (req, res) => {
 });
 
 // What the form sent, to put back in the form after a refusal.
-const typed = (b) => ({ name: String(b.name ?? "").slice(0, 200), price: String(b.price ?? "").slice(0, 20), stock: String(b.stock ?? "").slice(0, 10), genreId: String(b.genreId ?? ""), sortOrder: String(b.sortOrder ?? "").slice(0, 10), isHidden: b.isHidden === "on" ? "on" : "" });
+const typed = (b) => ({ name: String(b.name ?? "").slice(0, 200), price: String(b.price ?? "").slice(0, 20), stock: String(b.stock ?? "").slice(0, 10), genreId: String(b.genreId ?? ""), sortOrder: String(b.sortOrder ?? "").slice(0, 10), isHidden: b.isHidden === "on" ? "on" : "", barcode: String(b.barcode ?? "").slice(0, 30) });
+
+// The picture to save: the admin's own photo wins; else, when she pressed "Use this picture", Open Library's cover for
+// the saved ISBN. -> { url } | { error } | { note } (the Open Library picture could not be fetched: saved without it).
+async function chosenPicture(req, barcode) {
+  const pic = await pictureFrom(req);
+  if (pic.url || pic.error) return pic;
+  if (req.body.useIsbnCover !== "1") return {};
+  const url = isIsbnBarcode(barcode) ? await isbnPicture(barcode) : null;
+  return url ? { url, fromIsbn: true } : { note: " The Open Library picture could not be fetched: add your own photo." };
+}
+
+// A unique-index refusal (two saves of the same barcode at the same moment): the same sentence as the check before.
+const isBarcodeClash = (err) => err && err.code === "23505" && /edu_items_barcode_key/.test(err.constraint || err.message || "");
 
 router.post(LIST, requireAdmin, writeLimiter, async (req, res) => {
-  const f = edu.parseItemForm(req.body, await genreIds());
+  const f = await parseForm(req.body);
   if (f.error) return back(req, res, `${LIST}/new`, f.error, { values: typed(req.body) });
-  const pic = await pictureFrom(req);
-  if (pic.error) return back(req, res, `${LIST}/new`, pic.error, { values: typed(req.body) });
   const v = f.values;
-  const { rows } = await pool.query(
-    `INSERT INTO edu_items (name, price, stock, genre_id, sort_order, is_hidden, image_url) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-    [v.name, v.price, v.stock, v.genreId, v.sortOrder, v.isHidden, pic.url || null]
-  );
-  await audit(req, { action: "edu_item.add", targetType: "edu_item", targetId: rows[0].id, detail: `${v.name}, €${money(v.price)}, stock ${v.stock}${v.isHidden ? ", hidden" : ""}${pic.url ? ", with picture" : ""}` });
-  return done(req, res, LIST, `Added "${v.name}".`);
+  const other = await itemWithBarcode(pool, v.barcode);
+  if (other) return back(req, res, `${LIST}/new`, usedBy(other), { values: typed(req.body) });
+  const pic = await chosenPicture(req, v.barcode);
+  if (pic.error) return back(req, res, `${LIST}/new`, pic.error, { values: typed(req.body) });
+  let rows;
+  try {
+    ({ rows } = await pool.query(
+      `INSERT INTO edu_items (name, price, stock, genre_id, sort_order, is_hidden, image_url, barcode) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [v.name, v.price, v.stock, v.genreId, v.sortOrder, v.isHidden, pic.url || null, v.barcode]
+    ));
+  } catch (err) {
+    if (isBarcodeClash(err)) return back(req, res, `${LIST}/new`, usedBy((await itemWithBarcode(pool, v.barcode)) || { name: "another item" }), { values: typed(req.body) });
+    throw err;
+  }
+  const picNote = pic.url ? (pic.fromIsbn ? ", with the Open Library picture" : ", with picture") : "";
+  await audit(req, { action: "edu_item.add", targetType: "edu_item", targetId: rows[0].id, detail: `${v.name}, €${money(v.price)}, stock ${v.stock}${v.isHidden ? ", hidden" : ""}${v.barcode ? `, barcode ${v.barcode}` : ""}${picNote}` });
+  const book = await bookWithIsbn(v.barcode);
+  return done(req, res, LIST, `Added "${v.name}".${pic.note || ""}${book ? ` ${bookWarning(book)}` : ""}`);
 });
 
 router.post(`${LIST}/:id`, requireAdmin, writeLimiter, async (req, res) => {
   const id = Number(req.params.id);
   const edit = `${LIST}/${id}/edit`;
-  const f = edu.parseItemForm(req.body, await genreIds());
+  const f = await parseForm(req.body);
   if (f.error) return back(req, res, edit, f.error, { values: typed(req.body) });
-  const pic = await pictureFrom(req);
-  if (pic.error) return back(req, res, edit, pic.error, { values: typed(req.body) });
   const v = f.values;
+  const other = await itemWithBarcode(pool, v.barcode, id);
+  if (other) return back(req, res, edit, usedBy(other), { values: typed(req.body) });
+  const pic = await chosenPicture(req, v.barcode);
+  if (pic.error) return back(req, res, edit, pic.error, { values: typed(req.body) });
   const r = await withTransaction(pool, async (client) => {
     // The reservation's lock (lib/cart.js): no reservation can take a unit between the count and the save.
     const { rows } = await client.query("SELECT * FROM edu_items WHERE id = $1 FOR UPDATE", [id]);
@@ -125,12 +295,16 @@ router.post(`${LIST}/:id`, requireAdmin, writeLimiter, async (req, res) => {
     if (v.stock < held) return { outcome: "below_held", held };
     await client.query(
       `UPDATE edu_items SET name = $2, price = $3, stock = $4, genre_id = $5, sort_order = $6, is_hidden = $7,
-              image_url = COALESCE($8, image_url), updated_at = now() WHERE id = $1`,
-      [id, v.name, v.price, v.stock, v.genreId, v.sortOrder, v.isHidden, pic.url || null]
+              image_url = COALESCE($8, image_url), barcode = $9, updated_at = now() WHERE id = $1`,
+      [id, v.name, v.price, v.stock, v.genreId, v.sortOrder, v.isHidden, pic.url || null, v.barcode]
     );
     return { outcome: "saved", old };
+  }).catch(async (err) => {
+    if (isBarcodeClash(err)) return { outcome: "barcode_used", other: (await itemWithBarcode(pool, v.barcode, id)) || { name: "another item" } };
+    throw err;
   });
   if (r.outcome === "not_found") return res.status(404).render("404");
+  if (r.outcome === "barcode_used") return back(req, res, edit, usedBy(r.other), { values: typed(req.body) });
   if (r.outcome === "below_held") {
     return back(req, res, edit, `The stock cannot be lower than ${r.held}: open reservations hold ${r.held} of this item. Collect or cancel them first. Nothing was saved.`, { values: typed(req.body) });
   }
@@ -142,9 +316,11 @@ router.post(`${LIST}/:id`, requireAdmin, writeLimiter, async (req, res) => {
   if ((o.genre_id ?? null) !== v.genreId) changes.push("genre changed");
   if (o.sort_order !== v.sortOrder) changes.push(`sort ${o.sort_order} -> ${v.sortOrder}`);
   if (o.is_hidden !== v.isHidden) changes.push(v.isHidden ? "hidden" : "shown");
-  if (pic.url) changes.push("new picture");
+  if ((o.barcode || null) !== v.barcode) changes.push(`barcode ${o.barcode || "none"} -> ${v.barcode || "none"}`);
+  if (pic.url) changes.push(pic.fromIsbn ? "new picture (Open Library, exact ISBN)" : "new picture");
   await audit(req, { action: "edu_item.edit", targetType: "edu_item", targetId: id, detail: changes.join("; ") || "no change" });
-  return done(req, res, LIST, `Saved "${v.name}".`);
+  const book = v.barcode && (o.barcode || null) !== v.barcode ? await bookWithIsbn(v.barcode) : null;
+  return done(req, res, LIST, `Saved "${v.name}".${pic.note || ""}${book ? ` ${bookWarning(book)}` : ""}`);
 });
 
 router.post(`${LIST}/:id/visibility`, requireAdmin, writeLimiter, async (req, res) => {
