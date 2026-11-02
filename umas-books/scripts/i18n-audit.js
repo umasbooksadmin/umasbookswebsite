@@ -15,7 +15,7 @@ const { crawl, captureEnv } = require("../test/helpers/i18nCrawl");
 const { ALLOW } = require("../test/i18n-allowlist");
 
 const AREAS = [
-  ["Shared chrome and error pages", (p) => /^(\/|\/this-page-does-not-exist)$/.test(p) || /CSRF|admin page as a customer|members-only page|volunteer page as a member|500 page/.test(p)],
+  ["Shared chrome and error pages", (p) => /^(\/|\/this-page-does-not-exist)$/.test(p) || /CSRF|admin page as a customer|members-only page|volunteer page as a member|404 page: unknown book id/.test(p)],
   ["Marketing and legal pages (.html)", (p) => /^\/[a-z-]+\.html$/.test(p)],
   ["Catalogue, book pages, favourites, cart, reservations", (p) => /^\/(books\/|collections\/|favorites|cart)/.test(p) || /POST cart|after reserve|cart with|cart after|account after/.test(p)],
   ["Sign up, log in, account, privacy, two-step", (p) => /^\/(login|signup|forgot|reset|verify|account)/.test(p) || /POST (login|signup|membership|forgot|reset|resend|verify|2FA|change password|privacy)/.test(p)],

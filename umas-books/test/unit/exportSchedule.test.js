@@ -36,7 +36,7 @@ function inventoryRuns(runs, preset = {}) {
     assert.ok(books.length <= 1);
     const exported = books.length ? books[0].match(/inventory_books_(.+)\.csv$/)[1] : null;
     if (exported) assert.deepEqual(copies, [`inventory-exports/inventory_${exported}.csv`], "the per-copy file has the same date");
-    return { iso, paris: sim.parisHour(iso), manual: !!inputs, exported, attach: r.steps.attach || {} };
+    return { iso, paris: sim.parisHour(iso), manual: !!inputs, exported, attach: r.steps.attach || {}, probes: r.probes };
   });
   return { sb, results, bucket: () => sim.readState(path.join(sb.dir, "bucket")) };
 }
@@ -208,3 +208,13 @@ test("accounting: a manual run of a FINISHED month mid-month is stored as usual"
 });
 
 test.after(() => { if (process.env.EXPORT_SCENARIOS) console.log(table.join("\n")); });
+
+test("inventory: only the real end-of-day export reports in to the site (not a manual run, not a run that found the export done, not a run outside 21h)", () => {
+  const { results } = inventoryRuns([
+    ["2026-10-27T10:00:00Z", MANUAL], // a manual run in the daytime
+    ["2026-10-27T12:00:00Z"], // a scheduled run outside the window: ends at once
+    ["2026-10-27T20:03:00Z"], // 21:03 Paris: the real export
+    ["2026-10-27T21:10:00Z"], // the retry: that evening's file exists, nothing to do
+  ]);
+  assert.deepEqual(results.map((r) => r.probes), [[], [], ["X-Umas-Probe: inventory"], []]);
+});

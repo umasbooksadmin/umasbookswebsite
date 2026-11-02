@@ -287,7 +287,9 @@ function scenarios(app, s) {
     S("members-only page as a guest", "guest", (c) => c.get("/forum")),
     S("volunteer page as a member", "member", (c) => c.get("/volunteer")),
     S("admin page as a customer", "member", (c) => c.get("/admin")),
-    S("500 page", "guest", (c) => c.get("/books/abc")),
+    // Malformed ids are answered with a 404 (routes are hardened), so this is the 404 page. The real 500 page is
+    // rendered in EN and FR by test/unit/errorHandler.test.js and test/unit/pageSnapshots.test.js.
+    S("404 page: unknown book id", "guest", (c) => c.get("/books/abc")),
   ];
 }
 

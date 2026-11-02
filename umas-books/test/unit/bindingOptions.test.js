@@ -7,6 +7,12 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+// These are pure-function checks, but lib/inventory and lib/pricing/forms load
+// src/db.js, which throws at require time when DATABASE_URL is unset. A pg Pool
+// connects lazily, so a placeholder URL is enough: nothing here queries, and if
+// something ever did it would fail loudly with a connection error rather than
+// silently pass. When DATABASE_URL is set (CI) it is left untouched.
+if (!process.env.DATABASE_URL) process.env.DATABASE_URL = "postgres://unused:unused@127.0.0.1:1/unused";
 const inv = require("../../src/lib/inventory");
 const { mapBinding } = require("../../src/lib/bookLookup");
 const { suggestFromRules, DEFAULT_SETTINGS } = require("../../src/lib/pricing/rules");

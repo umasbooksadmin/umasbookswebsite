@@ -36,6 +36,9 @@ function makeSandbox() {
   const bin = path.join(dir, "bin");
   fs.mkdirSync(bin);
   fs.writeFileSync(path.join(bin, "aws"), `#!/usr/bin/env bash\nexec bash "${FAKE_AWS}" "$@"\n`, { mode: 0o755 });
+  // `curl` (the "tell the site this job ran" step) never leaves the machine: it records the header it was given
+  // (X-Umas-Probe: <name>) in $PROBE_LOG, which runWorkflow returns as `probes`.
+  fs.writeFileSync(path.join(bin, "curl"), `#!/usr/bin/env bash\nwhile [ $# -gt 0 ]; do if [ "$1" = "-H" ]; then echo "$2" >> "$PROBE_LOG"; shift; fi; shift; done\nexit 0\n`, { mode: 0o755 });
   fs.writeFileSync(path.join(bin, "npm"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
   // `date +FORMAT` (no other option) answers the simulated time of the step, like the export scripts'
   // clock: the workflow's "taken" time would otherwise be the real day the test runs. Any other use of
@@ -105,9 +108,11 @@ function stepWanted(step, ctx) {
   if (!step.if) return true;
   if (/failure\(\)/.test(step.if)) return false;
   return step.if.split("&&").every((c) => {
-    const m = c.trim().match(/^steps\.(\w+)\.outputs\.(\w+) == '([^']*)'$/);
+    if (c.trim() === "success()") return true; // the simulation stops at the first failing step, so every step it reaches follows successes
+    const m = c.trim().match(/^steps\.(\w+)\.outputs\.(\w+) (==|!=) '([^']*)'$/);
     if (!m) throw new Error(`workflowSim: unsupported if: ${step.if}`);
-    return ((ctx.steps[m[1]] || {})[m[2]] || "") === m[3];
+    const same = ((ctx.steps[m[1]] || {})[m[2]] || "") === m[4];
+    return m[3] === "==" ? same : !same;
   });
 }
 
@@ -131,6 +136,7 @@ function runWorkflow(sandbox, file, iso, inputs = {}, { failAws = false } = {}) 
     vars: new Proxy({}, { get: (_, k) => `fake-${String(k)}` }),
   };
   const uploaded = [];
+  const probeLog = path.join(runDir, "probes");
   let log = "";
   steps.forEach((step, i) => {
     if (step.uses || step.run === null || !stepWanted(step, ctx)) return;
@@ -140,7 +146,7 @@ function runWorkflow(sandbox, file, iso, inputs = {}, { failAws = false } = {}) 
     const env = {
       PATH: `${sandbox.bin}:${process.env.PATH}`, HOME: process.env.HOME || os.homedir(), LANG: "C.UTF-8",
       GITHUB_OUTPUT: out, GITHUB_STEP_SUMMARY: path.join(runDir, "summary"), GITHUB_WORKSPACE: ws, RUNNER_TEMP: tmp,
-      S3_STATE: path.join(sandbox.dir, "bucket"), S3_LOG: s3log,
+      S3_STATE: path.join(sandbox.dir, "bucket"), S3_LOG: s3log, PROBE_LOG: probeLog,
       GATE_NOW: parisHour(iso), SIM_NOW: iso,
       FAKE_CLOCK: awsTime(startMs + 60000 * (i + 1)), // each step a minute later than the one before
       ...(failAws ? { FAIL: "1" } : {}),
@@ -154,7 +160,8 @@ function runWorkflow(sandbox, file, iso, inputs = {}, { failAws = false } = {}) 
     if (step.id) ctx.steps[step.id] = readOutputs(out);
     if (fs.existsSync(s3log)) uploaded.push(...fs.readFileSync(s3log, "utf8").split("\n").filter(Boolean));
   });
-  return { steps: ctx.steps, uploaded, log };
+  const probes = fs.existsSync(probeLog) ? fs.readFileSync(probeLog, "utf8").split("\n").filter(Boolean) : [];
+  return { steps: ctx.steps, uploaded, probes, log };
 }
 
 module.exports = { makeSandbox, writeState, readState, parisHour, awsTime, parseSteps, runWorkflow, root };

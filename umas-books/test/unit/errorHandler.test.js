@@ -75,6 +75,24 @@ test("the 500 page is French for a person who chose French, even without the lan
   assert.match(await (await fetch(`${base}/boom/999`)).text(), /Something went wrong/);
 });
 
+test("the real 500 page (not the plain-text fallback) renders in English and French with the contact address and a way home", async () => {
+  const en = await fetch(`${base}/boom/999`);
+  assert.equal(en.status, 500);
+  assert.match(en.headers.get("content-type"), /text\/html/);
+  const enHtml = await en.text();
+  assert.match(enHtml, /<html lang="en">/);
+  assert.match(enHtml, /<h1>Something went wrong<\/h1>/);
+  assert.match(enHtml, /email us at admin@umasbooks\.org/);
+  assert.match(enHtml, /<a href="\/">Go home<\/a>/);
+  assert.match(enHtml, /<meta name="robots" content="noindex">/);
+  const fr = await fetch(`${base}/boom/999`, { headers: { cookie: "umasbooks_lang=fr" } });
+  const frHtml = await fr.text();
+  assert.match(frHtml, /<h1>Une erreur est survenue<\/h1>/);
+  assert.match(frHtml, /écrivez-nous à admin@umasbooks\.org/);
+  assert.match(frHtml, /<a href="\/">Retour à l’accueil<\/a>/);
+  assert.doesNotMatch(frHtml, /Something went wrong|Go home/, "no English left on the French 500 page");
+});
+
 test("redactedPath drops the query string and token segments", () => {
   const r = (url) => redactedPath({ originalUrl: url });
   assert.equal(r("/reset-password/abc123"), "/reset-password/:token");
