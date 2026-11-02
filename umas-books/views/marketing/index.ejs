@@ -64,6 +64,16 @@ if (_sameAs.length) jsonLd.sameAs = _sameAs;
       </div>
     </article>
 
+    <article class="h-card gold">
+      <%- include('../partials/picture', { src: '/assets/img/medallion-donate.png', alt: '', w: 184, h: 184, cls: 'medallion', lazy: true }) %>
+      <h2 data-i18n="home.edu.t">Educational Items</h2>
+      <div class="divider"></div>
+      <p data-i18n="home.edu.d">Worksheets, flash cards and more, all new. Reserve online and collect in the shop.</p>
+      <div class="actions">
+        <a class="h-btn" href="educational-items.html"><span data-i18n="home.edu.cta">Browse items</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
+      </div>
+    </article>
+
     <article class="h-card green">
       <%- include('../partials/picture', { src: '/assets/img/medallion-eveil.png', alt: '', w: 184, h: 184, cls: 'medallion', lazy: true }) %>
       <h2 data-i18n="home.eveil.t">English Programs</h2>
@@ -81,16 +91,6 @@ if (_sameAs.length) jsonLd.sameAs = _sameAs;
       <p data-i18n="home.events.d">Book clubs, author talks, storytime, cultural events and more. Join our community!</p>
       <div class="actions">
         <a class="h-btn" href="events.html"><span data-i18n="home.events.cta">See what&rsquo;s on</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
-      </div>
-    </article>
-
-    <article class="h-card gold">
-      <%- include('../partials/picture', { src: '/assets/img/medallion-donate.png', alt: '', w: 184, h: 184, cls: 'medallion', lazy: true }) %>
-      <h2 data-i18n="home.donate.t">Donate Books</h2>
-      <div class="divider"></div>
-      <p data-i18n="home.donate.d">Give your pre-loved English books a second life and help support our community programs.</p>
-      <div class="actions">
-        <a class="h-btn" href="about.html#donate"><span data-i18n="home.donate.cta">Learn more</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
       </div>
     </article>
   </section>
@@ -117,6 +117,14 @@ if (_sameAs.length) jsonLd.sameAs = _sameAs;
       <%- include('../partials/picture', { src: '/assets/img/sprig.png', alt: '', w: 274, h: 232, cls: 'sprig', lazy: true }) %>
     </div>
     <%- include('partials/mkt_member_band') %>
+    <article class="h-card gold donate-card">
+      <h2 data-i18n="home.donate.t">Donate Books</h2>
+      <div class="divider"></div>
+      <p data-i18n="home.donate.d">Give your pre-loved English books a second life and help support our community programs.</p>
+      <div class="actions">
+        <a class="h-btn" href="about.html#donate"><span data-i18n="home.donate.cta">Learn more</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
+      </div>
+    </article>
   </section>
 
 <% const pageI18nEn = {
@@ -129,6 +137,9 @@ if (_sameAs.length) jsonLd.sameAs = _sameAs;
   "home.donate.t": "Donate Books",
   "home.donate.d": "Give your pre-loved English books a second life and help support our community programs.",
   "home.donate.cta": "Learn more",
+  "home.edu.t": "Educational Items",
+  "home.edu.d": "Worksheets, flash cards and more, all new. Reserve online and collect in the shop.",
+  "home.edu.cta": "Browse items",
   "home.eveil.t": "English Programs",
   "home.eveil.d": "Play, learn and grow in English through stories, songs and creative activities.",
   "home.eveil.cta": "Learn more",
@@ -152,6 +163,9 @@ if (_sameAs.length) jsonLd.sameAs = _sameAs;
   "home.donate.t": "Donner des livres",
   "home.donate.d": "Offrez une seconde vie à vos livres en anglais et soutenez nos programmes associatifs.",
   "home.donate.cta": "En savoir plus",
+  "home.edu.t": "Articles éducatifs",
+  "home.edu.d": "Fiches d’exercices, cartes d’apprentissage et plus encore, tout neuf. Réservez en ligne et retirez en boutique.",
+  "home.edu.cta": "Voir les articles",
   "home.eveil.t": "Programmes d’anglais",
   "home.eveil.d": "Jouer, apprendre et grandir en anglais grâce aux histoires, chansons et activités créatives.",
   "home.eveil.cta": "En savoir plus",
