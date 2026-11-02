@@ -169,6 +169,27 @@ test("edit: barcode changes are audited like other fields (none -> X, X -> none)
   assert.equal((await pool.query("SELECT barcode FROM edu_items WHERE id = $1", [it.id])).rows[0].barcode, null);
 });
 
+test("cost (migration 115) and barcode together: both saved on add and edit, both audited, both put back after a refusal", async () => {
+  await post("/admin/edu-items", { name: "Cost And Code", price: "4,50", cost: "1,35", stock: "2", genreId: "", barcode: "4006381333948" });
+  const row = (await pool.query("SELECT id, cost, barcode FROM edu_items WHERE name = 'Cost And Code'")).rows[0];
+  assert.equal(Number(row.cost), 1.35);
+  assert.equal(row.barcode, "4006381333948");
+  assert.match((await auditOf("edu_item.add")).pop().detail, /cost €1\.35, stock 2, barcode 4006381333948/);
+  await post(`/admin/edu-items/${row.id}`, { name: "Cost And Code", price: "4.50", cost: "2", stock: "2", genreId: "", sortOrder: "0", barcode: "73513537" });
+  const d = (await auditOf("edu_item.edit")).pop().detail;
+  assert.match(d, /cost €1\.35 -> €2\.00/);
+  assert.match(d, /barcode 4006381333948 -> 73513537/);
+  const after = (await pool.query("SELECT cost, barcode FROM edu_items WHERE id = $1", [row.id])).rows[0];
+  assert.deepEqual([Number(after.cost), after.barcode], [2, "73513537"]);
+  const bad = await post(`/admin/edu-items/${row.id}`, { name: "Cost And Code", price: "4.50", cost: "3", stock: "2", genreId: "", sortOrder: "0", barcode: "73513538" });
+  assert.match(bad.text, /should be 7/);
+  assert.match(bad.text, /id="edu-cost" name="cost"[^>]*value="3"/);
+  assert.match(bad.text, /id="edu-barcode" name="barcode"[^>]*value="73513538"/);
+  const form = (await get(`/admin/edu-items/${row.id}/edit`)).text;
+  assert.match(form, /id="edu-cost" name="cost"[^>]*value="2\.00"/);
+  assert.match(form, /id="edu-barcode" name="barcode"[^>]*value="73513537"/);
+});
+
 // ---------- the lookup ----------
 
 test("lookup, ISBN found: the title as the name, the source, by/publisher, and the exact-ISBN picture as a suggestion", async () => {

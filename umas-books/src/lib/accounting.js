@@ -205,6 +205,65 @@ async function accountingRows(db, from, to) {
     .sort((a, b) => a.date.localeCompare(b.date) || rank(CATEGORY_ORDER, a.category) - rank(CATEGORY_ORDER, b.category) || rank(METHOD_ORDER, a.method) - rank(METHOD_ORDER, b.method) || Number(a.refund) - Number(b.refund));
 }
 
+// ---------- memo: cost of educational items sold (migration 115) ----------
+//
+// NOT an accounting entry and NOT part of the export rows above (their columns, rows and totals are unchanged): the
+// export has no cost-of-goods line for books either (book_copies.acquisition_cost is only in the Intake report). This
+// memo gives the treasurer the cost of the educational items sold, from the cost recorded on each order line when the
+// unit was reserved (order_items.unit_cost), so they can decide how to book it. Dated like the export's own rows for the
+// same sale: a reservation collected at the till on the day of the (completed) till sale, otherwise on orders.paid_at;
+// a refunded reservation keeps its row and gets a NEGATIVE row (units back in stock) on the refund day, like the
+// export's refund rows. A unit with no recorded cost is counted in "Units with cost unknown", never as zero cost.
+// -> [{ date, category, kind, units, costCents, cost (euros), unknown, refund }], sorted by date then sale before refund.
+const EDU_COST_MEMO_KIND = { sold: "Sold", refund: "Refund (units back in stock)" };
+async function eduCostMemoRows(db, from, to) {
+  const soldAt = `CASE WHEN ${TILL_COLLECTED} THEN (SELECT MIN(ts.created_at) FROM till_sale_items ti JOIN till_sales ts ON ts.id = ti.sale_id
+      WHERE ti.reservation_order_id = o.id AND ts.status = 'completed') ELSE o.paid_at END`;
+  const { rows } = await db.query(
+    `WITH lines AS (
+       SELECT o.id, o.status, o.refunded_at, ${soldAt} AS sold_at, oi.unit_cost
+       FROM order_items oi JOIN orders o ON o.id = oi.order_id
+       WHERE oi.edu_item_id IS NOT NULL AND o.status IN ('paid', 'refunded') AND o.paid_at IS NOT NULL
+     ), memo AS (
+       SELECT (sold_at AT TIME ZONE '${TZ}')::date AS d, false AS rf, 1 AS n, COALESCE(ROUND(unit_cost * 100), 0)::bigint AS cents,
+              (unit_cost IS NULL)::int AS unknown
+       FROM lines WHERE sold_at IS NOT NULL AND ${inRange("sold_at", 1, 2)}
+       UNION ALL
+       SELECT (refunded_at AT TIME ZONE '${TZ}')::date, true, -1, -COALESCE(ROUND(unit_cost * 100), 0)::bigint, -(unit_cost IS NULL)::int
+       FROM lines WHERE status = 'refunded' AND refunded_at IS NOT NULL AND sold_at IS NOT NULL AND ${inRange("refunded_at", 1, 2)}
+     )
+     SELECT to_char(d, 'YYYY-MM-DD') AS date, rf AS refund, SUM(n)::int AS units, SUM(cents)::bigint AS cents, SUM(unknown)::int AS unknown
+     FROM memo GROUP BY d, rf ORDER BY d, rf`,
+    [from, to]
+  );
+  return rows.map((r) => ({
+    date: r.date, category: "Educational items", kind: r.refund ? EDU_COST_MEMO_KIND.refund : EDU_COST_MEMO_KIND.sold,
+    units: r.units, costCents: Number(r.cents), cost: Number(r.cents) / 100, unknown: r.unknown, refund: r.refund,
+  }));
+}
+// The memo as a report section (Admin > Reports > Accounting export, its own "Download CSV": ?table=edu_cost).
+// SUGGESTED_COST_ACCOUNT is only a suggestion written in the note for the treasurer / accountant: it is not used in any
+// export row or mapping.
+const SUGGESTED_COST_ACCOUNT = "607";
+const EDU_COST_COLUMNS = [
+  { key: "date", label: "Date", type: "text" }, { key: "category", label: "Category", type: "text" },
+  { key: "kind", label: "Kind", type: "text" }, { key: "units", label: "Units", type: "int" },
+  { key: "cost", label: "Cost of units (EUR)", type: "eur" }, { key: "unknown", label: "Units with cost unknown", type: "int" },
+];
+function eduCostMemoSection(memo) {
+  const units = memo.reduce((a, r) => a + r.units, 0);
+  const cents = memo.reduce((a, r) => a + r.costCents, 0);
+  const unknown = memo.reduce((a, r) => a + r.unknown, 0);
+  return {
+    key: "edu_cost", title: "Memo (not an accounting entry, not in the export above): cost of educational items sold",
+    columns: EDU_COST_COLUMNS,
+    rows: memo,
+    totals: { date: "Total", category: "", kind: "", units, cost: cents / 100, unknown },
+    csvTotals: false,
+    note: `For the treasurer's information only: these rows are not in the accounting export above and change none of its rows or totals. Cost = what the shop paid for one unit, as recorded on the item when the unit was reserved; a refunded reservation gives a negative row on the refund day (the units went back in stock). ${unknown ? `Cost unknown for ${unknown} unit(s): they are NOT counted as zero, so the cost total is too low by their cost. ` : ""}Books have no such memo (their cost is in the Intake report only). Suggestion, to be confirmed by the accountant: purchases of goods for resale are usually booked from the supplier invoices in account ${SUGGESTED_COST_ACCOUNT} (Achats de marchandises), and this memo can help value the stock at year end (6037 / 37); the app does not book it.`,
+  };
+}
+
 // Totals for a range, in CENTS, split the way the Dashboard shows them (refunds are the
 // export's negative rows, so they are netted in; voided till sales are not in it at all):
 //   membership = the Membership category; online = the other HelloAsso rows (old orders paid
@@ -248,6 +307,7 @@ async function accountingExportReport(db, ctx) {
     "A closed day with a cash difference adds one \"Cash over/short\" row (positive: over, negative: short). The opening float is never revenue and is not in this export.",
     "Educational items (worksheets, flash cards...: new goods, credit account 707 by default) are a category of their own, reserved and paid like books. The association is not subject to VAT (\"TVA non applicable\"), so every amount here is the price paid, with no VAT in it.",
     "Books, educational items and class seats are reserved on the website and paid IN PERSON: a reservation collected at the till is counted once, from the till, and one collected with \"Mark collected and paid\" is counted under the method the staff chose (Cash, Card at the till, Cheque, or Other / not recorded). Only Membership comes from HelloAsso (the membership payments); a HelloAsso row for books is an old order paid online before reservations existed.",
+    "The second table is a MEMO for the treasurer, not part of the export: the cost of the educational items sold (what the shop paid, as recorded when each unit was reserved), with the units whose cost is unknown. It has its own Download CSV and changes nothing in the export.",
     "Older \"Sell in shop\" sales paid by card are shown as Card at the till; those with no payment method as Other / not recorded.",
     "The label, debit account, credit account and journal come from the table at /admin/reports/accounting/mapping. The defaults are a starting point: ask the treasurer to confirm the account numbers and the import layout.",
   ];
@@ -258,6 +318,7 @@ async function accountingExportReport(db, ctx) {
   if (ctx.today && staleness.reachesOpenMonth(ctx.to, ctx.today)) {
     notes.unshift("This period includes the current month, which is not over: these figures are not final and change with every sale. The official monthly export is made on the 1st for the month just ended.");
   }
+  const memo = await eduCostMemoRows(db, ctx.from, ctx.to);
   return {
     banner,
     sections: [{
@@ -270,11 +331,11 @@ async function accountingExportReport(db, ctx) {
         { key: "credit", label: "Compte cr\u00e9dit", type: "text" }, { key: "journal", label: "Journal", type: "text" },
       ],
       rows: out, totals, csvTotals: false, // the CSV is for import: data rows only
-    }],
+    }, eduCostMemoSection(memo)], // a memo of its own, after the export (never mixed into its rows): see eduCostMemoRows
     notes,
   };
 }
 
 module.exports = {
-  accountingExportReport, accountingRows, salesTotals, loadMapping, defaultMapping, mappingKeys, ACCOUNT_RE, JOURNAL_RE, CATEGORY_ORDER, METHOD_ORDER, OVER, OVER_IN, OVER_OUT, DISCOUNT, TRANSFER, DISCOUNT_ORDERS_SQL, TILL_COLLECTED,
+  accountingExportReport, accountingRows, eduCostMemoRows, eduCostMemoSection, EDU_COST_COLUMNS, SUGGESTED_COST_ACCOUNT, salesTotals, loadMapping, defaultMapping, mappingKeys, ACCOUNT_RE, JOURNAL_RE, CATEGORY_ORDER, METHOD_ORDER, OVER, OVER_IN, OVER_OUT, DISCOUNT, TRANSFER, DISCOUNT_ORDERS_SQL, TILL_COLLECTED,
 };

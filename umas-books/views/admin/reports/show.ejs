@@ -134,7 +134,7 @@
     <% } else { %>
     <a class="btn btn-outline btn-small" href="/admin/reports/<%= report.slug %>?format=csv&amp;table=<%= section.key %>&amp;from=<%= query.from %>&amp;to=<%= query.to %>&amp;group=<%= query.group %><%- report.usesPeriod ? '&amp;period=' + query.period : '' %>">Download CSV</a>
     <% } %>
-    <% if (report.slug === 'accounting') { %><a class="btn btn-outline btn-small" href="/admin/reports/accounting/mapping">Accounts mapping</a><% } %>
+    <% if (report.slug === 'accounting' && section.key === 'export') { %><a class="btn btn-outline btn-small" href="/admin/reports/accounting/mapping">Accounts mapping</a><% } %>
   </p>
 </div>
 <% }) %>

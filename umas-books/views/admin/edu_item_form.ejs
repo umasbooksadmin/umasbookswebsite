@@ -1,5 +1,5 @@
 <% const _title = item ? 'Edit educational item' : 'Add an educational item'; %>
-<%- include('../partials/admin_header', { title: _title, active: active, pageTitle: _title, pageSub: 'A picture, a name, a price and how many are in stock. Every educational item is sold as NEW.', extraCss: ['/edu-item-form.css'] }) %>
+<%- include('../partials/admin_header', { title: _title, active: active, pageTitle: _title, pageSub: 'A picture, a name, a price, what it cost us, how many are in stock and (optional) the barcode. Every educational item is sold as NEW.', extraCss: ['/edu-item-form.css'] }) %>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 
@@ -21,6 +21,9 @@
     <label for="edu-price">Price (euros)</label>
     <input id="edu-price" name="price" type="text" inputmode="decimal" value="<%= values.price %>" required style="max-width:140px" aria-describedby="edu-price-help">
     <p class="muted small" id="edu-price-help">Like 4.50 or 4,50. The association is not subject to VAT: this is the price the customer pays.</p>
+    <label for="edu-cost">Cost per unit (what we paid, euros, optional)</label>
+    <input id="edu-cost" name="cost" type="text" inputmode="decimal" value="<%= values.cost %>" style="max-width:140px" aria-describedby="edu-cost-help">
+    <p class="muted small" id="edu-cost-help">Like 1.85 or 1,85, or leave it empty if you do not know it. Only admins see it, never customers. It gives the margin per unit here and the margin in the Sales report. Each reservation keeps the cost of the day it was made, so changing it later does not change past sales.</p>
     <label for="edu-stock">Number in stock</label>
     <input id="edu-stock" name="stock" type="text" inputmode="numeric" value="<%= values.stock %>" required style="max-width:140px" aria-describedby="edu-stock-help">
     <p class="muted small" id="edu-stock-help">A whole number from 0 to <%= maxStock %>: how many you have in the shop, reserved ones included.<% if (item) { %> Open reservations hold <strong><%= held %></strong> right now, so it cannot go below <%= held %>.<% } %> At 0 available, customers see "Sold out".</p>

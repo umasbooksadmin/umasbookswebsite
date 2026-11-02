@@ -17,17 +17,19 @@
   </div>
   <% } %>
   <p><a class="btn" href="/admin/edu-items/new">Add an item</a> <a class="btn btn-outline" href="/educational-items.html" target="_blank" rel="noopener">See the customer page</a></p>
-  <p class="muted small"><strong>Stock</strong> is how many you have in the shop, reserved ones included. <strong>Held</strong> is how many open reservations are keeping for customers; <strong>available</strong> (stock minus held) is what customers can still reserve. At 0 available the item shows "Sold out". Collecting a reservation (the till or "Mark collected and paid") takes the collected units off the stock; a cancelled or expired reservation gives its units back by itself.</p>
+  <p class="muted small"><strong>Stock</strong> is how many you have in the shop, reserved ones included. <strong>Held</strong> is how many open reservations are keeping for customers; <strong>available</strong> (stock minus held) is what customers can still reserve. At 0 available the item shows "Sold out". <strong>Cost per unit</strong> is what the shop paid for one (only admins ever see it); <strong>margin per unit</strong> is the price minus that cost, with the share of the price in brackets. The Sales report shows the margin on what was really sold. Collecting a reservation (the till or "Mark collected and paid") takes the collected units off the stock; a cancelled or expired reservation gives its units back by itself.</p>
   <div class="table-scroll"><table class="ann-table" id="edu-items-table">
-    <thead><tr><th scope="col">Picture</th><th scope="col">Name</th><th scope="col">Genre</th><th scope="col">Price</th><th scope="col">Stock</th><th scope="col">Held</th><th scope="col">Available</th><th scope="col">Shown</th><th scope="col">Position</th><th scope="col">Actions</th></tr></thead>
+    <thead><tr><th scope="col">Picture</th><th scope="col">Name</th><th scope="col">Genre</th><th scope="col">Price</th><th scope="col">Cost per unit</th><th scope="col">Margin per unit</th><th scope="col">Stock</th><th scope="col">Held</th><th scope="col">Available</th><th scope="col">Shown</th><th scope="col">Position</th><th scope="col">Actions</th></tr></thead>
     <tbody>
-    <% if (!items.length) { %><tr><td colspan="10" class="muted">No educational items yet. Press "Add an item".</td></tr><% } %>
+    <% if (!items.length) { %><tr><td colspan="12" class="muted">No educational items yet. Press "Add an item".</td></tr><% } %>
     <% items.forEach(i => { %>
       <tr<%- i.is_hidden ? ' class="muted"' : '' %>>
         <td><% if (i.image_url) { %><img src="<%= i.image_url %>" alt="" width="48" height="48" style="object-fit:contain;background:#f5f0e6"><% } else { %><span class="muted small">none</span><% } %></td>
         <td><a href="/admin/edu-items/<%= i.id %>/edit"><%= i.name %></a><% if (i.barcode) { %><br><span class="muted small">Barcode <%= i.barcode %></span><% } %></td>
         <td><%= i.genre_name || '—' %></td>
         <td>&euro;<%= money(i.price) %></td>
+        <td class="edu-cost"><% if (i.cost == null) { %><span class="muted small">not known</span><% } else { %>&euro;<%= money(i.cost) %><% } %></td>
+        <td class="edu-margin"><% if (i.margin == null) { %><span class="muted small">–</span><% } else { %>&euro;<%= money(i.margin) %><% if (Number(i.price) > 0) { %> <span class="muted small">(<%= (100 * i.margin / Number(i.price)).toFixed(0) %>%)</span><% } %><% } %></td>
         <td><%= i.stock %></td>
         <td><%= i.held %></td>
         <td><strong><%= i.available %></strong><%= i.available === 0 ? ' (sold out)' : '' %></td>
