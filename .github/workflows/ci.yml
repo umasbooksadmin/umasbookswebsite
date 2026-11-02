@@ -50,6 +50,23 @@ jobs:
         id: changes
         working-directory: .
         run: bash .github/scripts/ci-changes.sh
+      # A workflow file that is not valid YAML never runs, and GitHub only says so on its own run page
+      # (this once silently stopped the nightly backup and the inventory export). Parse every one here.
+      - name: Every workflow file must be valid YAML
+        working-directory: .
+        run: |
+          python3 -c "import yaml" 2>/dev/null || pip install --quiet pyyaml
+          python3 - <<'PY'
+          import glob, sys, yaml
+          bad = 0
+          for f in sorted(glob.glob(".github/workflows/*.yml")):
+              try:
+                  yaml.safe_load(open(f))
+              except Exception as e:
+                  print(f"::error file={f}::{str(e).splitlines()[0]}")
+                  bad = 1
+          sys.exit(bad)
+          PY
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.changes.outputs.docs_only != 'true'
         with:
