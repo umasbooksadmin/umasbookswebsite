@@ -1,4 +1,5 @@
 <%- include('partials/header', { noindex: true, title: tr('Reservation', 'Réservation') }) %>
+<% const _items = locals.items || []; const _kind = _items.some((i) => i.isEdu) ? (_items.some((i) => !i.isSeat && !i.isEdu) ? 'mixed' : 'edu') : 'books'; const lt = legalText.forItems(_kind); /* the sentences name books, or items when the reservation holds educational items */ %>
 
 <% if (locals.notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 
@@ -27,7 +28,7 @@
 <% } else if (status === 'reserved') { %>
   <div class="order-receipt">
   <h1><%= tr('Reservation #{n} recorded', 'Réservation n°{n} enregistrée', { n: order.id }) %></h1>
-  <p class="muted"><%= legalText.nothingPaidOnline %></p>
+  <p class="muted"><%= lt.nothingPaidOnline %></p>
   <div class="card" id="order-summary">
     <p class="small"><strong><%= tr('Reservation #{n}', 'Réservation n°{n}', { n: order.id }) %></strong>
       &middot; <%= tr('made on', 'faite le') %> <%= formatDateTime(order.created_at) %>
@@ -49,9 +50,9 @@
     <% if (items.some((i) => i.isSeat)) { %>
       <p class="small"><%= tr('Drop-in seats: you pay at the session. A seat can be cancelled online until {hours} hours before the session.', 'Places « drop-in » : vous réglez à la séance. Une place peut être annulée en ligne jusqu’à {hours} heures avant la séance.', { hours: limits.seatHours }) %></p>
     <% } %>
-    <p class="muted small"><%= tr("Uma's Books — association loi 1901, " + legalText.registeredOffice + " — " + legalText.contactEmail + ". Pay and collect at the shop (" + legalText.shopStreet + ") and give this reservation number. " + legalText.shopHoursFirm, "Uma's Books — association loi 1901, " + legalText.registeredOffice + " — " + legalText.contactEmail + ". Réglez et retirez à la boutique (" + legalText.shopStreetInline + ") en indiquant ce numéro de réservation. " + legalText.shopHoursFirm) %></p>
+    <p class="muted small"><%= tr("Uma's Books — association loi 1901, " + legalText.registeredOffice + " — " + legalText.contactEmail + ". Pay and collect at the shop (" + legalText.shopStreet + ") and give this reservation number. " + lt.shopHoursFirm, "Uma's Books — association loi 1901, " + legalText.registeredOffice + " — " + legalText.contactEmail + ". Réglez et retirez à la boutique (" + legalText.shopStreetInline + ") en indiquant ce numéro de réservation. " + lt.shopHoursFirm) %></p>
   </div>
-  <p class="muted small no-returns-note"><%= legalText.noReturnsShort %> <%= legalText.noReturnsSee %> <a href="<%= legalText.noReturnsLinkPath %>"><%= legalText.noReturnsLinkLabel %></a>.</p>
+  <p class="muted small no-returns-note"><%= lt.noReturnsShort %> <%= legalText.noReturnsSee %> <a href="<%= legalText.noReturnsLinkPath %>"><%= legalText.noReturnsLinkLabel %></a>.</p>
   <p class="muted small"><%= tr('A confirmation email is on its way to {email}.', 'Un e-mail de confirmation vous est envoyé à l’adresse {email}.', { email: order.buyer_email }) %></p>
   <p class="no-print"><button type="button" class="btn" data-print><%= tr('Print this page', 'Imprimer cette page') %></button></p>
   <% if (locals.manageToken) { %>
@@ -100,7 +101,7 @@
   <p><a class="btn" href="/books.html"><%= tr('Back to Books', 'Retour aux livres') %></a></p>
 <% } else { %>
   <h1><%= tr('Reservation not completed', 'Réservation non finalisée') %></h1>
-  <p class="muted"><%= tr('This reservation was never completed, so nothing was charged. Any books are back in stock.', 'Cette réservation n’a jamais été finalisée ; rien n’a donc été débité. Les livres éventuels sont de nouveau en stock.') %></p>
+  <p class="muted"><%= tr('This reservation was never completed, so nothing was charged. Any books or educational items are back in stock.', 'Cette réservation n’a jamais été finalisée ; rien n’a donc été débité. Les livres ou articles éducatifs éventuels sont de nouveau en stock.') %></p>
   <p><a class="btn" href="/books.html"><%= tr('Back to Books', 'Retour aux livres') %></a></p>
 <% } %>
 

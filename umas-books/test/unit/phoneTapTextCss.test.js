@@ -142,16 +142,23 @@ test("header on a phone: six icons fit one row at 320px (the heart moves into th
   assert.ok(header.atRules("media").includes(PHONE_MENU.at), "the Menu button also on a sideways phone");
   assert.match(read("umas-books", "public", "site-menu.js"), /\(max-width: 640px\), \(max-height: 500px\) and \(max-width: 1000px\)/, "site-menu.js uses the same condition");
 });
-test("header: wide headers (French, signed in, admin) drop the menu under the logo instead of scrolling sideways", () => {
-  // Since the sixth menu link (Browse Educational Items, 2026-11-02) only an English visitor who is not signed in keeps
-  // the one-row header, from 1251px; every other header drops the menu under the logo from 901px.
-  for (const [at, sel] of [
-    ["@media (min-width: 901px) and (max-width: 1250px) and (min-height: 501px)", "header.mkt-header"],
-    ["@media (min-width: 901px) and (min-height: 501px)", ":lang(fr) header.mkt-header"],
-    ["@media (min-width: 901px) and (min-height: 501px)", "header.mkt-header:has(.h-tools > form)"],
-    ["@media (min-width: 901px) and (min-height: 501px)", 'header.mkt-header:has(.h-tools > a[href="/admin"])'],
-    ["@media (min-width: 901px) and (min-height: 501px)", ":lang(fr) header.mkt-header:has(.h-tools > form)"],
-  ]) assert.ok(header.hasRule(sel, { at }), `${sel} has a rule in ${at}`);
+test("header: wide headers (French, signed in, admin) drop the menu under the logo, or shrink their type, instead of scrolling sideways", () => {
+  // Measured 2026-11-02 with scripts/header-width-audit.js (six menu links); thresholds carry a 10px margin. Everybody drops the menu up
+  // to 1084px; the wider the visitor's header (French, signed in, admin, French and signed in, French admin), the higher.
+  const F = ":lang(fr) header.mkt-header", S = "header.mkt-header:has(.h-tools > form)", D = 'header.mkt-header:has(.h-tools > a[href="/admin"])';
+  const FS = ":lang(fr) header.mkt-header:has(.h-tools > form)", FD = ':lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"])';
+  const at = (lo, hi) => `@media (min-width: ${lo}px) and (max-width: ${hi}px) and (min-height: 501px)`;
+  for (const [lo, hi, sels] of [[901, 1084, ["header.mkt-header"]], [1085, 1205, [F, S]], [1206, 1224, [D, FS]], [1225, 1246, [D]], [1247, 1276, [FD]]]) {
+    for (const sel of sels) {
+      assert.ok(header.hasRule(`${sel} .h-nav`, { at: at(lo, hi) }), `${sel}: the menu drops under the logo from ${lo} to ${hi}px`);
+      assert.equal(header.getDecl(`${sel} .h-nav`, "order", { at: at(lo, hi) }), "3");
+    }
+  }
+  // Where the normal sizes still overflow: compact type (15px links), tighter (14px links) for the widest headers.
+  for (const [lo, hi, sels, font] of [[1181, 1190, ["header.mkt-header"], "15px"], [1206, 1489, [F, S], "15px"], [1490, 1513, [F, D], "15px"], [1514, 1621, [D, FS], "15px"],
+    [1622, 1783, [FS], "15px"], [1784, 1915, [FD], "15px"], [1225, 1331, [FS], "14px"], [1225, 1387, [FD], "14px"]]) {
+    for (const sel of sels) assert.equal(header.getDecl(`${sel} .h-nav a`, "font-size", { at: at(lo, hi) }), font, `${sel}: ${font} links from ${lo} to ${hi}px`);
+  }
 });
 test("cart: the 14-day sentence is shown once; the second paragraph says only where and when", () => {
   const { legalFor } = require("../../src/lib/legalText");
@@ -163,7 +170,7 @@ test("cart: the 14-day sentence is shown once; the second paragraph says only wh
     assert.ok(l.pickup.includes(l.pickupWhere), `${lang}: pickup is "hold" + pickupWhere (the other pages keep using it)`);
   }
   const cart = read("umas-books", "views", "cart.ejs");
-  assert.match(cart, /legalText\.pickupWhere/);
+  assert.match(cart, /lt\.pickupWhere/);
   assert.doesNotMatch(cart, /legalText\.pickup\b(?!Where)/);
 });
 

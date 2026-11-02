@@ -34,7 +34,7 @@ test("the English page: nav tab, genres, the 'new' line, items with Add or Sold 
   const { res, text } = await visit("/educational-items.html");
   assert.equal(res.status, 200);
   assert.match(res.headers.get("cache-control"), /no-store/);
-  assert.match(text, /href="\/educational-items\.html"[^>]*>Browse Educational Items</);
+  assert.match(text, /href="\/educational-items\.html"[^>]*>Educational Items</);
   assert.match(text, /All educational items are new\./);
   assert.match(text, />Worksheets</);
   assert.match(text, />Flash Cards</);
@@ -53,7 +53,8 @@ test("the French twin: Épuisé, the French 'new' line, names marked lang=en", a
   const { res, text } = await visit("/fr/educational-items.html");
   assert.equal(res.status, 200);
   assert.match(text, /Tous les articles éducatifs sont neufs\./);
-  assert.match(text, /Parcourir les articles éducatifs/);
+  assert.match(text, /href="\/fr\/educational-items\.html"[^>]*>Articles éducatifs</, "the short nav tab");
+  assert.match(text, /<h1>Parcourir les articles éducatifs<\/h1>/, "the page heading keeps the long wording");
   assert.match(card(text, items.verbs.id), /disabled>Épuisé</);
   assert.match(text, /<div class="t" lang="en">Phonics Picture Cards<\/div>/);
   assert.match(text, /<span lang="en">Flash Cards<\/span>/);

@@ -171,10 +171,11 @@ function shopHoursShort(lang, html = false) {
 
 // FIRM text, for reservation, order and reminder emails, the cart and the
 // terms of sale: only the regular hours are promised.
-function shopHoursFirm(lang) {
+// `items`: the reservation holds educational items (new goods), so it says "items" instead of "books".
+function shopHoursFirm(lang, items = false) {
   return lang === "fr"
-    ? `Venez retirer vos livres pendant nos horaires habituels, ${module.exports.SHOP_DAYS_FR}, ${module.exports.SHOP_HOURS_FR_SPOKEN}. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis.`
-    : `Collect your books during our regular hours, ${module.exports.SHOP_DAYS_EN}, ${module.exports.SHOP_HOURS_EN}. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed.`;
+    ? `Venez retirer ${items ? "vos articles" : "vos livres"} pendant nos horaires habituels, ${module.exports.SHOP_DAYS_FR}, ${module.exports.SHOP_HOURS_FR_SPOKEN}. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis.`
+    : `Collect your ${items ? "items" : "books"} during our regular hours, ${module.exports.SHOP_DAYS_EN}, ${module.exports.SHOP_HOURS_EN}. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed.`;
 }
 
 function shopHours(lang) {

@@ -180,17 +180,22 @@ header.mkt-header .langtoggle span { color: var(--line); }
   header.mkt-header .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
   header.mkt-header .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
 }
-/* Wide headers: the one-row header (logo, menu, icons) did not fit in some cases, and the page scrolled sideways by up
-   to 290px. In those cases the menu drops under the logo, exactly like the 900px rules above. Since the sixth menu
-   link ("Browse Educational Items" / "Parcourir les articles éducatifs", 2026-11-02; measured with puppeteer from
-   901 to 2000px) the one-row header only fits in English for a visitor who is not signed in, from 1251px:
-   - English, not signed in, 901-1250px;
-   - French (longer words: "Parcourir les articles éducatifs"), from 901px;
-   - signed in (extra "Log Out" and "Member's Access" icons, an "Admin" one for admins), from 901px;
-   - an admin (one more icon), from 901px;
-   - signed in and French, from 901px.
+/* Wide headers: the one-row header (logo, menu, icons) does not fit for everybody, and the page scrolled sideways by up
+   to 290px. Where it does not fit, the menu drops under the logo exactly like the 900px rules above; where it fits only
+   with smaller type, the sizes shrink instead. Measured with puppeteer at every width from 901 to 2000px (2026-11-02,
+   six menu links: Home, Browse Books, Educational Items, English Programs, Events, Favorites), each threshold has a 10px margin.
+   Visitor kinds (F = French, S = signed in, D = admin, which also has the Log Out icon):
+   - menu under the logo: everybody up to 1084px; French or signed in up to 1205px; admin or signed in and French up to 1224px;
+     admin up to 1246px; French admin up to 1276px.
+   - one row, smaller type ("compact": 15px links, 12px icon labels, 180px logo) in the stretch where the normal sizes still overflow:
+     from 1181px (everybody; the normal sizes need 1185px) and, for French or signed-in visitors, up to 1489px, a French visitor up to 1513px,
+     an admin or a signed-in French visitor up to 1621px, a signed-in French visitor up to 1783px, a French admin up to 1915px.
+   - one row, tighter ("tight": 14px links, 8px between icons, 160px logo) for a signed-in French visitor from 1225 to 1331px and a
+     French admin from 1225 to 1387px; above that the compact type fits.
+   Re-measure when a menu link, an icon or a label changes: node scripts/header-width-audit.js (prints, per visitor kind, the widths
+   where the header is one row and fits).
    (Not for a phone turned sideways, which has its own one-row header below.) */
-@media (min-width: 901px) and (max-width: 1250px) and (min-height: 501px) {
+@media (min-width: 901px) and (max-width: 1084px) and (min-height: 501px) {
   header.mkt-header { padding-bottom: 18px; }
   header.mkt-header .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
   header.mkt-header .h-logo img { width: 160px; height: auto; }
@@ -199,25 +204,25 @@ header.mkt-header .langtoggle span { color: var(--line); }
   header.mkt-header .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
   header.mkt-header .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
 }
-@media (min-width: 901px) and (min-height: 501px) {
-  :lang(fr) header.mkt-header { padding-bottom: 18px; }
-  :lang(fr) header.mkt-header .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-  :lang(fr) header.mkt-header .h-logo img { width: 160px; height: auto; }
-  :lang(fr) header.mkt-header .h-tools { margin: 0 0 0 auto; }
-  :lang(fr) header.mkt-header .h-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; margin: 0; padding: 0; }
-  :lang(fr) header.mkt-header .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
-  :lang(fr) header.mkt-header .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
+@media (min-width: 1085px) and (max-width: 1205px) and (min-height: 501px) {
+  :lang(fr) header.mkt-header, header.mkt-header:has(.h-tools > form) { padding-bottom: 18px; }
+  :lang(fr) header.mkt-header .h-header-row, header.mkt-header:has(.h-tools > form) .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  :lang(fr) header.mkt-header .h-logo img, header.mkt-header:has(.h-tools > form) .h-logo img { width: 160px; height: auto; }
+  :lang(fr) header.mkt-header .h-tools, header.mkt-header:has(.h-tools > form) .h-tools { margin: 0 0 0 auto; }
+  :lang(fr) header.mkt-header .h-nav, header.mkt-header:has(.h-tools > form) .h-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; margin: 0; padding: 0; }
+  :lang(fr) header.mkt-header .h-nav a, header.mkt-header:has(.h-tools > form) .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
+  :lang(fr) header.mkt-header .h-menu-links, header.mkt-header:has(.h-tools > form) .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
 }
-@media (min-width: 901px) and (min-height: 501px) {
-  header.mkt-header:has(.h-tools > form) { padding-bottom: 18px; }
-  header.mkt-header:has(.h-tools > form) .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-  header.mkt-header:has(.h-tools > form) .h-logo img { width: 160px; height: auto; }
-  header.mkt-header:has(.h-tools > form) .h-tools { margin: 0 0 0 auto; }
-  header.mkt-header:has(.h-tools > form) .h-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; margin: 0; padding: 0; }
-  header.mkt-header:has(.h-tools > form) .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
-  header.mkt-header:has(.h-tools > form) .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
+@media (min-width: 1206px) and (max-width: 1224px) and (min-height: 501px) {
+  header.mkt-header:has(.h-tools > a[href="/admin"]), :lang(fr) header.mkt-header:has(.h-tools > form) { padding-bottom: 18px; }
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-header-row, :lang(fr) header.mkt-header:has(.h-tools > form) .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-logo img, :lang(fr) header.mkt-header:has(.h-tools > form) .h-logo img { width: 160px; height: auto; }
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-tools, :lang(fr) header.mkt-header:has(.h-tools > form) .h-tools { margin: 0 0 0 auto; }
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav, :lang(fr) header.mkt-header:has(.h-tools > form) .h-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; margin: 0; padding: 0; }
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav a, :lang(fr) header.mkt-header:has(.h-tools > form) .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-menu-links, :lang(fr) header.mkt-header:has(.h-tools > form) .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
 }
-@media (min-width: 901px) and (min-height: 501px) {
+@media (min-width: 1225px) and (max-width: 1246px) and (min-height: 501px) {
   header.mkt-header:has(.h-tools > a[href="/admin"]) { padding-bottom: 18px; }
   header.mkt-header:has(.h-tools > a[href="/admin"]) .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
   header.mkt-header:has(.h-tools > a[href="/admin"]) .h-logo img { width: 160px; height: auto; }
@@ -226,14 +231,86 @@ header.mkt-header .langtoggle span { color: var(--line); }
   header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
   header.mkt-header:has(.h-tools > a[href="/admin"]) .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
 }
-@media (min-width: 901px) and (min-height: 501px) {
-  :lang(fr) header.mkt-header:has(.h-tools > form) { padding-bottom: 18px; }
-  :lang(fr) header.mkt-header:has(.h-tools > form) .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+@media (min-width: 1247px) and (max-width: 1276px) and (min-height: 501px) {
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) { padding-bottom: 18px; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-logo img { width: 160px; height: auto; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-tools { margin: 0 0 0 auto; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; margin: 0; padding: 0; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
+}
+@media (min-width: 1181px) and (max-width: 1190px) and (min-height: 501px) {
+  header.mkt-header .h-header-row { gap: 18px; }
+  header.mkt-header .h-nav { padding-left: 0; }
+  header.mkt-header .h-menu-links { gap: 20px; }
+  header.mkt-header .h-nav a { font-size: 15px; }
+  header.mkt-header .h-tools { gap: 12px; }
+  header.mkt-header .h-tool { font-size: 12px; }
+  header.mkt-header .h-logo img { width: 180px; height: auto; }
+}
+@media (min-width: 1206px) and (max-width: 1489px) and (min-height: 501px) {
+  :lang(fr) header.mkt-header .h-header-row, header.mkt-header:has(.h-tools > form) .h-header-row { gap: 18px; }
+  :lang(fr) header.mkt-header .h-nav, header.mkt-header:has(.h-tools > form) .h-nav { padding-left: 0; }
+  :lang(fr) header.mkt-header .h-menu-links, header.mkt-header:has(.h-tools > form) .h-menu-links { gap: 20px; }
+  :lang(fr) header.mkt-header .h-nav a, header.mkt-header:has(.h-tools > form) .h-nav a { font-size: 15px; }
+  :lang(fr) header.mkt-header .h-tools, header.mkt-header:has(.h-tools > form) .h-tools { gap: 12px; }
+  :lang(fr) header.mkt-header .h-tool, header.mkt-header:has(.h-tools > form) .h-tool { font-size: 12px; }
+  :lang(fr) header.mkt-header .h-logo img, header.mkt-header:has(.h-tools > form) .h-logo img { width: 180px; height: auto; }
+}
+@media (min-width: 1490px) and (max-width: 1513px) and (min-height: 501px) {
+  :lang(fr) header.mkt-header .h-header-row, header.mkt-header:has(.h-tools > a[href="/admin"]) .h-header-row { gap: 18px; }
+  :lang(fr) header.mkt-header .h-nav, header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav { padding-left: 0; }
+  :lang(fr) header.mkt-header .h-menu-links, header.mkt-header:has(.h-tools > a[href="/admin"]) .h-menu-links { gap: 20px; }
+  :lang(fr) header.mkt-header .h-nav a, header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav a { font-size: 15px; }
+  :lang(fr) header.mkt-header .h-tools, header.mkt-header:has(.h-tools > a[href="/admin"]) .h-tools { gap: 12px; }
+  :lang(fr) header.mkt-header .h-tool, header.mkt-header:has(.h-tools > a[href="/admin"]) .h-tool { font-size: 12px; }
+  :lang(fr) header.mkt-header .h-logo img, header.mkt-header:has(.h-tools > a[href="/admin"]) .h-logo img { width: 180px; height: auto; }
+}
+@media (min-width: 1514px) and (max-width: 1621px) and (min-height: 501px) {
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-header-row, :lang(fr) header.mkt-header:has(.h-tools > form) .h-header-row { gap: 18px; }
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav, :lang(fr) header.mkt-header:has(.h-tools > form) .h-nav { padding-left: 0; }
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-menu-links, :lang(fr) header.mkt-header:has(.h-tools > form) .h-menu-links { gap: 20px; }
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav a, :lang(fr) header.mkt-header:has(.h-tools > form) .h-nav a { font-size: 15px; }
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-tools, :lang(fr) header.mkt-header:has(.h-tools > form) .h-tools { gap: 12px; }
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-tool, :lang(fr) header.mkt-header:has(.h-tools > form) .h-tool { font-size: 12px; }
+  header.mkt-header:has(.h-tools > a[href="/admin"]) .h-logo img, :lang(fr) header.mkt-header:has(.h-tools > form) .h-logo img { width: 180px; height: auto; }
+}
+@media (min-width: 1622px) and (max-width: 1783px) and (min-height: 501px) {
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-header-row { gap: 18px; }
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-nav { padding-left: 0; }
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-menu-links { gap: 20px; }
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-nav a { font-size: 15px; }
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-tools { gap: 12px; }
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-tool { font-size: 12px; }
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-logo img { width: 180px; height: auto; }
+}
+@media (min-width: 1784px) and (max-width: 1915px) and (min-height: 501px) {
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-header-row { gap: 18px; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav { padding-left: 0; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-menu-links { gap: 20px; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav a { font-size: 15px; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-tools { gap: 12px; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-tool { font-size: 12px; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-logo img { width: 180px; height: auto; }
+}
+@media (min-width: 1225px) and (max-width: 1331px) and (min-height: 501px) {
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-header-row { gap: 14px; }
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-nav { padding-left: 0; }
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-menu-links { gap: 16px; }
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-nav a { font-size: 14px; }
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-tools { gap: 8px; }
+  :lang(fr) header.mkt-header:has(.h-tools > form) .h-tool { font-size: 12px; }
   :lang(fr) header.mkt-header:has(.h-tools > form) .h-logo img { width: 160px; height: auto; }
-  :lang(fr) header.mkt-header:has(.h-tools > form) .h-tools { margin: 0 0 0 auto; }
-  :lang(fr) header.mkt-header:has(.h-tools > form) .h-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; margin: 0; padding: 0; }
-  :lang(fr) header.mkt-header:has(.h-tools > form) .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
-  :lang(fr) header.mkt-header:has(.h-tools > form) .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
+}
+@media (min-width: 1225px) and (max-width: 1387px) and (min-height: 501px) {
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-header-row { gap: 14px; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav { padding-left: 0; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-menu-links { gap: 16px; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav a { font-size: 14px; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-tools { gap: 8px; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-tool { font-size: 12px; }
+  :lang(fr) header.mkt-header:has(.h-tools > a[href="/admin"]) .h-logo img { width: 160px; height: auto; }
 }
 /* PHONES. One compact header (about 105px at 375px, it used to be 253px):
    row 1 = logo + the icon buttons, row 2 = the "Menu" button + EN | FR.

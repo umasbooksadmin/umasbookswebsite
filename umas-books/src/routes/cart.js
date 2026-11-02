@@ -422,6 +422,11 @@ async function reservationRefusal(req, err, cart, { guest }) {
   // A guest (anonymous) gets ONE neutral sentence for every limit: the specific ones would tell anybody who types an
   // address whether it has open reservations or was mailed recently. Signed-in users keep the specific messages.
   if (guest && ["TOO_MANY_RESERVATIONS", "TOO_MANY_COPIES", "MAIL_THROTTLED", "GUEST_IP_HOLDS", "GUEST_HOLDS_FULL"].includes(err.message)) {
+    if (Array.isArray(cart) && cart.some((l) => l && l.kind === "edu")) {
+      return req.tr(
+        "We cannot hold these items right now: too many reservations are waiting to be confirmed. Please try again in a little while, or create an account.",
+        "Nous ne pouvons pas garder ces articles pour le moment : trop de réservations attendent d’être confirmées. Veuillez réessayer dans un moment, ou créer un compte.");
+    }
     return req.tr(
       "We cannot hold these books right now: too many reservations are waiting to be confirmed. Please try again in a little while, or create an account.",
       "Nous ne pouvons pas garder ces livres pour le moment : trop de réservations attendent d’être confirmées. Veuillez réessayer dans un moment, ou créer un compte.");
@@ -651,9 +656,13 @@ router.get("/cart/guest/confirm/:token", guestLinkLimiter, async (req, res) => {
   privatePage(res);
   const peek = await guestOrders.peekConfirmToken(pool, req.params.token);
   let order = null;
-  if (peek.state === "ask") order = (await pool.query("SELECT id, reserved_until FROM orders WHERE id = $1", [peek.orderId])).rows[0];
+  let hasEdu = false; // the sentence says "items" instead of "books" when the reservation holds educational items
+  if (peek.state === "ask") {
+    order = (await pool.query("SELECT id, reserved_until FROM orders WHERE id = $1", [peek.orderId])).rows[0];
+    hasEdu = (await pool.query("SELECT 1 FROM order_items WHERE order_id = $1 AND edu_item_id IS NOT NULL LIMIT 1", [peek.orderId])).rowCount > 0;
+  }
   res.status(peek.state === "ask" ? 200 : 400).render("cart_guest_confirm", {
-    state: peek.state, order, token: peek.state === "ask" ? req.params.token : "", confirmHours: GUEST_CONFIRM_HOURS,
+    state: peek.state, order, token: peek.state === "ask" ? req.params.token : "", confirmHours: GUEST_CONFIRM_HOURS, hasEdu,
   });
 });
 

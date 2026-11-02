@@ -67,6 +67,11 @@ test("reserving a book and educational items: one order, a line per unit, the ho
     const it = await item({ price: 2.5, stock: 5 });
     await v.post("/cart/add", { copyId: copy });
     await v.post("/cart/add-edu", { eduItemId: it.id, qty: "2", backTo: "/educational-items.html" });
+    // The cart sentences name the goods: "items" (not "books") once an educational item is in the cart.
+    const cartPage = (await v.get("/cart")).text;
+    assert.match(cartPage, lang === "en" ? /We hold your items for 14 days/ : /Nous gardons vos articles 14 jours/);
+    assert.match(cartPage, lang === "en" ? /after you have seen the items\. Used books are not taken back/ : /après avoir vu les articles\. Les livres d’occasion/);
+    assert.doesNotMatch(cartPage, lang === "en" ? /hold your books|seen the book\b/ : /vos livres|vu le livre/);
     const sentBefore = h.sent.length;
     const r = await v.post("/cart/reserve", { acceptCgv: "on", name: "Edu Buyer" });
     assert.equal(r.status, 302, r.text.slice(0, 300));
@@ -79,10 +84,12 @@ test("reserving a book and educational items: one order, a line per unit, the ho
     assert.ok(mail, "a confirmation email");
     if (lang === "en") {
       assert.match(mail.text, /All educational items are new\./);
+      assert.match(mail.text, /We hold your items until the end of/);
       assert.match(mail.text, new RegExp(`${it.name} \\(New\\) — €2\\.50`));
     } else {
       assert.match(mail.text, /Tous les articles éducatifs sont neufs\./);
       assert.match(mail.text, /\(Neuf\)/);
+      assert.match(mail.text, /Nous gardons vos articles jusqu’à la fin/);
     }
   }
 });
@@ -103,4 +110,22 @@ test("units reserved by someone else meanwhile: the cart is cut down to what is 
   await b.post("/cart/reserve", { acceptCgv: "on", name: "Second" });
   assert.equal((await h.ordersOf(bAccount)).length, 0);
   assert.equal(await held(it.id), 2);
+});
+
+test("a guest's cart page and guest form say 'items' (EN/FR) for educational items, and 'books' for books only", async () => {
+  for (const lang of ["en", "fr"]) {
+    const it = await item({ stock: 3 });
+    const g = visitor(undefined, { lang });
+    await g.post("/cart/add-edu", { eduItemId: it.id, qty: "1", backTo: "/educational-items.html" });
+    const form = await g.get("/cart/guest");
+    assert.equal(form.status, 200, form.text.slice(0, 200));
+    assert.match(form.text, lang === "en" ? /We hold the items at once[^<]*or the items go back on sale/ : /Nous gardons les articles tout de suite[^<]*les articles sont remis en vente/);
+    assert.match(form.text, lang === "en" ? /We hold your items for 14 days/ : /Nous gardons vos articles 14 jours/);
+    assert.doesNotMatch(form.text, lang === "en" ? /We hold the books|hold your books|seen the book\b/ : /gardons les livres|vos livres|vu le livre/);
+    const copy = await h.copy({ price: 5 });
+    const b = visitor(undefined, { lang });
+    await b.post("/cart/add", { copyId: copy });
+    const bookForm = await b.get("/cart/guest");
+    assert.match(bookForm.text, lang === "en" ? /We hold the books at once/ : /Nous gardons les livres tout de suite/, "books only: the existing wording");
+  }
 });

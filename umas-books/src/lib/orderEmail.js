@@ -4,7 +4,7 @@ const { emailTr, normLang } = require("./lang");
 const { formatEuro } = require("./money");
 const { orderItemLabel, reservationLastDay } = require("./orderItems");
 const legal = require("./legal");
-const { NO_RETURNS, noReturnsShortPlain, vatNotice } = require("./legalText");
+const { noReturnsShortPlain, vatNotice, itemsKind, forItems } = require("./legalText");
 const { frenchPlainText } = require("./frenchTypography");
 
 // The shop you pick up at (Rue Peyrolière) is NOT the association's
@@ -25,27 +25,36 @@ const SELLER_LINES = sellerLines();
 // confirm, docs/legal-todos.md). What stays: the no-returns notice, the legal
 // guarantees, the mediator and the seller identity. The full terms of sale stay
 // at /terms-of-sale.html.
-const LEGAL_RIGHTS_EN = [
-  "YOUR RIGHTS",
-  NO_RETURNS.en,
-  "Legal guarantees: you keep the legal guarantee of conformity (art. L.217-3 et seq. of the Consumer Code) and the guarantee against hidden defects (arts. 1641 et seq. of the Civil Code). We give no commercial guarantee beyond these.",
-  "Complaints: write to " + legal.CONTACT_EMAIL + ". If we cannot settle it, you may use our free consumer mediator: CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
-];
-const LEGAL_RIGHTS_FR = [
-  "VOS DROITS",
-  NO_RETURNS.fr,
-  "Garanties légales : vous conservez la garantie légale de conformité (art. L.217-3 et suivants du Code de la consommation) et la garantie contre les vices cachés (art. 1641 et suivants du Code civil). Nous n’offrons aucune garantie commerciale en plus de celles-ci.",
-  "Réclamations : écrivez à " + legal.CONTACT_EMAIL + ". À défaut de règlement amiable, vous pouvez recourir gratuitement à notre médiateur de la consommation : CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
-];
-// English email: the English block, then the French one (as before). French email: French only.
-const LEGAL_RIGHTS = [...LEGAL_RIGHTS_EN, "", ...LEGAL_RIGHTS_FR].join("\n\n").replace(/\n\n\n\n/g, "\n\n");
-const LEGAL_RIGHTS_FRENCH_ONLY = LEGAL_RIGHTS_FR.join("\n\n");
+// The legal block of the email. `kind` (legalText.itemsKind): "books" is the text the terms of sale carry; an order that holds
+// educational items (new goods) says "items" and, with no used book in it, does not talk about used books.
+function legalRights(lang, kind = "books") {
+  const noReturns = (l) => forItems(l, kind).noReturns;
+  const en = [
+    "YOUR RIGHTS",
+    noReturns("en"),
+    "Legal guarantees: you keep the legal guarantee of conformity (art. L.217-3 et seq. of the Consumer Code) and the guarantee against hidden defects (arts. 1641 et seq. of the Civil Code). We give no commercial guarantee beyond these.",
+    "Complaints: write to " + legal.CONTACT_EMAIL + ". If we cannot settle it, you may use our free consumer mediator: CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
+  ];
+  const fr = [
+    "VOS DROITS",
+    noReturns("fr"),
+    "Garanties légales : vous conservez la garantie légale de conformité (art. L.217-3 et suivants du Code de la consommation) et la garantie contre les vices cachés (art. 1641 et suivants du Code civil). Nous n’offrons aucune garantie commerciale en plus de celles-ci.",
+    "Réclamations : écrivez à " + legal.CONTACT_EMAIL + ". À défaut de règlement amiable, vous pouvez recourir gratuitement à notre médiateur de la consommation : CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
+  ];
+  // English email: the English block, then the French one (as before). French email: French only.
+  return lang === "fr" ? fr.join("\n\n") : [...en, "", ...fr].join("\n\n").replace(/\n\n\n\n/g, "\n\n");
+}
+
+const LEGAL_RIGHTS = legalRights("en");
+const LEGAL_RIGHTS_FRENCH_ONLY = legalRights("fr");
 
 // Getters: the street number and the hours come from lib/legal.js when used.
 const SHOP_LINES = {
   get en() { return `Uma's Books, ${legal.shopStreet("en")}, 81000 Albi. ${legal.shopHoursFirm("en")}`; },
   get fr() { return `Uma's Books, ${legal.shopStreet("fr", false)}, 81000 Albi. ${legal.shopHoursFirm("fr")}`; },
 };
+// The same, worded for a reservation that holds educational items ("items" instead of "books").
+const shopLines = (lang, kind) => `Uma's Books, ${legal.shopStreet(lang, lang !== "fr")}, 81000 Albi. ${legal.shopHoursFirm(lang, kind !== "books")}`;
 
 // Subject of the reservation e-mail (a reservation, not an order confirmation or proof of purchase), in the order's language (English when unknown).
 function orderConfirmationSubject(lang) {
@@ -56,6 +65,8 @@ const hasBooks = (items) => items.some((i) => i.class_dropin_seat_id == null);
 const hasSeats = (items) => items.some((i) => i.class_dropin_seat_id != null);
 // Educational items (lib/eduItems.js): collected at the shop like books, always new.
 const hasEdu = (items) => items.some((i) => i.edu_item_id != null);
+// "books" (second-hand books and/or drop-in seats), "edu" (educational items only) or "mixed" (both): how the email names the goods.
+const kindOf = (items) => itemsKind({ books: items.some((i) => i.class_dropin_seat_id == null && i.edu_item_id == null), edu: hasEdu(items) });
 
 // Plain-text body of the reservation confirmation. Pure (no I/O) so it can be
 // tested. Written in the order's language (order.lang; English when missing).
@@ -87,6 +98,7 @@ function buildOrderConfirmationText(order, items, base, { manageUrl = null } = {
   const total = formatEuro(order.total_amount, lang);
   const last = reservationLastDay(order);
   const edu = hasEdu(items);
+  const kind = kindOf(items);
   const deadline = books && last
     ? (edu
       ? tr(
@@ -115,10 +127,10 @@ function buildOrderConfirmationText(order, items, base, { manageUrl = null } = {
         `Connectez-vous, ouvrez votre page de compte puis appuyez sur « Annuler la réservation » : ${accountUrl}`
       );
   const head = tr(
-    `Hi ${name},\n\nThanks for your reservation. Nothing has been paid online: you pay at the shop when you collect.\n\nReservation #${order.id} — ${orderDate}\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPAY AT THE SHOP WHEN YOU COLLECT\n${deadline}${eduNote}${seatNote}${SHOP_LINES.en} Please quote reservation #${order.id}. You pay in cash or by card, after checking the book: you are free to decline it.\n\nTO CANCEL\n${cancelText}\n\n`,
-    `Bonjour ${name},\n\nMerci pour votre réservation. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait.\n\nRéservation n° ${order.id} — ${orderDate}\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nÀ RÉGLER À LA BOUTIQUE AU RETRAIT\n${deadline}${eduNote}${seatNote}${SHOP_LINES.fr} Merci d’indiquer la réservation n° ${order.id}. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser.\n\nPOUR ANNULER\n${cancelText}\n\n`
+    `Hi ${name},\n\nThanks for your reservation. Nothing has been paid online: you pay at the shop when you collect.\n\nReservation #${order.id} — ${orderDate}\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPAY AT THE SHOP WHEN YOU COLLECT\n${deadline}${eduNote}${seatNote}${shopLines("en", kind)} Please quote reservation #${order.id}. You pay in cash or by card, after checking the ${kind === "books" ? "book: you are free to decline it" : "items: you are free to decline them"}.\n\nTO CANCEL\n${cancelText}\n\n`,
+    `Bonjour ${name},\n\nMerci pour votre réservation. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait.\n\nRéservation n° ${order.id} — ${orderDate}\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nÀ RÉGLER À LA BOUTIQUE AU RETRAIT\n${deadline}${eduNote}${seatNote}${shopLines("fr", kind)} Merci d’indiquer la réservation n° ${order.id}. Vous payez en espèces ou par carte, après avoir vérifié ${kind === "books" ? "le livre : vous êtes libre de le refuser" : "les articles : vous êtes libre de les refuser"}.\n\nPOUR ANNULER\n${cancelText}\n\n`
   );
-  const text = `${head}${termsLine}${cgvLine}${lang === "fr" ? LEGAL_RIGHTS_FRENCH_ONLY : LEGAL_RIGHTS}\n\n${sellerLines(lang)}`;
+  const text = `${head}${termsLine}${cgvLine}${legalRights(lang, kind)}\n\n${sellerLines(lang)}`;
   // The fixed legal blocks are not written through tr(): give the French mail the same no-break spaces.
   return lang === "fr" ? frenchPlainText(text) : text;
 }
@@ -132,9 +144,12 @@ function buildGuestConfirmEmail(order, items, { confirmUrl, manageUrl }) {
   const hours = legal.GUEST_CONFIRM_HOURS;
   const lines = items.map((i) => `- ${orderItemLabel(i, lang)} — ${formatEuro(i.price, lang)}`).join("\n");
   const total = formatEuro(order.total_amount, lang);
+  const kind = kindOf(items);
+  const goods = kind === "books" ? tr("books", "livres") : tr("items", "articles"); // "books" unless the reservation holds educational items
+  const eduNote = hasEdu(items) ? tr("All educational items are new.\n\n", "Tous les articles éducatifs sont neufs.\n\n") : "";
   const text = tr(
-    `Hi ${name},\n\nWe are holding these items for you (reservation #${order.id}):\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPLEASE CONFIRM WITHIN ${hours} HOURS\nOpen this link and press “Confirm my reservation”:\n${confirmUrl}\n\nIf you do not confirm within ${hours} hours, the items go back on sale automatically and nothing else happens. Once you confirm, we hold your books for ${legal.RESERVATION_DAYS} days and send you the full confirmation.\n\nTo see or cancel this reservation (no account needed): ${manageUrl}\n\nIf you did not make this reservation, just ignore this email.\n\nUma's Books`,
-    `Bonjour ${name},\n\nNous vous gardons ces articles (réservation n° ${order.id}) :\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nMERCI DE CONFIRMER DANS LES ${hours} HEURES\nOuvrez ce lien et appuyez sur « Confirmer ma réservation » :\n${confirmUrl}\n\nSans confirmation dans les ${hours} heures, les articles sont automatiquement remis en vente, et rien d’autre ne se passe. Une fois la réservation confirmée, nous gardons vos livres ${legal.RESERVATION_DAYS} jours et vous envoyons la confirmation complète.\n\nPour consulter ou annuler cette réservation (sans compte) : ${manageUrl}\n\nSi vous n’avez pas fait cette réservation, ignorez simplement cet e-mail.\n\nUma's Books`
+    `Hi ${name},\n\nWe are holding these items for you (reservation #${order.id}):\n\n${lines}\n\n${eduNote}Total to pay at the shop: ${total}\n\nPLEASE CONFIRM WITHIN ${hours} HOURS\nOpen this link and press “Confirm my reservation”:\n${confirmUrl}\n\nIf you do not confirm within ${hours} hours, the items go back on sale automatically and nothing else happens. Once you confirm, we hold your ${goods} for ${legal.RESERVATION_DAYS} days and send you the full confirmation.\n\nTo see or cancel this reservation (no account needed): ${manageUrl}\n\nIf you did not make this reservation, just ignore this email.\n\nUma's Books`,
+    `Bonjour ${name},\n\nNous vous gardons ces articles (réservation n° ${order.id}) :\n\n${lines}\n\n${eduNote}Total à régler à la boutique : ${total}\n\nMERCI DE CONFIRMER DANS LES ${hours} HEURES\nOuvrez ce lien et appuyez sur « Confirmer ma réservation » :\n${confirmUrl}\n\nSans confirmation dans les ${hours} heures, les articles sont automatiquement remis en vente, et rien d’autre ne se passe. Une fois la réservation confirmée, nous gardons vos ${goods} ${legal.RESERVATION_DAYS} jours et vous envoyons la confirmation complète.\n\nPour consulter ou annuler cette réservation (sans compte) : ${manageUrl}\n\nSi vous n’avez pas fait cette réservation, ignorez simplement cet e-mail.\n\nUma's Books`
   );
   return {
     subject: tr(`Please confirm your reservation at Uma's Books (within ${hours} hours)`, `Merci de confirmer votre réservation chez Uma's Books (dans les ${hours} heures)`),
@@ -154,14 +169,15 @@ function buildReservationReminder(order, items, base) {
   const name = emailSafeName(order.buyer_name);
   const lines = items.filter((i) => i.class_dropin_seat_id == null).map((i) => `- ${orderItemLabel(i, lang)}`).join("\n");
   const last = fmt.formatDateLong(reservationLastDay(order));
-  const notice = noReturnsShortPlain(lang, base);
+  const kind = kindOf(items);
+  const notice = noReturnsShortPlain(lang, base, kind);
   if (hasEdu(items)) {
     // The same reminder, worded for items (the reservation holds educational items, with or without books).
     return {
       subject: tr(`Your reserved items are waiting at the shop (reservation #${order.id})`, `Vos articles réservés vous attendent à la boutique (réservation n° ${order.id})`),
       text: tr(
-        `Hi ${name},\n\nYour reservation #${order.id} is waiting for you at Uma's Books:\n\n${lines}\n\nWe hold it until the end of ${last} (Paris time). Come by to pay and collect: ${SHOP_LINES.en}\n\nIf you no longer want these items, you can cancel ${isGuestOrder(order) ? "with the link in your confirmation email" : "from your account page"}. If you need more time, write to us at ${legal.CONTACT_EMAIL}.\n\n${notice}\n\nUma's Books`,
-        `Bonjour ${name},\n\nVotre réservation n° ${order.id} vous attend à Uma's Books :\n\n${lines}\n\nNous la gardons jusqu’à la fin de la journée du ${last} (heure de Paris). Passez la régler et la retirer : ${SHOP_LINES.fr}\n\nSi vous ne souhaitez plus ces articles, vous pouvez annuler ${isGuestOrder(order) ? "avec le lien de votre e-mail de confirmation" : "depuis votre page de compte"}. Si vous avez besoin de plus de temps, écrivez-nous à ${legal.CONTACT_EMAIL}.\n\n${notice}\n\nUma's Books`
+        `Hi ${name},\n\nYour reservation #${order.id} is waiting for you at Uma's Books:\n\n${lines}\n\nWe hold it until the end of ${last} (Paris time). Come by to pay and collect: ${shopLines("en", kind)}\n\nIf you no longer want these items, you can cancel ${isGuestOrder(order) ? "with the link in your confirmation email" : "from your account page"}. If you need more time, write to us at ${legal.CONTACT_EMAIL}.\n\n${notice}\n\nUma's Books`,
+        `Bonjour ${name},\n\nVotre réservation n° ${order.id} vous attend à Uma's Books :\n\n${lines}\n\nNous la gardons jusqu’à la fin de la journée du ${last} (heure de Paris). Passez la régler et la retirer : ${shopLines("fr", kind)}\n\nSi vous ne souhaitez plus ces articles, vous pouvez annuler ${isGuestOrder(order) ? "avec le lien de votre e-mail de confirmation" : "depuis votre page de compte"}. Si vous avez besoin de plus de temps, écrivez-nous à ${legal.CONTACT_EMAIL}.\n\n${notice}\n\nUma's Books`
       ),
     };
   }
@@ -183,7 +199,7 @@ function buildReservationExpiredNotice(order, items, base, { keptSeats = null } 
   const tr = emailTr(lang);
   const name = emailSafeName(order.buyer_name);
   const lines = items.map((i) => `- ${orderItemLabel(i, lang)}`).join("\n");
-  const notice = noReturnsShortPlain(lang, base);
+  const notice = noReturnsShortPlain(lang, base, kindOf(items));
   const several = keptSeats && keptSeats.count > 1;
   const kept = keptSeats
     ? tr(
