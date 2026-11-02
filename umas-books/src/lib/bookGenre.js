@@ -7,6 +7,7 @@
 
 const { COMMON_GENRES } = require("./bookLookup");
 const { normalizeGenres } = require("./inventory");
+const { NONFICTION, isNonfictionVariant } = require("./genreClean");
 
 const anthropic = require("./anthropic");
 const { clampText, MAX_TITLE, MAX_AUTHOR, MAX_DESCRIPTION } = require("./aiLimits");
@@ -62,7 +63,7 @@ Respond with ONLY a comma-separated list of the genres you chose from that list,
     // taxonomy's own casing too, in case the model didn't match it exactly.
     const byLower = new Map(COMMON_GENRES.map((g) => [g.toLowerCase(), g]));
     const picked = text.split(",")
-      .map((g) => byLower.get(g.trim().toLowerCase()))
+      .map((g) => byLower.get(isNonfictionVariant(g) ? NONFICTION.toLowerCase() : g.trim().toLowerCase()))
       .filter(Boolean);
     return normalizeGenres(picked.join(", "));
   } catch (err) {

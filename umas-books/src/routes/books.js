@@ -7,6 +7,7 @@ const { LIBRARY_COVER_SQL, isLibraryCover } = require("../lib/coverNote");
 const { expireStaleReservationsThrottled } = require("../lib/reservations");
 const { baseUrl } = require("../lib/baseUrl");
 const { clean, parseId } = require("../lib/validation");
+const { NONFICTION, isNonfictionVariant, searchGenreName } = require("../lib/genreClean");
 const { parseIntParam, parseLimitParam, parseIdList, likeContains } = require("../lib/parseParams");
 const { loadPublicAwards, awardsTextSql } = require("../lib/awards/display");
 
@@ -106,13 +107,13 @@ const SEARCH_DESCRIPTION_MIN_LENGTH = 3;
 router.get("/api/books/search", bookSearchLimiter, publicJson("public, max-age=60"), async (req, res) => {
   // clean(): capped, and an array (?q=a&q=b) can't reach .trim() and 500.
   const q = clean(req.query.q, 100);
-  const genre = clean(req.query.genre, 100);
+  const genre = searchGenreName(clean(req.query.genre, 100)); // an old ?genre=Non-fiction link finds Nonfiction
   // ?topic=mystery,thriller,crime — the Books page's fixed genre buttons.
   // Matches any in-stock book whose categories contain one of the words,
   // since real inventory categories are free text (from ISBN lookups).
   const topics = clean(req.query.topic, 300)
     .split(",")
-    .map((t) => t.trim())
+    .map((t) => (isNonfictionVariant(t) ? NONFICTION.toLowerCase() : t.trim()))
     .filter(Boolean)
     .slice(0, 10);
 
@@ -146,13 +147,13 @@ router.get("/api/books/search", bookSearchLimiter, publicJson("public, max-age=6
     const ors = topics.map((t) => {
       params.push(likeContains(t));
       const p = params.length;
-      // Plain "fiction" is also a substring of "Non-fiction", so the
-      // Fiction genre button would otherwise pull in non-fiction books
-      // too (and, symmetrically, "science" as a Non-fiction keyword
+      // Plain "fiction" is also a substring of "Nonfiction", so the
+      // Fiction genre button would otherwise pull in nonfiction books
+      // too (and, symmetrically, "science" as a Nonfiction keyword
       // matched "Science Fiction" — dropped above rather than excluded
       // here, since nothing in the taxonomy is tagged just "Science").
       if (t.toLowerCase() === "fiction") {
-        return `(b.categories ILIKE $${p} AND b.categories NOT ILIKE '%non-fiction%' AND b.categories NOT ILIKE '%nonfiction%')`;
+        return `(b.categories ILIKE $${p} AND b.categories NOT ILIKE '%non-fiction%' AND b.categories NOT ILIKE '%nonfiction%')` // both spellings: old data / sources;
       }
       return `b.categories ILIKE $${p}`;
     });

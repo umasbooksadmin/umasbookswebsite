@@ -159,7 +159,7 @@ test("search: results are capped at 60, ordered by title", async () => {
   assert.equal(titles[0], `${prefix} 000`);
 });
 
-test("search: genre is an exact match on a comma-separated category; topic matches substrings, Fiction excludes Non-fiction", async () => {
+test("search: genre is an exact match on a comma-separated category; topic matches substrings, Fiction excludes Nonfiction", async () => {
   const g = `Gen${uniq().replace("-", "")}`;
   const inGenre = await makeBook({ categories: `Mystery, ${g}` });
   const other = await makeBook({ categories: `${g}x` });
@@ -168,13 +168,22 @@ test("search: genre is an exact match on a comma-separated category; topic match
   assert.ok(!genre.json.some((x) => x.id === other.id), "genre is exact, not substring");
 
   const fic = await makeBook({ title: `${TAG} Fic ${uniq()}`, categories: `Fiction ${TAG}t` });
-  const nonfic = await makeBook({ title: `${TAG} NonFic ${uniq()}`, categories: `Non-fiction ${TAG}t` });
+  const nonfic = await makeBook({ title: `${TAG} NonFic ${uniq()}`, categories: `Nonfiction ${TAG}t` });
+  // data from before migration 114 / an unmigrated source may still carry the hyphen: Fiction excludes it too
+  const oldNonfic = await makeBook({ title: `${TAG} OldNonFic ${uniq()}`, categories: `Non-fiction ${TAG}t` });
   const topic = await api(`/api/books/search?q=${TAG}&topic=Fiction`);
   assert.ok(topic.json.some((x) => x.id === fic.id));
   assert.ok(!topic.json.some((x) => x.id === nonfic.id));
+  assert.ok(!topic.json.some((x) => x.id === oldNonfic.id));
   const multi = await api(`/api/books/search?q=${TAG}&topic=${encodeURIComponent("non-fiction, nomatch")}`);
   assert.ok(multi.json.some((x) => x.id === nonfic.id));
   assert.ok(!multi.json.some((x) => x.id === fic.id));
+  // an old link or bookmark with the hyphenated spelling finds the same books (genre= is exact)
+  const exactNonfic = await makeBook({ title: `${TAG} ExactNonFic ${uniq()}`, categories: "History, Nonfiction" });
+  for (const spelling of ["Non-fiction", "NON FICTION"]) {
+    const byGenre = await api(`/api/books/search?genre=${encodeURIComponent(spelling)}&q=${TAG}`);
+    assert.ok(byGenre.json.some((x) => x.id === exactNonfic.id), `genre=${spelling}`);
+  }
 });
 
 // ------------------------------------------------------------ genres/latest

@@ -69,11 +69,11 @@ test("an exact 'keep' protects a genre from a word rule; a word rule beats a man
   const rules = [
     { kind: "contains-word", pattern: "Fiction", target: "Fiction" },
     { kind: "exact", pattern: "Science Fiction", action: "keep" },
-    { kind: "exact", pattern: "Non-fiction", action: "keep" },
+    { kind: "exact", pattern: "Nonfiction", action: "keep" },
     { kind: "managed", pattern: "Children's Fiction", target: "Children's Fiction" },
     { kind: "managed", pattern: "History", target: "History" },
   ];
-  assert.equal(applyGenreRules("Science Fiction, Non-fiction, Historical Fiction, Children's Fiction", rules), "Science Fiction, Non-fiction, Fiction", "the word rule takes Children's Fiction (use Show matches), a keep rule protects");
+  assert.equal(applyGenreRules("Science Fiction, Nonfiction, Historical Fiction, Children's Fiction", rules), "Science Fiction, Nonfiction, Fiction", "the word rule takes Children's Fiction (use Show matches), a keep rule protects");
   assert.equal(applyGenreRules("history", rules), "History", "a managed name normalises its capitals");
 });
 
@@ -86,11 +86,11 @@ test("exact matching ignores capitals, spacing and the curly apostrophe", () => 
 test("first match wins inside a kind (priority = list order, or sort)", () => {
   const rules = [
     { kind: "contains-word", pattern: "Crime", target: "Mystery" },
-    { kind: "contains-word", pattern: "True", target: "Non-fiction" },
+    { kind: "contains-word", pattern: "True", target: "Nonfiction" },
   ];
   assert.equal(applyGenreRules("True Crime", rules), "Mystery");
   const swapped = [{ ...rules[0], sort: 2 }, { ...rules[1], sort: 1 }];
-  assert.equal(applyGenreRules("True Crime", swapped), "Non-fiction");
+  assert.equal(applyGenreRules("True Crime", swapped), "Nonfiction");
 });
 
 test("English only: the rewrite gives no French genre (books have none since 2026-10-28)", () => {

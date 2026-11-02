@@ -16,7 +16,7 @@
 //   kind 'managed'        (made by loadRules, never stored) every managed name is an exact rule to itself, the LAST
 //                         resort: it normalises the capitals of a managed name ("fiction" -> "Fiction") and shows the
 //                         genre as slotted. A rule you wrote wins over it: the word Fiction would also take
-//                         Non-fiction, so use "Show matches" before saving a word rule, and protect a genre with an
+//                         Science Fiction, so use "Show matches" before saving a word rule, and protect a genre with an
 //                         exact "Leave as is" rule.
 //
 // First match wins: stored exact rules (by priority), then word rules (by priority), then managed names.

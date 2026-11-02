@@ -6,7 +6,7 @@
 const config = require("./config");
 const { readBoundedJson } = require("./boundedBody");
 const { createInflight } = require("./inflight");
-const { buildKnown, cleanGenreName } = require("./genreClean");
+const { buildKnown, cleanGenreName, NONFICTION } = require("./genreClean");
 
 function normalizeIsbn(isbn) {
   return (isbn || "").replace(/[^0-9Xx]/g, "").toUpperCase();
@@ -57,7 +57,7 @@ function extractYear(publishDate) {
 // anywhere in the list (checked most-generic-first), falling back to the
 // shortest raw tag if none of these common genres show up at all.
 const COMMON_GENRES = [
-  "Fiction", "Non-fiction",
+  "Fiction", "Nonfiction",
   "Fantasy", "Science Fiction", "Mystery", "Romance", "Thriller", "Horror",
   "Biography", "History", "Poetry", "Drama", "Adventure", "Humor",
   "Philosophy", "Religion", "Travel", "Cooking", "Art", "Self-help",
@@ -80,7 +80,8 @@ function pickGenres(names) {
   if (!clean.length) return null;
 
   const lower = clean.map((n) => n.toLowerCase());
-  const matches = COMMON_GENRES.filter((genre) => lower.some((n) => n.includes(genre.toLowerCase())));
+  // "Nonfiction" also matches the old spellings a source may still use ("Non-fiction", "Non fiction").
+  const matches = COMMON_GENRES.filter((genre) => lower.some((n) => n.includes(genre.toLowerCase()) || (genre === NONFICTION && /non[-\s]fiction/.test(n))));
   if (matches.length) return matches.slice(0, MAX_GENRES).join(", ");
 
   // A subject name from a source can carry a curly apostrophe or a stray character: cleaned like every saved genre.

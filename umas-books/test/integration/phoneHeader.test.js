@@ -124,7 +124,7 @@ test("French browse page: the genre chips keep the English genre names (books ha
   const html = await get("/books.html", "fr");
   const dict = JSON.parse(html.match(/<script type="application\/json" id="page-i18n-data">(.*?)<\/script>/s)[1]).fr;
   assert.equal(dict["g.ya"], "Young Adult");
-  assert.equal(dict["g.nonfiction"], "Non-Fiction");
+  assert.equal(dict["g.nonfiction"], "Nonfiction");
   assert.equal(dict["g.children"], "Children's Books");
   assert.equal(dict["g.all"], "Tous les genres");
 });

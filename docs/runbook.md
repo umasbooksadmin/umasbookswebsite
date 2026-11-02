@@ -3567,7 +3567,7 @@ confirm.
 3. **Mapping rules**: "any genre containing the word X becomes Y" (the word is matched whole, ignoring capitals; plurals and
    's are tolerated; **Childhood is not Children**), or one exact genre, which can also be **Remove from books** or **Leave as
    is**. First match wins: exact rules, then word rules (arrows set the order), then a managed genre's own name. A word rule
-   also takes managed names that contain the word (the word Fiction takes Non-fiction), so always press **Show matches** first,
+   also takes managed names that contain the word (the word Fiction takes Science Fiction), so always press **Show matches** first,
    and protect a genre with a **Leave as is** rule. A genre no rule matches is never touched.
 
 **Cleaning up, step by step**
@@ -3904,6 +3904,35 @@ It answers `UPDATE <n>`. The backup table is small, holds no personal data and f
 The descriptions can be written again from the book page (**Generate description**, or by hand). Saving such a book, or
 adding another copy of it, keeps its description empty: the AI writes one only for a book that is new to the shop. Once Sharon is happy, a
 developer can drop the table with a new migration (`DROP TABLE IF EXISTS cleared_book_descriptions;`).
+
+## au) "Nonfiction" is one word (migration 114): the backup tables, the undo, and the free text that still says non-fiction
+
+**What the deploy did.** Migration 114 (it must merge after 113) changed the spelling of the genre everywhere it is DATA, so no
+book lost its genre: the managed genre in Admin > Genres and its Browse button label became **Nonfiction**; every book genre
+that was Non-fiction, non-fiction, NON-FICTION or "non fiction" became **Nonfiction** (the other genres of the book and their
+order are kept; only `books.categories` is written, no other column, no copy, no price); an exact mapping rule on the old name
+got the new name. The search words of the Browse button keep both spellings, and the site still understands the old spelling
+from Open Library, BnF, Google and old links (`?genre=Non-fiction` finds the Nonfiction books). The French word
+**Documentaires** is unchanged. Free text (book descriptions, blog posts, announcements, events) is NOT rewritten.
+
+**Where to see it.** Old values are in `categories_nonfiction_backup` (`book_id`, `categories_before`) and
+`nonfiction_rename_backup` (`on_table`, `row_id`, `on_column`, `value_before`: the genre name, its Browse label, the rule).
+**Admin > Admin activity** has one line (action `books.nonfiction_spelling`, by "migration 114").
+
+**Restore (only if needed).** The undo recipe is in the header of `migrations/114_nonfiction_spelling.sql` (four `UPDATE`
+statements for books, the genre name, its label and the rule); paste them in one transaction in Render dashboard >
+`umas-books` > **Shell**, `psql "$DATABASE_URL"`. It would also put back a genre list a person edited after the deploy, so look
+at the backup table first.
+
+**Non-fiction in free text (read-only count).** Render dashboard > `umas-books` > **Shell**, `psql "$DATABASE_URL"`, paste. It
+changes nothing; it counts the rows whose text still says "non-fiction" or "non fiction", so you can decide separately:
+
+```sql
+SELECT 'books.description' AS where_found, count(*) AS rows_with_it FROM books WHERE description ~* 'non[- ]fiction'
+UNION ALL SELECT 'blog_posts', count(*) FROM blog_posts WHERE concat_ws(' ', title, excerpt, body) ~* 'non[- ]fiction'
+UNION ALL SELECT 'announcements', count(*) FROM announcements WHERE concat_ws(' ', title, excerpt, body) ~* 'non[- ]fiction'
+UNION ALL SELECT 'events.description', count(*) FROM events WHERE concat_ws(' ', title, description) ~* 'non[- ]fiction';
+```
 
 ## at) When GitHub Actions stops running our scheduled jobs
 
