@@ -104,6 +104,12 @@ async function seed(app) {
     await q("INSERT INTO charity_options (round_id, name, description) VALUES ($1, 'Crawl Charity', 'Crawl helps.')", [r.id]);
     await q("INSERT INTO blog_posts (title, body, slug, status, published_at, excerpt) VALUES ('Crawl Post', 'Crawl body', 'crawl-post', 'published', now(), 'Crawl excerpt')").catch(() => {});
 
+    // Educational items (lib/eduItems.js): one to reserve, one sold out, so the Browse page's card states and the cart's
+    // educational line are read in both languages (names are English on both sites, marked lang="en").
+    const [g] = await q("SELECT id FROM edu_genres WHERE slug = 'flash-cards'");
+    const edu = await q("INSERT INTO edu_items (name, price, stock, genre_id) VALUES ('Crawl Phonics Cards', 8.5, 40, $1), ('Crawl Sold Out Cards', 3, 0, $1) RETURNING id", [g.id]);
+    out.eduItemId = edu[0].id;
+
     out.orders = {};
     for (const [key, status] of [["paid", "paid"], ["cancelled", "cancelled"]]) {
       const [o] = await q("INSERT INTO orders (buyer_name, buyer_email, total_amount, status, paid_at) VALUES ('Buyer', 'buyer@example.test', 6.5, $1, now()) RETURNING id, access_token", [status]);
@@ -188,6 +194,7 @@ async function stateful(app, s, lang) {
   const [c1, c2] = lang === "fr" ? [2, 3] : [0, 1];
   await post("/cart/add", { copyId: String(s.copyIds[c1]) });
   await post("/cart/add", { copyId: String(s.copyIds[c2]) });
+  await post("/cart/add-edu", { eduItemId: String(s.eduItemId), qty: "2" });
   await new Promise((r) => setTimeout(r, 300));
   out.push(["cart with items", await get(app, jar, "/cart", lang)]);
   const res = await post("/cart/reserve", { name: "Ana Crawl", phone: "0600000000", acceptCgv: "on" });

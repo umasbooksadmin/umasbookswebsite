@@ -22,7 +22,7 @@
             Reservation #<%= o.id %> &middot; held until the end of <%= formatDate(lastDay({ reserved_until: o.until })) %>
             <ul class="plain nested">
               <% o.items.forEach(i => { %>
-                <li>&#9744; <%= i.title %> <span class="muted small">&middot; <%= i.seat ? 'drop-in seat (pay at the session)' : (i.location ? 'shelf ' + i.location : 'shelf not recorded') %> &middot; &euro;<%= i.price.toFixed(2) %></span></li>
+                <li>&#9744; <%= i.title %> <span class="muted small">&middot; <%= i.seat ? 'drop-in seat (pay at the session)' : i.edu ? 'educational item (new)' : (i.location ? 'shelf ' + i.location : 'shelf not recorded') %> &middot; &euro;<%= i.price.toFixed(2) %></span></li>
               <% }) %>
             </ul>
             <span class="muted small">Total: &euro;<%= o.total.toFixed(2) %></span>

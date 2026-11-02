@@ -198,6 +198,7 @@ async function insertReferencing(table, column, value) {
     blog_posts: { title: `${TAG} ref ${n}`, slug: `${TAG}-ref-${n}`, body: "b", status: "published" },
     charities: { name: `${TAG} ref ${n}` },
     curated_collections: { slug: `${TAG}-ref-${n}`, title_en: `${TAG} ref ${n}` },
+    edu_items: { name: `${TAG} ref ${n}`, price: 1 },
     // one row per book (migration 107's copy of the old French book text)
     book_french_backup: table === "book_french_backup"
       ? { book_id: (await pool.query("INSERT INTO books (title, authors) VALUES ($1, 'A') RETURNING id", [`${TAG} ref ${n}`])).rows[0].id }
@@ -356,7 +357,7 @@ test("only the known upload handlers call saveImage, and the rich-text bodies ar
   })(path.join(ROOT, "src"));
   assert.deepEqual(
     files.sort(),
-    ["lib/collectionImages.js", "lib/coverStore.js", "lib/imageStore.js", "lib/inventoryIntake.js", "routes/admin/announcements.js", "routes/admin/blog.js", "routes/admin/charity.js", "routes/admin/inventoryCover.js"],
+    ["lib/collectionImages.js", "lib/coverStore.js", "lib/imageStore.js", "lib/inventoryIntake.js", "routes/admin/announcements.js", "routes/admin/blog.js", "routes/admin/charity.js", "routes/admin/eduItems.js", "routes/admin/inventoryCover.js"],
     "a new saveImage caller: add the column it writes to IMAGE_REFERENCES (src/lib/imageCleanup.js), then update this list"
   );
   for (const k of ["books.cover_url", "announcements.image_url", "blog_posts.image_url", "charities.image_url",

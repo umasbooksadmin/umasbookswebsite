@@ -6,7 +6,7 @@
 <% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
 
 <%
-  const hasBooks = items.some(i => i.book_copy_id != null);
+  const hasBooks = items.some(i => i.book_copy_id != null || i.edu_item_id != null);
   const days = order.paid_at ? Math.floor((Date.now() - new Date(order.paid_at).getTime()) / 86400000) : null;
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const statusText = order.status === 'reserved' ? 'Reserved: awaiting pickup' : cap(order.status);
@@ -31,7 +31,7 @@
   </div>
   <% if (order.status === 'reserved') { %>
     <p class="small" id="reservation-deadline">
-      <% if (hasBooks && lastDay) { %>Books held until the end of <strong><%= formatDate(lastDay) %></strong>.<% } else { %>Seat held until its session is over.<% } %>
+      <% if (hasBooks && lastDay) { %><%= items.some(i => i.edu_item_id != null) ? "Items" : "Books" %> held until the end of <strong><%= formatDate(lastDay) %></strong>.<% } else { %>Seat held until its session is over.<% } %>
       <%= order.reservation_extended_at ? 'Extended once on ' + formatDate(order.reservation_extended_at) + '.' : '' %>
     </p>
   <% } %>
@@ -43,6 +43,8 @@
         <%= i.item_title %> <span class="muted small">&middot; &euro;<%= Number(i.price).toFixed(2) %></span>
         <% if (i.book_copy_id != null) { %>
           <span class="muted small">&middot; copy #<%= i.book_copy_id %> is now <%= i.copy_status || 'missing' %><%= i.copy_location ? ', shelf ' + i.copy_location : '' %><% if (i.book_id) { %> (<a href="/admin/inventory/<%= i.book_id %>">open book</a>)<% } %></span>
+        <% } else if (i.edu_item_id != null) { %>
+          <span class="muted small">&middot; educational item (new)<%= order.status === 'reserved' ? ', held from stock' : '' %> (<a href="/admin/edu-items/<%= i.edu_item_id %>/edit">open item</a>)</span>
         <% } else { %>
           <span class="muted small">&middot; drop-in seat is now <%= i.seat_status || 'missing' %></span>
         <% } %>

@@ -86,7 +86,7 @@ test("a refunded order is out of revenue, the sales report shows it as its own l
 
   // Member page totals: €5, not €12 (the page rounds to whole euros).
   const members = await h.get(`/admin/members?view=${u[0].id}`);
-  assert.match(members.text, /Books Reserved<\/span><span class="small">1 &middot; &euro;5</);
+  assert.match(members.text, /Books &amp; educational items<\/span><span class="small">1 &middot; &euro;5</);
   assert.equal(kept.order.status, "paid");
 });
 

@@ -88,7 +88,7 @@ router.get("/admin/orders", requireAdmin, async (req, res) => {
   const page = Math.min(f.page, pages);
   const { rows: orders } = await pool.query(
     `SELECT o.*, (
-       SELECT json_agg(json_build_object('title', i.item_title, 'price', i.price, 'seat', i.class_dropin_seat_id IS NOT NULL) ORDER BY i.id)
+       SELECT json_agg(json_build_object('title', i.item_title, 'price', i.price, 'seat', i.class_dropin_seat_id IS NOT NULL, 'edu', i.edu_item_id IS NOT NULL) ORDER BY i.id)
        FROM order_items i WHERE i.order_id = o.id
      ) AS items
      FROM orders o ${sql}
@@ -106,9 +106,9 @@ router.get("/admin/orders", requireAdmin, async (req, res) => {
 const NOTICES = {
   collected: "Marked as collected.",
   "already-collected": "This reservation was already marked collected. Nothing changed.",
-  "collected-paid": "Collected and paid: the books and seats are sold and the reservation now counts as a sale.",
+  "collected-paid": "Collected and paid: the books, educational items and seats are sold (educational items come off stock) and the reservation now counts as a sale.",
   "collected-partial": "Collected and paid for the selected items. The other items stay reserved on a new reservation with the same deadline (drop-in seats left on their own are held until their session).",
-  "reservation-cancelled": "The reservation was cancelled: its books are back on the shelf and its seats are free again.",
+  "reservation-cancelled": "The reservation was cancelled: its books are back on the shelf, its educational items can be reserved again and its seats are free again.",
   "reservation-expired": "Marked as no-show: the books are back on the shelf and the seats are free again.",
   "reservation-extended": `The deadline was extended by ${RESERVATION_EXTENSION_DAYS} days.`,
   "not-reserved": "This reservation is no longer a reservation: nothing was changed. Reload the page.",
@@ -142,7 +142,7 @@ async function renderOrder(req, res, { error = null, status = 200, formValues = 
   if (!order) return res.status(404).render("404");
   const [{ rows: items }, { rows: history }, { rows: related }] = await Promise.all([
     pool.query(
-      `SELECT i.id, i.item_title, i.price, i.book_copy_id, i.class_dropin_seat_id,
+      `SELECT i.id, i.item_title, i.price, i.book_copy_id, i.class_dropin_seat_id, i.edu_item_id,
               bc.status AS copy_status, bc.cart_order_id AS copy_order_id, bc.location AS copy_location, bc.book_id, ds.status AS seat_status,
               bc.condition, bc.publisher_price, b.published_year
        FROM order_items i
@@ -161,7 +161,8 @@ async function renderOrder(req, res, { error = null, status = 200, formValues = 
   ]);
   // Held right now for THIS order (what "Mark collected and paid" can still collect).
   for (const i of items) {
-    i.active = i.book_copy_id != null ? i.copy_status === "reserved" && i.copy_order_id === order.id : i.seat_status === "reserved";
+    // An educational line of an open reservation is held by being there (lib/eduItems.js).
+    i.active = i.edu_item_id != null ? order.status === "reserved" : i.book_copy_id != null ? i.copy_status === "reserved" && i.copy_order_id === order.id : i.seat_status === "reserved";
     // The least "Amount received" may be for this item (fixed book price law, seats): the same rule the server enforces.
     i.floorCents = collectionFloorCents(i);
   }
@@ -198,7 +199,7 @@ router.get("/admin/orders/pickup-list", requireAdmin, async (req, res) => {
   await expireStaleReservations(pool);
   const { rows } = await pool.query(
     `SELECT o.id, o.buyer_name, o.buyer_email, o.buyer_phone, o.total_amount, o.reserved_until, o.created_at,
-            i.id AS item_id, i.item_title, i.price, i.class_dropin_seat_id, bc.location, bc.condition
+            i.id AS item_id, i.item_title, i.price, i.class_dropin_seat_id, i.edu_item_id, bc.location, bc.condition
      FROM orders o
      JOIN order_items i ON i.order_id = o.id
      LEFT JOIN book_copies bc ON bc.id = i.book_copy_id
@@ -214,7 +215,7 @@ router.get("/admin/orders/pickup-list", requireAdmin, async (req, res) => {
       c.orders.set(r.id, { id: r.id, until: r.reserved_until, total: Number(r.total_amount), items: [] });
       c.total += Number(r.total_amount);
     }
-    c.orders.get(r.id).items.push({ title: r.item_title, price: Number(r.price), location: r.location, seat: r.class_dropin_seat_id != null });
+    c.orders.get(r.id).items.push({ title: r.item_title, price: Number(r.price), location: r.location, seat: r.class_dropin_seat_id != null, edu: r.edu_item_id != null });
   }
   const customers = [...byCustomer.values()].map((c) => ({ ...c, orders: [...c.orders.values()] }));
   res.render("admin/orders_pickup_list", {
@@ -327,7 +328,7 @@ router.post("/admin/orders/:id/extend", requireAdmin, async (req, res) => {
   }
   const message = {
     already_extended: "This reservation was already extended once: it cannot be extended again.",
-    no_books: "Only a reservation holding books can be extended (a drop-in seat is held until its session).",
+    no_books: "Only a reservation holding books or educational items can be extended (a drop-in seat is held until its session).",
     not_reserved: "This reservation is no longer a reservation: nothing was changed.",
   }[result.outcome] || "Could not extend this reservation.";
   return refusedBack(req, res, message, {});
@@ -389,7 +390,7 @@ router.post("/admin/orders/:id/refund", requireAdmin, async (req, res) => {
   if (result.outcome === "note_required") return refundRefused(req, res, note, "Please write a note.");
   await audit(req, {
     action: "order.refunded", targetType: "order", targetId: id,
-    detail: `${result.refundMethod ? `refunded by ${result.refundMethod}${result.tillDay ? ` from the till drawer of ${result.tillDay}` : ""}, €${result.amount.toFixed(2)}; ` : ""}restocked ${result.restocked}${result.kept.length ? `, kept sold (resold) ${result.kept.length}` : ""}, seats released ${result.seatsReleased}; ${note}`,
+    detail: `${result.refundMethod ? `refunded by ${result.refundMethod}${result.tillDay ? ` from the till drawer of ${result.tillDay}` : ""}, €${result.amount.toFixed(2)}; ` : ""}restocked ${result.restocked}${result.eduRestocked ? `, educational items back on stock ${result.eduRestocked}` : ""}${result.kept.length ? `, kept sold (resold) ${result.kept.length}` : ""}, seats released ${result.seatsReleased}; ${note}`,
   });
   res.redirect(`/admin/orders/${id}?notice=refunded`);
 });

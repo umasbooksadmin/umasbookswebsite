@@ -1,0 +1,39 @@
+<% const _title = item ? 'Edit educational item' : 'Add an educational item'; %>
+<%- include('../partials/admin_header', { title: _title, active: active, pageTitle: _title, pageSub: 'A picture, a name, a price and how many are in stock. Every educational item is sold as NEW.' }) %>
+<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
+
+<div class="card">
+  <form class="stack" method="post" action="<%= item ? "/admin/edu-items/" + item.id : "/admin/edu-items" %>" enctype="multipart/form-data" id="edu-item-form">
+    <%- include('../partials/csrf_field') %>
+    <label for="edu-name">Name (English, shown on both sites)</label>
+    <input id="edu-name" name="name" type="text" maxlength="120" value="<%= values.name %>" required>
+    <label for="edu-price">Price (euros)</label>
+    <input id="edu-price" name="price" type="text" inputmode="decimal" value="<%= values.price %>" required style="max-width:140px" aria-describedby="edu-price-help">
+    <p class="muted small" id="edu-price-help">Like 4.50 or 4,50. The association is not subject to VAT: this is the price the customer pays.</p>
+    <label for="edu-stock">Number in stock</label>
+    <input id="edu-stock" name="stock" type="text" inputmode="numeric" value="<%= values.stock %>" required style="max-width:140px" aria-describedby="edu-stock-help">
+    <p class="muted small" id="edu-stock-help">A whole number from 0 to <%= maxStock %>: how many you have in the shop, reserved ones included.<% if (item) { %> Open reservations hold <strong><%= held %></strong> right now, so it cannot go below <%= held %>.<% } %> At 0 available, customers see "Sold out".</p>
+    <label for="edu-genre">Genre</label>
+    <select id="edu-genre" name="genreId">
+      <option value="">(no genre)</option>
+      <% genres.forEach(g => { %><option value="<%= g.id %>"<%= String(g.id) === String(values.genreId) ? ' selected' : '' %>><%= g.name %></option><% }) %>
+    </select>
+    <p class="muted small"><a href="/admin/edu-items#edu-genres">Add or rename genres</a> on the list page.</p>
+    <label for="edu-sort">Position on the page (smaller first)</label>
+    <input id="edu-sort" name="sortOrder" type="text" inputmode="numeric" value="<%= values.sortOrder %>" style="max-width:100px">
+    <label for="edu-image">Picture<%= item && item.image_url ? ' (choose one to replace the current picture)' : ' (optional)' %></label>
+    <% if (item && item.image_url) { %><img src="<%= item.image_url %>" alt="Current picture" width="160" height="160" style="object-fit:contain;background:#f5f0e6"><% } %>
+    <input id="edu-image" name="image" type="file" accept="image/jpeg,image/png,image/webp">
+    <p class="muted small">JPEG, PNG or WebP, up to 8 MB. It is turned upright and made smaller, like a book cover photo.</p>
+    <label class="ann-check"><input type="checkbox" name="isHidden"<%= values.isHidden === 'on' ? ' checked' : '' %>> <span>Hidden (customers do not see it)</span></label>
+    <p><button class="btn" type="submit"><%= item ? 'Save' : 'Add item' %></button> <a href="/admin/edu-items">Cancel</a></p>
+  </form>
+  <% if (item && item.image_url) { %>
+  <form method="post" action="/admin/edu-items/<%= item.id %>/image/remove" data-confirm="Remove this picture?">
+    <%- include('../partials/csrf_field') %>
+    <button class="btn btn-outline btn-small" type="submit">Remove the picture</button>
+  </form>
+  <% } %>
+</div>
+<%- include('../partials/admin_footer') %>

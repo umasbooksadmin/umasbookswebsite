@@ -34,7 +34,7 @@
 const { SITE_TIME_ZONE } = require("./tz");
 const TZ = SITE_TIME_ZONE;
 
-const CATEGORY_ORDER = ["Books used", "Books new", "Merchandise", "Refreshments", "Class seats", "Membership", "Donation", "Other", "Discount"];
+const CATEGORY_ORDER = ["Books used", "Books new", "Educational items", "Merchandise", "Refreshments", "Class seats", "Membership", "Donation", "Other", "Discount"];
 // "Bank transfer" only ever appears on refund rows (a refund paid by transfer): nothing is SOLD by transfer.
 const TRANSFER = "Bank transfer";
 const METHOD_ORDER = ["Cash", "Card at the till", "Cheque", "HelloAsso", TRANSFER, "Other / not recorded"];
@@ -51,7 +51,7 @@ const DEBIT_DEFAULT = {
   Cash: ["530", "CA"], "Card at the till": ["511", "BQ"], Cheque: ["511", "BQ"], HelloAsso: ["511", "BQ"], [TRANSFER]: ["511", "BQ"], "Other / not recorded": ["471", "OD"],
 };
 const CREDIT_DEFAULT = {
-  "Books used": "707", "Books new": "707", Merchandise: "707", Refreshments: "707", "Class seats": "706", Membership: "756", Donation: "754", Other: "708",
+  "Books used": "707", "Books new": "707", "Educational items": "707", Merchandise: "707", Refreshments: "707", "Class seats": "706", Membership: "756", Donation: "754", Other: "708",
   // 709 = rabais, remises et ristournes accordes. The discount row is NEGATIVE, so the income stays at list price in 707
   // and 709 carries the reduction; the cash or bank debit nets to what was really received. Confirm with the treasurer.
   Discount: "709",
@@ -82,7 +82,7 @@ const ACCOUNT_RE = /^[0-9A-Za-z]{1,20}$/;
 const JOURNAL_RE = /^[0-9A-Za-z]{1,10}$/;
 
 const FR_CATEGORY = {
-  "Books used": "livres d'occasion", "Books new": "livres neufs", Merchandise: "marchandises", Refreshments: "boissons et restauration",
+  "Books used": "livres d'occasion", "Books new": "livres neufs", "Educational items": "articles éducatifs", Merchandise: "marchandises", Refreshments: "boissons et restauration",
   "Class seats": "places de cours", Membership: "adhésions", Donation: "dons", Other: "autres ventes", Discount: "remises",
 };
 const FR_METHOD = { Cash: "espèces", "Card at the till": "carte (caisse)", Cheque: "chèque", HelloAsso: "HelloAsso", [TRANSFER]: "virement", "Other / not recorded": "mode non enregistré" };
@@ -109,7 +109,7 @@ const REFUND_METHOD_SQL = (fallback) => `CASE o.refund_method WHEN 'cash' THEN '
 // Orders collected at the till are counted from the till's own lines (exactly once).
 const TILL_COLLECTED = "EXISTS (SELECT 1 FROM till_sale_items ti WHERE ti.reservation_order_id = o.id)";
 const CATEGORY_SQL = `CASE i.category WHEN 'books_used' THEN 'Books used' WHEN 'books_new' THEN 'Books new' WHEN 'merchandise' THEN 'Merchandise'
-  WHEN 'refreshments' THEN 'Refreshments' WHEN 'donation' THEN 'Donation' WHEN 'class_seats' THEN 'Class seats' ELSE 'Other' END`;
+  WHEN 'refreshments' THEN 'Refreshments' WHEN 'donation' THEN 'Donation' WHEN 'class_seats' THEN 'Class seats' WHEN 'educational' THEN 'Educational items' ELSE 'Other' END`;
 
 // Orders collected for LESS than the list price of their lines (the "Amount received" discount of
 // "Mark collected and paid"): { id, status, paid_at, refunded_at, method, refund_method (how a refund was paid
@@ -145,6 +145,7 @@ async function accountingRows(db, from, to) {
        UNION ALL
        SELECT (o.paid_at AT TIME ZONE '${TZ}')::date,
               CASE WHEN oi.class_dropin_seat_id IS NOT NULL THEN 'Class seats'
+                   WHEN oi.edu_item_id IS NOT NULL THEN 'Educational items'
                    WHEN oi.book_copy_id IS NOT NULL AND c.condition = 'new' THEN 'Books new'
                    WHEN oi.book_copy_id IS NOT NULL THEN 'Books used' ELSE 'Other' END,
               ${ORDER_METHOD_SQL}, 1, ROUND(oi.price * 100)::bigint, false
@@ -153,6 +154,7 @@ async function accountingRows(db, from, to) {
        UNION ALL
        SELECT (o.refunded_at AT TIME ZONE '${TZ}')::date,
               CASE WHEN oi.class_dropin_seat_id IS NOT NULL THEN 'Class seats'
+                   WHEN oi.edu_item_id IS NOT NULL THEN 'Educational items'
                    WHEN oi.book_copy_id IS NOT NULL AND c.condition = 'new' THEN 'Books new'
                    WHEN oi.book_copy_id IS NOT NULL THEN 'Books used' ELSE 'Other' END,
               ${REFUND_METHOD_SQL(ORDER_METHOD_SQL)}, -1, -ROUND(oi.price * 100)::bigint, true
@@ -244,7 +246,8 @@ async function accountingExportReport(db, ctx) {
     "The negative refund row is under the way the money was GIVEN BACK, as recorded with \"Mark refunded\": cash from the till drawer is Cash, a card refund on the terminal is Card at the till, a bank transfer is Bank transfer, anything else is Other / not recorded. So a card sale refunded in cash lowers Cash (as the drawer count does), not Card. A refund recorded before the method was asked keeps the method of the sale.",
     "A reservation collected for less than its list price (a discount given at pickup) keeps its lines at the list price and adds one NEGATIVE \"Discount\" row per day and payment method (credit account 709 by default), so the export of that reservation is exactly what was received. If it is refunded, the refund reverses what was received: the lines are reversed and the discount row is reversed too (a positive Discount refund row) on the refund day.",
     "A closed day with a cash difference adds one \"Cash over/short\" row (positive: over, negative: short). The opening float is never revenue and is not in this export.",
-    "Books and class seats are reserved on the website and paid IN PERSON: a reservation collected at the till is counted once, from the till, and one collected with \"Mark collected and paid\" is counted under the method the staff chose (Cash, Card at the till, Cheque, or Other / not recorded). Only Membership comes from HelloAsso (the membership payments); a HelloAsso row for books is an old order paid online before reservations existed.",
+    "Educational items (worksheets, flash cards...: new goods, credit account 707 by default) are a category of their own, reserved and paid like books. The association is not subject to VAT (\"TVA non applicable\"), so every amount here is the price paid, with no VAT in it.",
+    "Books, educational items and class seats are reserved on the website and paid IN PERSON: a reservation collected at the till is counted once, from the till, and one collected with \"Mark collected and paid\" is counted under the method the staff chose (Cash, Card at the till, Cheque, or Other / not recorded). Only Membership comes from HelloAsso (the membership payments); a HelloAsso row for books is an old order paid online before reservations existed.",
     "Older \"Sell in shop\" sales paid by card are shown as Card at the till; those with no payment method as Other / not recorded.",
     "The label, debit account, credit account and journal come from the table at /admin/reports/accounting/mapping. The defaults are a starting point: ask the treasurer to confirm the account numbers and the import layout.",
   ];

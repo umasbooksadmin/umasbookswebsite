@@ -44,6 +44,11 @@ const { RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS
 // `c` is the classes alias.
 const SESSION_OVER_SQL = `CASE WHEN c.ends_at > c.starts_at THEN c.ends_at ELSE c.starts_at + interval '${legal.SEAT_FALLBACK_SESSION_HOURS} hours' END`;
 
+// Does reservation $1 still hold something collected AT THE SHOP: a book copy, or an educational item (an educational
+// line of an open reservation is held by being there, lib/eduItems.js)? Such a reservation has the book deadline.
+const SHOP_GOODS_SQL = `SELECT 1 FROM book_copies WHERE cart_order_id = $1 AND status = 'reserved'
+  UNION ALL SELECT 1 FROM order_items WHERE order_id = $1 AND edu_item_id IS NOT NULL LIMIT 1`;
+
 // Loaded lazily: unit tests load this file without a database.
 const lazyDb = () => require("../db");
 
@@ -198,6 +203,7 @@ async function syncSeatOnlyDeadlines(db, orderIds) {
            WHERE s.order_id = ANY($1::int[]) AND s.status = 'reserved' GROUP BY s.order_id) d
      WHERE o.id = d.order_id AND o.status = 'reserved' AND NOT (o.is_guest AND o.guest_confirmed_at IS NULL)
        AND NOT EXISTS (SELECT 1 FROM book_copies b WHERE b.cart_order_id = o.id AND b.status = 'reserved')
+       AND NOT EXISTS (SELECT 1 FROM order_items e WHERE e.order_id = o.id AND e.edu_item_id IS NOT NULL)
        AND o.reserved_until IS DISTINCT FROM d.until
      RETURNING o.id`,
     [orderIds]
@@ -216,7 +222,7 @@ async function syncSeatOnlyDeadlines(db, orderIds) {
 
 // Moves some still-held items of reservation `orderId` (locked by the caller) to a NEW reservation of the same
 // customer (split_from_order_id = orderId), inside the caller's transaction. `rest`: order_items rows with id,
-// price, book_copy_id, class_dropin_seat_id. The new reservation keeps the old deadline when it holds books, and
+// price, book_copy_id, class_dropin_seat_id (educational lines just move: their hold moves with them). The new reservation keeps the old deadline when it holds books, and
 // the end of its last session when it holds only seats. A guest's private links follow the part that stays reserved.
 // Resolves the new order's id.
 async function splitOffReservation(client, orderId, rest) {
@@ -259,7 +265,8 @@ async function keepLiveSeats(client, order) {
     [order.id]
   );
   if (!live.length) return undefined;
-  const { rows: books } = await client.query("SELECT 1 FROM book_copies WHERE cart_order_id = $1 AND status = 'reserved' LIMIT 1", [order.id]);
+  // Educational items are collected at the shop like books: they expire with the books (lib/eduItems.js).
+  const { rows: books } = await client.query(SHOP_GOODS_SQL, [order.id]);
   if (!books.length) {
     await syncSeatOnlyDeadlines(client, [order.id]);
     return { outcome: "skipped" };
@@ -317,7 +324,8 @@ async function releaseEndedSeats(pool) {
         if (o[0].status === "reserved") {
           const { rows: left } = await client.query(
             `SELECT (SELECT COUNT(*) FROM book_copies WHERE cart_order_id = $1 AND status = 'reserved')
-                  + (SELECT COUNT(*) FROM class_dropin_seats WHERE order_id = $1 AND status = 'reserved') AS n`,
+                  + (SELECT COUNT(*) FROM class_dropin_seats WHERE order_id = $1 AND status = 'reserved')
+                  + (SELECT COUNT(*) FROM order_items WHERE order_id = $1 AND edu_item_id IS NOT NULL) AS n`,
             [orderId]
           );
           if (Number(left[0].n) === 0) {
@@ -367,7 +375,7 @@ function customerRelease(pool, orderId) {
   });
 }
 
-// An admin extends the deadline of a reservation holding books, ONCE, by
+// An admin extends the deadline of a reservation holding books (or educational items), ONCE, by
 // RESERVATION_EXTENSION_DAYS. Resolves { outcome: 'extended', until } |
 // 'not_found' | 'not_reserved' | 'already_extended' | 'no_books'.
 async function extendReservation(pool, orderId) {
@@ -378,7 +386,7 @@ async function extendReservation(pool, orderId) {
     if (!order) return { outcome: "not_found" };
     if (order.status !== "reserved") return { outcome: "not_reserved", status: order.status };
     if (order.reservation_extended_at) return { outcome: "already_extended" };
-    const { rows: books } = await client.query("SELECT 1 FROM book_copies WHERE cart_order_id = $1 AND status = 'reserved' LIMIT 1", [orderId]);
+    const { rows: books } = await client.query(SHOP_GOODS_SQL, [orderId]);
     if (!books.length) return { outcome: "no_books" };
     const { rows: upd } = await client.query(
       `UPDATE orders SET reserved_until = ${parisPlusDaysSql("GREATEST(reserved_until, now())", "$2::int")},

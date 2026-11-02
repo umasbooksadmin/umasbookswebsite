@@ -143,11 +143,14 @@ test("header on a phone: six icons fit one row at 320px (the heart moves into th
   assert.match(read("umas-books", "public", "site-menu.js"), /\(max-width: 640px\), \(max-height: 500px\) and \(max-width: 1000px\)/, "site-menu.js uses the same condition");
 });
 test("header: wide headers (French, signed in, admin) drop the menu under the logo instead of scrolling sideways", () => {
+  // Since the sixth menu link (Browse Educational Items, 2026-11-02) only an English visitor who is not signed in keeps
+  // the one-row header, from 1251px; every other header drops the menu under the logo from 901px.
   for (const [at, sel] of [
-    ["@media (min-width: 901px) and (max-width: 1060px) and (min-height: 501px)", ":lang(fr) header.mkt-header"],
-    ["@media (min-width: 901px) and (max-width: 1100px) and (min-height: 501px)", "header.mkt-header:has(.h-tools > form)"],
-    ["@media (min-width: 901px) and (max-width: 1220px) and (min-height: 501px)", 'header.mkt-header:has(.h-tools > a[href="/admin"])'],
-    ["@media (min-width: 901px) and (max-width: 1360px) and (min-height: 501px)", ":lang(fr) header.mkt-header:has(.h-tools > form)"],
+    ["@media (min-width: 901px) and (max-width: 1250px) and (min-height: 501px)", "header.mkt-header"],
+    ["@media (min-width: 901px) and (min-height: 501px)", ":lang(fr) header.mkt-header"],
+    ["@media (min-width: 901px) and (min-height: 501px)", "header.mkt-header:has(.h-tools > form)"],
+    ["@media (min-width: 901px) and (min-height: 501px)", 'header.mkt-header:has(.h-tools > a[href="/admin"])'],
+    ["@media (min-width: 901px) and (min-height: 501px)", ":lang(fr) header.mkt-header:has(.h-tools > form)"],
   ]) assert.ok(header.hasRule(sel, { at }), `${sel} has a rule in ${at}`);
 });
 test("cart: the 14-day sentence is shown once; the second paragraph says only where and when", () => {

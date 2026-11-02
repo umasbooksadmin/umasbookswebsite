@@ -181,13 +181,25 @@ header.mkt-header .langtoggle span { color: var(--line); }
   header.mkt-header .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
 }
 /* Wide headers: the one-row header (logo, menu, icons) did not fit in some cases, and the page scrolled sideways by up
-   to 290px. In those cases the menu drops under the logo, exactly like the 900px rules above:
-   - French (longer words: "Espace membres", "Parcourir les livres"), 901-1060px;
-   - signed in (extra "Log Out" and "Member's Access" icons, an "Admin" one for admins), 901-1100px;
-   - an admin (one more icon), 901-1220px;
-   - signed in and French, 901-1360px.
+   to 290px. In those cases the menu drops under the logo, exactly like the 900px rules above. Since the sixth menu
+   link ("Browse Educational Items" / "Parcourir les articles éducatifs", 2026-11-02; measured with puppeteer from
+   901 to 2000px) the one-row header only fits in English for a visitor who is not signed in, from 1251px:
+   - English, not signed in, 901-1250px;
+   - French (longer words: "Parcourir les articles éducatifs"), from 901px;
+   - signed in (extra "Log Out" and "Member's Access" icons, an "Admin" one for admins), from 901px;
+   - an admin (one more icon), from 901px;
+   - signed in and French, from 901px.
    (Not for a phone turned sideways, which has its own one-row header below.) */
-@media (min-width: 901px) and (max-width: 1060px) and (min-height: 501px) {
+@media (min-width: 901px) and (max-width: 1250px) and (min-height: 501px) {
+  header.mkt-header { padding-bottom: 18px; }
+  header.mkt-header .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  header.mkt-header .h-logo img { width: 160px; height: auto; }
+  header.mkt-header .h-tools { margin: 0 0 0 auto; }
+  header.mkt-header .h-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; margin: 0; padding: 0; }
+  header.mkt-header .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
+  header.mkt-header .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
+}
+@media (min-width: 901px) and (min-height: 501px) {
   :lang(fr) header.mkt-header { padding-bottom: 18px; }
   :lang(fr) header.mkt-header .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
   :lang(fr) header.mkt-header .h-logo img { width: 160px; height: auto; }
@@ -196,7 +208,7 @@ header.mkt-header .langtoggle span { color: var(--line); }
   :lang(fr) header.mkt-header .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
   :lang(fr) header.mkt-header .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
 }
-@media (min-width: 901px) and (max-width: 1100px) and (min-height: 501px) {
+@media (min-width: 901px) and (min-height: 501px) {
   header.mkt-header:has(.h-tools > form) { padding-bottom: 18px; }
   header.mkt-header:has(.h-tools > form) .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
   header.mkt-header:has(.h-tools > form) .h-logo img { width: 160px; height: auto; }
@@ -205,7 +217,7 @@ header.mkt-header .langtoggle span { color: var(--line); }
   header.mkt-header:has(.h-tools > form) .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
   header.mkt-header:has(.h-tools > form) .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
 }
-@media (min-width: 901px) and (max-width: 1220px) and (min-height: 501px) {
+@media (min-width: 901px) and (min-height: 501px) {
   header.mkt-header:has(.h-tools > a[href="/admin"]) { padding-bottom: 18px; }
   header.mkt-header:has(.h-tools > a[href="/admin"]) .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
   header.mkt-header:has(.h-tools > a[href="/admin"]) .h-logo img { width: 160px; height: auto; }
@@ -214,7 +226,7 @@ header.mkt-header .langtoggle span { color: var(--line); }
   header.mkt-header:has(.h-tools > a[href="/admin"]) .h-nav a { padding: 12px 2px 10px; margin-top: 0; }
   header.mkt-header:has(.h-tools > a[href="/admin"]) .h-menu-links { gap: 0 30px; flex-wrap: wrap; justify-content: center; }
 }
-@media (min-width: 901px) and (max-width: 1360px) and (min-height: 501px) {
+@media (min-width: 901px) and (min-height: 501px) {
   :lang(fr) header.mkt-header:has(.h-tools > form) { padding-bottom: 18px; }
   :lang(fr) header.mkt-header:has(.h-tools > form) .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
   :lang(fr) header.mkt-header:has(.h-tools > form) .h-logo img { width: 160px; height: auto; }

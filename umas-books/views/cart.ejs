@@ -7,7 +7,7 @@
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
 <% if (!items.length) { %>
-  <div class="card"><p class="muted"><%= tr('Your cart is empty.', 'Votre panier est vide.') %> <a href="/books.html"><%= tr('Browse books', 'Parcourez les livres') %></a> <%= tr('or', 'ou') %> <a href="/sessions"><%= tr('browse drop-in sessions', 'les séances drop-in') %></a> <%= tr('to add some.', 'pour en ajouter.') %></p></div>
+  <div class="card"><p class="muted"><%= tr('Your cart is empty.', 'Votre panier est vide.') %> <a href="/books.html"><%= tr('Browse books', 'Parcourez les livres') %></a>, <a href="/educational-items.html"><%= tr('educational items', 'les articles éducatifs') %></a> <%= tr('or', 'ou') %> <a href="/sessions"><%= tr('browse drop-in sessions', 'les séances drop-in') %></a> <%= tr('to add some.', 'pour en ajouter.') %></p></div>
 <% } else { %>
   <%- include('partials/cover_note', { coverNoteShow: items.some((i) => i.libraryCover) }) %>
   <div class="cart-list">
@@ -24,6 +24,24 @@
             <div class="muted small"><%- i.authors ? bookText(i.authors) : escHtml(tr('Unknown author', 'Auteur inconnu')) %></div>
             <div style="margin-top:4px;"><span class="condition-badge condition-<%= i.condition %>"><%= conditionLabel(i.condition) %></span></div>
           </div>
+        <% } else if (i.kind === 'edu') { %>
+          <% if (i.imageUrl) { %>
+            <img src="<%= i.imageUrl %>"<% if (coverSrcset(i.imageUrl)) { %> srcset="<%= coverSrcset(i.imageUrl) %>" sizes="48px"<% } %> alt="" class="cart-item-cover" width="48" height="72" loading="lazy" decoding="async" data-cover>
+          <% } else { %>
+            <div class="cart-item-cover book-thumb-placeholder" aria-hidden="true"><%= tr('No picture', 'Pas d’image') %></div>
+          <% } %>
+          <div class="cart-item-body">
+            <div class="cart-item-title"<% if (lang === 'fr') { %> lang="en"<% } %>><%= i.title %></div>
+            <div class="muted small"><%= tr('Educational item', 'Article éducatif') %> &middot; <%= eur(i.price) %> <%= tr('each', 'l’unité') %></div>
+            <div style="margin-top:4px;"><span class="condition-badge condition-new"><%= conditionLabel('new') %></span></div>
+            <form method="post" action="/cart/update-qty" class="cart-qty-form">
+              <%- include('partials/csrf_field') %>
+              <input type="hidden" name="lineId" value="<%= i.lineId %>">
+              <label for="qty-<%= i.lineId %>" class="small"><%= tr('Quantity', 'Quantité') %></label>
+              <select id="qty-<%= i.lineId %>" name="qty"><% for (let n = 1; n <= i.maxQty; n++) { %><option value="<%= n %>"<%= n === i.qty ? ' selected' : '' %>><%= n %></option><% } %></select>
+              <button type="submit" class="btn-outline btn-small"><%= tr('Update', 'Mettre à jour') %></button>
+            </form>
+          </div>
         <% } else { %>
           <div class="cart-item-cover book-thumb-placeholder"><%= tr('Session', 'Séance') %></div>
           <div class="cart-item-body">
@@ -32,7 +50,7 @@
             <div class="muted small"><%= tr('Drop-in seat', 'Place drop-in') %> &middot; <%= formatDateTime(i.startsAt) %></div>
           </div>
         <% } %>
-        <div class="cart-item-price"><%= eur(i.price) %></div>
+        <div class="cart-item-price"><%= eur(i.kind === 'edu' ? Math.round(i.price * 100) * i.qty / 100 : i.price) %></div>
         <form method="post" action="/cart/remove">
           <%- include('partials/csrf_field') %>
           <input type="hidden" name="lineId" value="<%= i.lineId %>">
@@ -44,6 +62,7 @@
 
   <div class="cart-total"><%= tr('Total:', 'Total :') %> <strong><%= eur(total) %></strong></div>
   <p class="muted small cart-vat"><%= legalText.priceLine %></p>
+  <% if (items.some((i) => i.kind === 'edu')) { %><p class="muted small" id="edu-new-note"><%= tr('All educational items are new.', 'Tous les articles éducatifs sont neufs.') %></p><% } %>
 
   <% if (locals.preview) { %>
     <div role="status" class="notice-box"><%= tr('Online reservations open when we launch. This is a preview, so you can fill a cart to see how it works, but nothing can be reserved yet.', 'Les réservations en ligne ouvriront au lancement. Ceci est un aperçu : vous pouvez remplir un panier pour voir comment cela fonctionne, mais rien ne peut encore être réservé.') %></div>
@@ -64,13 +83,14 @@
   <% } else if (locals.checkoutState === 'unconfirmed') { %>
     <div role="status" class="notice-box"><%= tr('Please confirm your email address before reserving: open the link we sent you when you signed up.', 'Veuillez confirmer votre adresse e-mail avant de réserver : ouvrez le lien que nous vous avons envoyé lors de votre inscription.') %></div>
   <% } else { %>
-    <% const hasBooks = items.some((i) => i.kind === 'book'); const hasSeats = items.some((i) => i.kind === 'dropin'); %>
+    <% const hasBooks = items.some((i) => i.kind === 'book' || i.kind === 'edu'); const hasSeats = items.some((i) => i.kind === 'dropin'); const hasEdu = items.some((i) => i.kind === 'edu'); %>
     <div class="card">
       <h2 class="section-title"><%= tr('Reservation', 'Réservation') %></h2>
       <form class="stack" method="post" action="/cart/reserve" data-saving-text="<%= tr('Reserving…', 'Réservation en cours…') %>">
         <%- include('partials/csrf_field') %>
         <input type="hidden" name="formShownAt" value="<%= Date.now() %>">
         <% items.filter((i) => i.kind === 'book').forEach((i) => { %><input type="hidden" name="seenPrice_<%= i.copyId %>" value="<%= i.price.toFixed(2) %>"><% }) %>
+        <% items.filter((i) => i.kind === 'edu').forEach((i) => { %><input type="hidden" name="seenEduPrice_<%= i.eduItemId %>" value="<%= i.price.toFixed(2) %>"><% }) %>
         <label for="name"><%= tr('Name', 'Nom') %></label>
         <input id="name" name="name" type="text" autocomplete="name" value="<%= locals.accountName || '' %>" required>
         <label for="accountEmail"><%= tr('Email', 'E-mail') %></label>

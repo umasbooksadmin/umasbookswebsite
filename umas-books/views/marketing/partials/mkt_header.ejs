@@ -3,7 +3,7 @@
    Params: title (required), description (optional meta), extraCss
    (array of extra stylesheet hrefs, e.g. ['assets/home.css']), bodyClass
    (optional, e.g. 'home home-fit fit-screen'), activeNav (one of
-   'home'|'books'|'programs'|'events', or omitted for none), hideBackLink
+   'home'|'books'|'edu'|'programs'|'events', or omitted for none), hideBackLink
    (every page shows a "← Back" link above <main> except the homepage),
    jsonLd (optional object, emitted as an application/ld+json block),
    ogType ('website' by default; 'article' for a blog post), ogImage (absolute URL of the share picture, default the
@@ -33,6 +33,7 @@ const _ogLocale = typeof ogLocale !== 'undefined' && ogLocale ? ogLocale : (_isF
 const nav = [
   { key: 'home', href: '/', i18n: 'nav.home', label: 'Home' },
   { key: 'books', href: '/books.html', i18n: 'nav.books', label: 'Browse Books' },
+  { key: 'edu', href: '/educational-items.html', i18n: 'nav.edu', label: 'Browse Educational Items' },
   { key: 'programs', href: '/immersion.html', i18n: 'nav.programs', label: 'English Programs' },
   // Straight to the live calendar from inside the app (partials/header.ejs);
   // from here, a guest sees the marketing teaser page first.

@@ -13,6 +13,7 @@
     en: {
       "nav.home": "Home",
       "nav.books": "Browse Books",
+      "nav.edu": "Browse Educational Items",
       "nav.programs": "English Programs",
       "nav.events": "Events",
       "nav.visit": "Visit Us",
@@ -59,6 +60,7 @@
     fr: {
       "nav.home": "Accueil",
       "nav.books": "Parcourir les livres",
+      "nav.edu": "Parcourir les articles éducatifs",
       "nav.programs": "Programmes d’anglais",
       "nav.events": "Événements",
       "nav.visit": "Nous rendre visite",

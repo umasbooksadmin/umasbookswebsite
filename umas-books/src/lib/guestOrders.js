@@ -129,7 +129,7 @@ async function startGuestHold(client, order, base) {
 // The deadline a guest reservation gets once confirmed: the one an account holder's
 // reservation made at the same moment has (lib/cart.js), counted from its creation.
 const CONFIRMED_DEADLINE_SQL = `CASE
-  WHEN EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.book_copy_id IS NOT NULL)
+  WHEN EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND (i.book_copy_id IS NOT NULL OR i.edu_item_id IS NOT NULL))
     THEN (((o.created_at AT TIME ZONE '${SITE_TIME_ZONE}')::date + ${RESERVATION_DAYS} + 1)::timestamp AT TIME ZONE '${SITE_TIME_ZONE}')
   ELSE (SELECT MAX(${SESSION_OVER_SQL}) FROM class_dropin_seats s JOIN classes c ON c.id = s.class_id WHERE s.order_id = o.id)
 END`;

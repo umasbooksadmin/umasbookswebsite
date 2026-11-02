@@ -54,6 +54,8 @@ function orderConfirmationSubject(lang) {
 
 const hasBooks = (items) => items.some((i) => i.class_dropin_seat_id == null);
 const hasSeats = (items) => items.some((i) => i.class_dropin_seat_id != null);
+// Educational items (lib/eduItems.js): collected at the shop like books, always new.
+const hasEdu = (items) => items.some((i) => i.edu_item_id != null);
 
 // Plain-text body of the reservation confirmation. Pure (no I/O) so it can be
 // tested. Written in the order's language (order.lang; English when missing).
@@ -84,12 +86,19 @@ function buildOrderConfirmationText(order, items, base, { manageUrl = null } = {
   const name = emailSafeName(order.buyer_name);
   const total = formatEuro(order.total_amount, lang);
   const last = reservationLastDay(order);
+  const edu = hasEdu(items);
   const deadline = books && last
-    ? tr(
-        `We hold your books until the end of ${fmt.formatDateLong(last)} (Paris time). After that they go back on sale.\n`,
-        `Nous gardons vos livres jusqu’à la fin de la journée du ${fmt.formatDateLong(last)} (heure de Paris). Passé ce délai, ils sont remis en vente.\n`
-      )
+    ? (edu
+      ? tr(
+          `We hold your items until the end of ${fmt.formatDateLong(last)} (Paris time). After that they go back on sale.\n`,
+          `Nous gardons vos articles jusqu’à la fin de la journée du ${fmt.formatDateLong(last)} (heure de Paris). Passé ce délai, ils sont remis en vente.\n`
+        )
+      : tr(
+          `We hold your books until the end of ${fmt.formatDateLong(last)} (Paris time). After that they go back on sale.\n`,
+          `Nous gardons vos livres jusqu’à la fin de la journée du ${fmt.formatDateLong(last)} (heure de Paris). Passé ce délai, ils sont remis en vente.\n`
+        ))
     : "";
+  const eduNote = edu ? tr("All educational items are new.\n", "Tous les articles éducatifs sont neufs.\n") : "";
   const seatNote = seats
     ? tr(
         `Drop-in seats: you pay at the session. A seat can be cancelled online until ${legal.SEAT_CANCEL_HOURS} hours before the session; we release it once the session has passed.\n`,
@@ -106,8 +115,8 @@ function buildOrderConfirmationText(order, items, base, { manageUrl = null } = {
         `Connectez-vous, ouvrez votre page de compte puis appuyez sur « Annuler la réservation » : ${accountUrl}`
       );
   const head = tr(
-    `Hi ${name},\n\nThanks for your reservation. Nothing has been paid online: you pay at the shop when you collect.\n\nReservation #${order.id} — ${orderDate}\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPAY AT THE SHOP WHEN YOU COLLECT\n${deadline}${seatNote}${SHOP_LINES.en} Please quote reservation #${order.id}. You pay in cash or by card, after checking the book: you are free to decline it.\n\nTO CANCEL\n${cancelText}\n\n`,
-    `Bonjour ${name},\n\nMerci pour votre réservation. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait.\n\nRéservation n° ${order.id} — ${orderDate}\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nÀ RÉGLER À LA BOUTIQUE AU RETRAIT\n${deadline}${seatNote}${SHOP_LINES.fr} Merci d’indiquer la réservation n° ${order.id}. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser.\n\nPOUR ANNULER\n${cancelText}\n\n`
+    `Hi ${name},\n\nThanks for your reservation. Nothing has been paid online: you pay at the shop when you collect.\n\nReservation #${order.id} — ${orderDate}\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPAY AT THE SHOP WHEN YOU COLLECT\n${deadline}${eduNote}${seatNote}${SHOP_LINES.en} Please quote reservation #${order.id}. You pay in cash or by card, after checking the book: you are free to decline it.\n\nTO CANCEL\n${cancelText}\n\n`,
+    `Bonjour ${name},\n\nMerci pour votre réservation. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait.\n\nRéservation n° ${order.id} — ${orderDate}\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nÀ RÉGLER À LA BOUTIQUE AU RETRAIT\n${deadline}${eduNote}${seatNote}${SHOP_LINES.fr} Merci d’indiquer la réservation n° ${order.id}. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser.\n\nPOUR ANNULER\n${cancelText}\n\n`
   );
   const text = `${head}${termsLine}${cgvLine}${lang === "fr" ? LEGAL_RIGHTS_FRENCH_ONLY : LEGAL_RIGHTS}\n\n${sellerLines(lang)}`;
   // The fixed legal blocks are not written through tr(): give the French mail the same no-break spaces.
@@ -146,6 +155,16 @@ function buildReservationReminder(order, items, base) {
   const lines = items.filter((i) => i.class_dropin_seat_id == null).map((i) => `- ${orderItemLabel(i, lang)}`).join("\n");
   const last = fmt.formatDateLong(reservationLastDay(order));
   const notice = noReturnsShortPlain(lang, base);
+  if (hasEdu(items)) {
+    // The same reminder, worded for items (the reservation holds educational items, with or without books).
+    return {
+      subject: tr(`Your reserved items are waiting at the shop (reservation #${order.id})`, `Vos articles réservés vous attendent à la boutique (réservation n° ${order.id})`),
+      text: tr(
+        `Hi ${name},\n\nYour reservation #${order.id} is waiting for you at Uma's Books:\n\n${lines}\n\nWe hold it until the end of ${last} (Paris time). Come by to pay and collect: ${SHOP_LINES.en}\n\nIf you no longer want these items, you can cancel ${isGuestOrder(order) ? "with the link in your confirmation email" : "from your account page"}. If you need more time, write to us at ${legal.CONTACT_EMAIL}.\n\n${notice}\n\nUma's Books`,
+        `Bonjour ${name},\n\nVotre réservation n° ${order.id} vous attend à Uma's Books :\n\n${lines}\n\nNous la gardons jusqu’à la fin de la journée du ${last} (heure de Paris). Passez la régler et la retirer : ${SHOP_LINES.fr}\n\nSi vous ne souhaitez plus ces articles, vous pouvez annuler ${isGuestOrder(order) ? "avec le lien de votre e-mail de confirmation" : "depuis votre page de compte"}. Si vous avez besoin de plus de temps, écrivez-nous à ${legal.CONTACT_EMAIL}.\n\n${notice}\n\nUma's Books`
+      ),
+    };
+  }
   return {
     subject: tr(`Your reserved books are waiting at the shop (reservation #${order.id})`, `Vos livres réservés vous attendent à la boutique (réservation n° ${order.id})`),
     text: tr(

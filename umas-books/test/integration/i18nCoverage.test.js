@@ -87,6 +87,8 @@ const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author|Class|Award)/, /^[ÉE]vei
   // English labels. "All Genres" is interface text and stays French (not listed here).
   "A plain English description.",
   ...require("../fixtures/browseGenres.golden.json").genres.filter((g) => g.slug !== "all").map((g) => g.en),
+  // Educational item genres (migration 113): English on the French site too, like book genres (marked lang="en").
+  "Worksheets", "Flash Cards",
 ];
 
 let app;
