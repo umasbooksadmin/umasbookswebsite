@@ -27,7 +27,8 @@ const auditLines = () => q("SELECT actor_label, action, target_type, detail FROM
 
 test("the SQL lists equal COMMON_GENRES and GENRE_TYPOS", () => {
   const sqlList = (from, to) => [...SQL.slice(SQL.indexOf(from), SQL.indexOf(to)).matchAll(/\('((?:[^']|'')*)'\)/g)].map((m) => m[1].replace(/''/g, "'"));
-  assert.deepEqual(sqlList("FROM (VALUES\n  ('Fiction')", ") AS v(en)"), COMMON_GENRES);
+  // migration 109 was written (and has run) when the genre was still spelled Non-fiction; migration 114 renames it
+  assert.deepEqual(sqlList("FROM (VALUES\n  ('Fiction')", ") AS v(en)").map((g) => (g === "Non-fiction" ? "Nonfiction" : g)), COMMON_GENRES);
   const block = SQL.slice(SQL.indexOf("FROM (VALUES\n  ('chidren"), SQL.indexOf(") AS t(wrong, right_name)"));
   const typos = [...block.matchAll(/\('((?:[^']|'')*)', '((?:[^']|'')*)'\)/g)].map((m) => [m[1].replace(/''/g, "'"), m[2].replace(/''/g, "'")]);
   assert.deepEqual(typos, GENRE_TYPOS);

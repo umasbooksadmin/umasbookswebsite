@@ -131,7 +131,9 @@ test("the migration (through the real runner): unsaved values are copied first, 
   assert.deepEqual(await bookRows(), booksBefore);
   assert.deepEqual(await q("SELECT * FROM book_copies ORDER BY id"), copiesBefore);
   // Managed genres keep every other column and every row.
-  assert.deepEqual(await q("SELECT * FROM managed_genres ORDER BY id"), managedBefore.map((r) => omit(r, "name_fr", "browse_label_fr")));
+  // The real runner also applies the later migrations: 114 respells Non-fiction as Nonfiction (name and Browse label, and stamps updated_at).
+  const respelled = (r) => (/^non-fiction$/i.test(r.name_en) ? { ...r, name_en: "Nonfiction", browse_label_en: "Nonfiction" } : r);
+  assert.deepEqual((await q("SELECT * FROM managed_genres ORDER BY id")).map((r) => omit(r, "updated_at")), managedBefore.map((r) => omit(respelled(r), "name_fr", "browse_label_fr", "updated_at")));
   // Other tables keep their French columns and data.
   assert.ok((await columns("curated_collections")).includes("description_fr"));
   assert.ok((await columns("curated_collection_books")).includes("reason_fr"));

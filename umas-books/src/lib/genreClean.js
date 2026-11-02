@@ -58,6 +58,22 @@ const GENRE_TYPOS = [
   ["childrens fiction", "Children's Fiction"],
 ];
 
+// Spellings of one genre that are NOT typos but the old way of writing it (Sharon, 2026-11-02: "Nonfiction", one word,
+// everywhere). Open Library, BnF, Google and old data bring "Non-fiction" / "non fiction": each takes the managed
+// "Nonfiction". Kept apart from GENRE_TYPOS because migration 109 (already run) has its own typo list.
+const NONFICTION = "Nonfiction";
+const NONFICTION_VARIANT_RE = /^non([-‐‑]|\s+)?fiction$/i; // same spelling as migrations/114_nonfiction_spelling.sql
+
+// Is this genre (any capitals, hyphen, space or none) the nonfiction genre?
+function isNonfictionVariant(name) {
+  return NONFICTION_VARIANT_RE.test(cleanGenreName(name));
+}
+
+// A genre typed in a search / filter (?genre=Non-fiction from an old link or bookmark) -> the spelling books carry now.
+function searchGenreName(name) {
+  return isNonfictionVariant(name) ? NONFICTION : name;
+}
+
 // The known genres: Map(key -> spelling). The typos first, then the taxonomy, then the managed genres (the names the
 // shop chose in Admin > Genres) win over both. A typo only counts when its key is not itself a known genre; it takes
 // the spelling the known genre has (a managed "Children's fiction" wins over the taxonomy's).
@@ -81,7 +97,10 @@ function buildKnown({ common = [], managed = [], typos = GENRE_TYPOS } = {}) {
 function canonicalGenre(name, known) {
   const clean = cleanGenreName(name);
   const hit = known && known.get(clean.toLowerCase());
-  return hit || clean;
+  if (hit) return hit;
+  // The old spellings of nonfiction (hyphen, space, any capitals) take the managed Nonfiction.
+  if (isNonfictionVariant(clean)) return (known && known.get(NONFICTION.toLowerCase())) || NONFICTION;
+  return clean;
 }
 
 // The genres of a book: each one cleaned and canonical, duplicates dropped (case-insensitive), order kept.
@@ -111,4 +130,4 @@ function planGenreCleanup(categories, known) {
   return raw.length === list.length && raw.every((g, i) => g === list[i]) ? categories : next;
 }
 
-module.exports = { GENRE_TYPOS, APOSTROPHES, SPACES, LETTERS, LEAD_KEEP, TRAIL_KEEP, cleanGenreName, cleanKey, cleanList, buildKnown, canonicalGenre, canonicalGenres, planGenreCleanup };
+module.exports = { NONFICTION, isNonfictionVariant, searchGenreName, GENRE_TYPOS, APOSTROPHES, SPACES, LETTERS, LEAD_KEEP, TRAIL_KEEP, cleanGenreName, cleanKey, cleanList, buildKnown, canonicalGenre, canonicalGenres, planGenreCleanup };

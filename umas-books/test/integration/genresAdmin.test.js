@@ -33,7 +33,7 @@ const cats = async (id) => (await q("SELECT categories, updated_at FROM books WH
 
 const NOISY = [
   "Children's Books, Fiction", "Children's Fiction", "Juvenile Fiction", "Fiction, General", "Childrens", "Children’s Books",
-  "Mystery", "Zoology", "Childhood", null, "fiction", "Non-fiction, History", "Children, Children's Books",
+  "Mystery", "Zoology", "Childhood", null, "fiction", "Nonfiction, History", "Children, Children's Books",
 ];
 
 let childrenId;
@@ -135,7 +135,7 @@ test("the page renders (managed list, found table, add-rule form) for an admin",
 
 test("the found-genres page answers fast at 30,000 books", { timeout: 60000 }, async () => {
   await q(`INSERT INTO books (title, categories)
-           SELECT 'Perf ' || g, (ARRAY['Children''s Books, Fiction','Juvenile Fiction','Mystery, Thriller','Zoology','Fiction, General','Cooking','History, Non-fiction','Children’s Fiction'])[1 + g % 8] || CASE WHEN g % 50 = 0 THEN ', Extra ' || (g % 400) ELSE '' END
+           SELECT 'Perf ' || g, (ARRAY['Children''s Books, Fiction','Juvenile Fiction','Mystery, Thriller','Zoology','Fiction, General','Cooking','History, Nonfiction','Children’s Fiction'])[1 + g % 8] || CASE WHEN g % 50 = 0 THEN ', Extra ' || (g % 400) ELSE '' END
            FROM generate_series(1, 30000) g`);
   admin.clearAll(h.pool);
   const t0 = Date.now();
@@ -231,8 +231,9 @@ test("the rule preview ('Show matches') lists what a new rule takes, and what an
   const body = JSON.parse((await h.get("/admin/genres/rules/preview?kind=contains-word&pattern=Fiction")).text);
   assert.equal(res.status, 200);
   const names = body.takes.map((t) => t.name);
-  assert.ok(names.includes("Fiction") && names.includes("Non-fiction"), "a managed name is the last resort of the matching, so a word rule takes it: the preview shows it");
-  assert.equal(body.takes.find((t) => t.name === "Non-fiction").was, "its own name");
+  assert.ok(names.includes("Fiction"), "a managed name is the last resort of the matching, so a word rule takes it: the preview shows it");
+  assert.equal(body.takes.find((t) => t.name === "Fiction").was, "its own name");
+  assert.ok(!names.includes("Nonfiction"), "Nonfiction is one word: the word Fiction no longer takes it");
   assert.ok(body.handled.some((t) => t.name === "Children's Fiction"), "a word rule for Children already handles it");
   const none = JSON.parse((await h.get("/admin/genres/rules/preview?kind=contains-word&pattern=")).text);
   assert.equal(none.genres, 0);
@@ -256,7 +257,7 @@ test("preview numbers equal apply numbers; apply changes exactly the expected bo
   const expectedEn = {
     "Children's Books, Fiction": "Children, Fiction", "Children's Fiction": "Children", "Juvenile Fiction": "Children", "Fiction, General": "Fiction",
     Childrens: "Children", "Children’s Books": "Children", Mystery: "Mystery", Zoology: "Zoology", Childhood: "Childhood",
-    fiction: "Fiction", "Non-fiction, History": "Non-fiction, History", "Children, Children's Books": "Children",
+    fiction: "Fiction", "Nonfiction, History": "Nonfiction, History", "Children, Children's Books": "Children",
   };
   let changed = 0;
   for (const id of ids) {
@@ -416,7 +417,7 @@ test("a book saved while the run reads is skipped, never overwritten", async () 
 
 test("a batch size of 500: 30,000 books apply in under 30 s", { timeout: 120000 }, async () => {
   await q(`INSERT INTO books (title, categories)
-           SELECT 'Big ' || g, (ARRAY['Children''s Books, Fiction','Juvenile Fiction','Mystery, Thriller','Zoology','Fiction, General','Cooking','History, Non-fiction','Children’s Fiction'])[1 + g % 8]
+           SELECT 'Big ' || g, (ARRAY['Children''s Books, Fiction','Juvenile Fiction','Mystery, Thriller','Zoology','Fiction, General','Cooking','History, Nonfiction','Children’s Fiction'])[1 + g % 8]
            FROM generate_series(1, 30000) g`);
   await childrenRules();
   const t0 = Date.now();

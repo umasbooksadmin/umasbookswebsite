@@ -22,7 +22,7 @@ before(async () => {
     for (const c of copies) await h.pool.query("INSERT INTO book_copies (book_id, condition, price, status, location) VALUES ($1,$2,$3,$4,$5)", [b.id, c.cond || "good", c.price ?? 5, c.status || "in_stock", c.loc ?? null]);
   };
   await mk("RX split", "trade", "Fiction", [{ loc: "Storage", cond: "new", price: 20 }, { loc: "Shelf A", cond: "good", price: 4 }, { status: "sold", loc: "Storage" }]);
-  await mk("RX hard", "hardcover", "Non-fiction", [{ loc: "Storage", cond: "good", price: 9 }]);
+  await mk("RX hard", "hardcover", "Nonfiction", [{ loc: "Storage", cond: "good", price: 9 }]);
   await mk("RX none", null, null, [{ loc: null, cond: "good", price: 3 }]);
   await mk("=RX formula", "trade", "Fiction", [{ loc: "Shelf A", cond: "good", price: 7 }]);
   // more than the 200 the screen shows

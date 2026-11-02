@@ -83,3 +83,32 @@ test("write path helpers: normalizeGenres and pickGenres use the same clean-up",
   assert.ok(STATIC_KNOWN_GENRES.has("science fiction"));
   assert.equal(pickGenres(["Gothic tales§"]), "Gothic tales");
 });
+
+// "Nonfiction" is one word (2026-11-02). Sources (Open Library, BnF, Google) and old data still say "Non-fiction".
+test("every spelling of non-fiction becomes the managed Nonfiction, on every write path", () => {
+  const { NONFICTION, isNonfictionVariant, searchGenreName } = require("../../src/lib/genreClean");
+  assert.equal(NONFICTION, "Nonfiction");
+  assert.ok(COMMON_GENRES.includes("Nonfiction") && !COMMON_GENRES.some((g) => /non-fiction/i.test(g)));
+  for (const v of ["Non-fiction", "non-fiction", "NON-FICTION", "Non-Fiction", "non fiction", "Non  Fiction", "nonfiction", "NONFICTION", "Non‐fiction", " Non-fiction§"]) {
+    assert.ok(isNonfictionVariant(v), v);
+    assert.equal(canonicalGenre(v, STATIC_KNOWN_GENRES), "Nonfiction", v);
+    assert.equal(searchGenreName(v), "Nonfiction", v);
+    assert.equal(normalizeGenres(`History, ${v}`), "History, Nonfiction", v);
+  }
+  assert.equal(canonicalGenres("Non-fiction, nonfiction, Fiction", STATIC_KNOWN_GENRES), "Nonfiction, Fiction", "duplicates collapse");
+  for (const other of ["Fiction", "Science Fiction", "Nonfictional", "Non-fiction books", "Nonsense"]) {
+    assert.ok(!isNonfictionVariant(other), other);
+    assert.equal(searchGenreName(other), other);
+  }
+  assert.equal(canonicalGenre("Non-fiction books", STATIC_KNOWN_GENRES), "Non-fiction books", "only the whole genre is mapped");
+  // a managed genre the admin still calls Non-fiction wins (the alias only fills a gap)
+  const managedOld = buildKnown({ common: COMMON_GENRES, managed: [{ name_en: "Non-fiction" }] });
+  assert.equal(canonicalGenre("non fiction", managedOld), "Nonfiction");
+});
+
+test("pickGenres: the subjects of Open Library / BnF / Google that say Non-fiction give Nonfiction", () => {
+  assert.ok(pickGenres(["Non-fiction", "Dogs"]).split(", ").includes("Nonfiction"));
+  assert.ok(pickGenres(["Nonfiction"]).split(", ").includes("Nonfiction"));
+  assert.ok(pickGenres(["Cats", "Non fiction"]).split(", ").includes("Nonfiction"));
+  assert.deepEqual(pickGenres(["History", "Non-fiction"]).split(", "), ["Fiction", "Nonfiction", "History"], "as before: the word fiction inside the subject also matches Fiction");
+});

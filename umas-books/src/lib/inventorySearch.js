@@ -16,6 +16,7 @@
 const { CONDITIONS, BINDINGS, normalizeBinding, normalizeLocation, uniqueLocations, isbnSearchForms, isbnMatchSql } = require("./inventory");
 const { parseMoney, parseDay, clean } = require("./validation");
 const { COMMON_GENRES } = require("./bookLookup");
+const { searchGenreName } = require("./genreClean");
 const { likeContains } = require("./parseParams");
 
 // Sentinels for the two special <select> choices (a location is free text of
@@ -48,7 +49,7 @@ function parseInventoryFilters(query) {
   if (bind && !out.binding) errors.push("That binding is not one of the choices, so it was ignored.");
 
   const genre = clean(src.genre, 60).replace(/\s+/g, " ");
-  out.genre = genre === NO_GENRE ? NO_GENRE : genre || null;
+  out.genre = genre === NO_GENRE ? NO_GENRE : searchGenreName(genre) || null;
 
   for (const [key, label] of [["priceMin", "Min price"], ["priceMax", "Max price"]]) {
     const text = clean(src[key], 20);
@@ -102,7 +103,7 @@ function addFilterConditions(f, conditions, params) {
   if (f.binding === NO_BINDING) conditions.push("b.binding IS NULL");
   else if (f.binding) { params.push(f.binding); conditions.push(`b.binding = $${params.length}`); }
   // Genres are a comma-separated string (books.categories): match one whole,
-  // trimmed, case-insensitive entry, never a substring ("Fiction" is not "Non-fiction").
+  // trimmed, case-insensitive entry, never a substring ("Fiction" is not "Nonfiction").
   if (f.genre === NO_GENRE) {
     conditions.push("NOT EXISTS (SELECT 1 FROM unnest(string_to_array(b.categories, ',')) AS g WHERE btrim(g) <> '')");
   } else if (f.genre) {

@@ -55,7 +55,7 @@ test("French: the same buttons with the ENGLISH genre labels marked lang=en; All
 });
 
 test("the English labels are the ones the page had", async () => {
-  assert.deepEqual(labelsOf(await page("en")), ["Fiction", "Children's Books", "Young Adult", "Non-Fiction", "Classics", "Mystery & Thriller", "Romance", "Biography & Memoir", "Health & Wellness", "Arts & Crafts", "Travel", "Food & Drink", "Home & Garden", "All Genres"]);
+  assert.deepEqual(labelsOf(await page("en")), ["Fiction", "Children's Books", "Young Adult", "Nonfiction", "Classics", "Mystery & Thriller", "Romance", "Biography & Memoir", "Health & Wellness", "Arts & Crafts", "Travel", "Food & Drink", "Home & Garden", "All Genres"]);
 });
 
 test("the old ?genre= links still select the right genre: every old slug is a button the page script can find", async () => {

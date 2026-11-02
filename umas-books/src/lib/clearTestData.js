@@ -76,6 +76,7 @@ const TABLES = {
   curated_collection_books: "shop", // which books are in a curated collection (they follow the books)
   book_french_backup: "shop", // migration 107's copy of the old French book descriptions / genres (follows the books)
   book_genre_cleanup_backup: "shop", // migration 109's copy of the genres it tidied (follows the books)
+  categories_nonfiction_backup: "shop", // migration 114's copy of the genres it respelled Nonfiction (follows the books)
   cleared_book_descriptions: "shop", // migration 110's copy of the 26 AI-guessed descriptions it cleared (follows the books)
   // people
   users: "people", // non-admins only
@@ -114,6 +115,7 @@ const TABLES = {
   ai_usage_stats: "kept", // aggregate AI call/token counts per day and feature (no personal data)
   ai_daily_cap: "kept", // per-day counters of the AI daily cap (counts only, no personal data)
   curated_collections: "kept", // the 19 seeded shelves (titles, prompts, published or not) are settings, not test data; only their book lists (curated_collection_books) are shop data
+  nonfiction_rename_backup: "kept", // migration 114's copy of the old genre name / label / rule it respelled: settings, not test data
   managed_genres: "kept", // the managed genre list (names, Browse buttons): settings, not test data
   genre_rules: "kept", // the rules that slot raw genres into the managed ones: settings
   db_size_snapshots: "kept", // weekly database-size snapshots (monitoring numbers only, no personal data)
@@ -314,6 +316,7 @@ function buildPlan({ includeContent = false, keepMembers = false } = {}, have = 
   del("curated_collection_books");
   del("book_french_backup");
   del("book_genre_cleanup_backup");
+  del("categories_nonfiction_backup");
   del("cleared_book_descriptions");
   del("price_reprice_items");
   del("price_reprice_runs");

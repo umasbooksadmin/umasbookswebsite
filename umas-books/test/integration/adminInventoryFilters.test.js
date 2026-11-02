@@ -42,7 +42,7 @@ const T = (s) => `FLT ${s}`;
 
 test("seed", async () => {
   await book(T("store-good-5"), { binding: "trade", categories: "Fiction", copies: [{ location: "Store", condition: "good", price: 5 }] });
-  await book(T("STORE-new-12"), { binding: "hardcover", categories: "Non-fiction", copies: [{ location: "STORE", condition: "new", price: 12 }] });
+  await book(T("STORE-new-12"), { binding: "hardcover", categories: "Nonfiction", copies: [{ location: "STORE", condition: "new", price: 12 }] });
   await book(T("shelf-vg-8"), { binding: "mass_market", categories: "Science Fiction, Fantasy", copies: [{ location: "Shelf A", condition: "very_good", price: 8.5 }] });
   await book(T("nowhere"), { binding: null, categories: null, copies: [{ location: null, condition: "good", price: 3 }] });
   await book(T("split"), { binding: "trade", categories: " fiction ,Mystery", copies: [{ location: "Store", condition: "new", price: 20 }, { location: "Shelf A", condition: "good", price: 4 }] });
@@ -81,8 +81,8 @@ test("same-copy semantics: location+condition+price must be met by ONE copy", as
 });
 
 test("genre: exact token, case/space-insensitive, multi-genre, none", async () => {
-  assert.deepEqual(await titles("genre=Fiction"), [T("sold-store"), T("split"), T("store-good-5")], "not Non-fiction, not Science Fiction");
-  assert.deepEqual(await titles("genre=Non-fiction"), [T("STORE-new-12")]);
+  assert.deepEqual(await titles("genre=Fiction"), [T("sold-store"), T("split"), T("store-good-5")], "not Nonfiction, not Science Fiction");
+  assert.deepEqual(await titles("genre=Nonfiction"), [T("STORE-new-12")]);
   assert.deepEqual(await titles("genre=Science%20Fiction"), [T("shelf-vg-8")]);
   assert.deepEqual(await titles("genre=Fantasy"), [T("shelf-vg-8")]);
   assert.deepEqual(await titles("genre=Mystery"), [T("split")]);
