@@ -266,7 +266,8 @@ jobs:
         continue-on-error: true
         env:
           SITE_URL: ${{ vars.SITE_URL || 'https://umasbooks.org' }}
-        run: curl -fsS -o /dev/null --max-time 60 --retry 3 --retry-delay 20 -H "X-Umas-Probe: backup" "${SITE_URL%/}/healthz"
+        run: |
+          curl -fsS -o /dev/null --max-time 60 --retry 3 --retry-delay 20 -H "X-Umas-Probe: backup" "${SITE_URL%/}/healthz"
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.dump.outputs.yearly == 'true'
