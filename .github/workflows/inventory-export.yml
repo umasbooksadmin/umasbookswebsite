@@ -229,7 +229,8 @@ jobs:
         continue-on-error: true
         env:
           SITE_URL: ${{ vars.SITE_URL || 'https://umasbooks.org' }}
-        run: curl -fsS -o /dev/null --max-time 60 --retry 3 --retry-delay 20 -H "X-Umas-Probe: inventory" "${SITE_URL%/}/healthz"
+        run: |
+          curl -fsS -o /dev/null --max-time 60 --retry 3 --retry-delay 20 -H "X-Umas-Probe: inventory" "${SITE_URL%/}/healthz"
 
       - name: Alert admin if any step above failed
         if: failure()
