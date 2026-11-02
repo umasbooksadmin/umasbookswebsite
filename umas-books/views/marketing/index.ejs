@@ -65,7 +65,7 @@ if (_sameAs.length) jsonLd.sameAs = _sameAs;
     </article>
 
     <article class="h-card gold">
-      <img class="medallion" src="<%= assetUrl('/assets/img/flower.webp') %>" alt="" width="184" height="184" loading="lazy">
+      <%- include('../partials/picture', { src: '/assets/img/medallion-donate.png', alt: '', w: 184, h: 184, cls: 'medallion', lazy: true }) %>
       <h2 data-i18n="home.edu.t">Educational Items</h2>
       <div class="divider"></div>
       <p data-i18n="home.edu.d">Worksheets, flash cards and more, all new. Reserve online and collect in the shop.</p>
@@ -118,7 +118,6 @@ if (_sameAs.length) jsonLd.sameAs = _sameAs;
     </div>
     <%- include('partials/mkt_member_band') %>
     <article class="h-card gold donate-card">
-      <%- include('../partials/picture', { src: '/assets/img/medallion-donate.png', alt: '', w: 184, h: 184, cls: 'medallion', lazy: true }) %>
       <h2 data-i18n="home.donate.t">Donate Books</h2>
       <div class="divider"></div>
       <p data-i18n="home.donate.d">Give your pre-loved English books a second life and help support our community programs.</p>

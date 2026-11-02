@@ -42,3 +42,14 @@ test("home tiles: EN and FR text for the new tile, and the Donate keys are kept"
   assert.match(fr, /"home\.edu\.cta": "Voir les articles"/);
   assert.match(fr, /"home\.donate\.t": "Donner des livres"/);
 });
+
+test("home tiles: Educational Items uses the Donate medallion; the Donate card in the bottom row has none", () => {
+  const edu = cards.slice(cards.indexOf("home.edu.t"), cards.indexOf("home.eveil.t"));
+  const eduArticle = cards.slice(cards.lastIndexOf("<article", cards.indexOf("home.edu.t")), cards.indexOf("</article>", cards.indexOf("home.edu.t")));
+  assert.ok(eduArticle.includes("/assets/img/medallion-donate.png"), "edu tile shows the donate medallion");
+  assert.ok(!eduArticle.includes("flower.webp"));
+  assert.ok(edu.length > 0);
+  const donate = bottom.slice(bottom.indexOf('donate-card'));
+  assert.ok(!donate.includes("medallion"), "the Donate card has no medallion");
+  assert.ok(!cards.includes("medallion-donate.png") || cards.indexOf("medallion-donate.png") < cards.indexOf("home.eveil.t"), "only the edu tile uses it in the top row");
+});

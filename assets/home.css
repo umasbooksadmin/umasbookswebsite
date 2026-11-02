@@ -181,8 +181,9 @@
 
 /* "More than a bookstore" card beside the membership card */
 .member-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 28px; align-items: stretch; }
-/* The Donate Books card is the third item of this row (it used to be the fourth top card): same h-card look, no side rule. */
-.member-row .donate-card { border-left: 0; padding: 30px 16px 36px; }
+/* The Donate Books card is the third item of this row (it used to be the fourth top card): h-card text without a medallion (the Educational Items tile uses that picture), in a panel like its neighbour. */
+.member-row .donate-card { border: 1px solid var(--line); background: var(--panel); justify-content: center; padding: 30px 28px 36px; }
+.member-row .donate-card .divider { margin-top: 16px; }
 .member-row .member-inner { display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .about-card { position: relative; overflow: hidden; padding: 30px 36px 36px; border: 1px solid var(--line); background: var(--panel); }
 .about-card h2 { font-size: clamp(24px, 2.4vw, 30px); letter-spacing: 0.14em; text-transform: uppercase; line-height: 1.1; }
