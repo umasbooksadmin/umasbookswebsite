@@ -117,7 +117,11 @@ test("nightly: force_yearly input; yearly block comes AFTER the normal upload an
 });
 
 test("nightly: yearly copy is the SAME dump, on 2 January Paris date, once a year, null-safe listing", () => {
-  assert.match(nightly, /TZ=Europe\/Paris date \+%m-%d\)" = "01-02"/);
+  // 2 January = the gate's Paris day (DAY), not the runner's clock: a run GitHub delays past midnight is still 2 January's.
+  // Replayed end to end in backupSchedule.test.js.
+  assert.match(nightly, /PARIS_DATE="\$DAY"/);
+  assert.match(nightly, /"\$\{PARIS_DATE:5:5\}" = "01-02"/);
+  assert.doesNotMatch(nightly, /TZ=Europe\/Paris date/, "no date from the runner's clock in the backup job");
   assert.match(nightly, /aws s3 cp "\$UPLOAD" "s3:\/\/\$\{BUCKET\}\/\$\{PREFIX\}\/yearly\//);
   assert.match(nightly, /YEXT="\.dump\.age"/);
   assert.match(nightly, /--prefix "\$\{PREFIX\}\/yearly\/umas_books_full_\$\{YEAR\}-"/);
@@ -162,7 +166,7 @@ test("freshness: the yearly copy is only a warning, never required, and only che
   assert.doesNotMatch(s, /exit 1|::error/);
   assert.match(s, /yearly\/umas_books_full_\$\{YEAR\}-/);
   // the other two checks are unchanged in what they require
-  assert.doesNotMatch(stepNamed(freshness, /Check the newest nightly dump/), /yearly/);
+  assert.doesNotMatch(stepNamed(freshness, /Check last night's backup is in Backblaze/), /yearly/);
 });
 
 test("freshness: from the 3rd the accounting export and last night's end-of-day inventory export are required, with their own alert emails", () => {

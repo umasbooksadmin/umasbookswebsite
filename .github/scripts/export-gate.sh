@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Idempotent "should this scheduled export run now?" gate, shared by
-# accounting-export-monthly.yml and inventory-export.yml.
+# accounting-export-monthly.yml, inventory-export.yml and nightly-db-backup.yml.
 #
 # GitHub starts scheduled runs late (often 2-4 hours) or drops them, so the gate does not trust
 # the clock alone: it asks Backblaze whether the export it is deciding for is already done, and
@@ -17,18 +17,33 @@
 #               Run unless inventory-exports/inventory_books_<D>.csv exists AND was written at or
 #               after 21:00 Paris on D ("the end-of-day export for D"). A file written earlier on D
 #               (a manual run during the day) does not count, so that evening's export still runs.
+#   backup      the nightly database backup, at 22:00 Paris. Decides for ONE Paris day D, exactly like
+#               inventory but from 22h (outputs day=D; the backup job uses D for its monthly and yearly
+#               copies):
+#                 hours 22-23 (Paris): D = today
+#                 hours 0-5:           D = yesterday (a run GitHub delayed past midnight)
+#                 hours 6-21:          skip
+#               Run unless the NEWEST object under <PREFIX>/full/umas_books_full_ (PREFIX default
+#               store-backups) was written at or after 22:00 Paris on D. The file names carry the UTC
+#               time the dump was made (umas_books_full_<YYYY-MM-DDTHH-MM-SSZ>.dump[.age]), so the
+#               check is on the time the newest one was written, not on one exact name. A backup made
+#               earlier on D (a manual run during the day) does not count, so that night's backup still
+#               runs; a manual run from 22:00 Paris on IS a complete backup made after 22:00, and counts.
 #   manual      IGNORE=true (the default of a manual run) or an explicit month: always run.
-#               A manual inventory run exports under today's Paris date (day=today, manual=true).
+#               A manual inventory run exports under today's Paris date (day=today, manual=true);
+#               a manual backup run is labelled the same way (the backup workflow sets IGNORE=true
+#               for every manual run, so a manual backup is never skipped).
 #
 # If Backblaze cannot be asked (network, credentials) the gate runs the export anyway and says so
 # (a second export only overwrites the same files; a missing one is the worse outcome).
 #
-# Usage: export-gate.sh accounting|inventory
+# Usage: export-gate.sh accounting|inventory|backup
 # Env:   IGNORE (true = manual run, always go on)   MONTH_INPUT (accounting, YYYY-MM, optional)
+#        PREFIX (backup: the BACKUP_S3_PREFIX variable, default store-backups)
 #        BUCKET ENDPOINT (+ the AWS_* credentials)  GITHUB_OUTPUT (default: stdout)
 #        GATE_NOW "YYYY-MM-DD HH" = the Paris time, for tests (default: the real clock)
 #        AWS_BIN = the aws command (default: aws), for tests.
-# Output: run=true|false   (inventory also) day=YYYY-MM-DD   manual=true|false
+# Output: run=true|false   (inventory and backup also) day=YYYY-MM-DD   manual=true|false
 set -u
 
 kind="${1:-}"
@@ -38,10 +53,12 @@ out="${GITHUB_OUTPUT:-/dev/stdout}"
 
 for_day=""
 manual="false"
+skip_title="Export skipped"
+if [ "$kind" = "backup" ]; then skip_title="Backup skipped"; fi
 decide() { # $1 = true|false, $2 = reason
   echo "run=$1" >> "$out"
   if [ -n "$for_day" ]; then { echo "day=$for_day"; echo "manual=$manual"; } >> "$out"; fi
-  if [ "$1" = "true" ]; then echo "Gate ($kind): RUN - $2"; else echo "::notice title=Export skipped::$2"; echo "Gate ($kind): SKIP - $2"; fi
+  if [ "$1" = "true" ]; then echo "Gate ($kind): RUN - $2"; else echo "::notice title=${skip_title}::$2"; echo "Gate ($kind): SKIP - $2"; fi
   exit 0
 }
 
@@ -98,8 +115,36 @@ case "$kind" in
     cutoff=$(paris_epoch "$for_day" "21:00")
     check_done "inventory-exports/inventory_books_${for_day}.csv" "$cutoff" "the end-of-day inventory export for ${for_day}" "21:00 Paris on ${for_day}"
     ;;
+  backup)
+    if [ "${IGNORE:-}" = "true" ]; then
+      for_day="$date_part"; manual="true"
+      decide true "manual run (time and file checks skipped): backing up now, labelled ${for_day}."
+    fi
+    if [ "$hour" -le 5 ]; then
+      # GitHub often starts scheduled runs 2-4 hours late: a run after midnight still owes yesterday's backup.
+      for_day=$(day_before "$date_part")
+    elif [ "$hour" -lt 22 ]; then
+      decide false "It is ${hour}h in Paris, before 22h: a later schedule makes tonight's backup (several exist for summer/winter time and delays)."
+    else
+      for_day="$date_part"
+    fi
+    cutoff=$(paris_epoch "$for_day" "22:00")
+    if [ -z "$cutoff" ]; then
+      echo "::warning title=Backup gate could not compute a date::Could not compute 22:00 Paris on ${for_day}: backing up anyway."
+      decide true "could not compute the cut-off time, backing up to be safe."
+    fi
+    pfx="${PREFIX:-store-backups}"; pfx="${pfx%/}"
+    newest_since "${pfx}/full/umas_books_full_" "$cutoff"
+    case "$?" in
+      0) decide false "the nightly backup for ${for_day} is already in Backblaze (the newest file under ${pfx}/full/ was written ${WRITTEN}, after 22:00 Paris on ${for_day}): nothing to do." ;;
+      1) decide true "there is no backup under ${pfx}/full/ at all yet." ;;
+      3) decide true "the newest backup under ${pfx}/full/ was written ${WRITTEN}, before 22:00 Paris on ${for_day}: the nightly backup for ${for_day} is not made yet." ;;
+    esac
+    echo "::warning title=Backup gate could not read Backblaze::Could not check whether the backup for ${for_day} exists: backing up anyway."
+    decide true "could not check Backblaze, backing up to be safe."
+    ;;
   *)
-    echo "Usage: export-gate.sh accounting|inventory" >&2
+    echo "Usage: export-gate.sh accounting|inventory|backup" >&2
     exit 2
     ;;
 esac

@@ -1003,7 +1003,7 @@ flowchart LR
   end
   subgraph gha["GitHub Actions (independent of Render)"]
     D["every hour<br/>uptime check"]
-    E["03:00 UTC nightly<br/>database backup to Backblaze"]
+    E["22:00 Paris nightly<br/>database backup to Backblaze"]
     F["1st of month, 05:00 UTC<br/>restore test"]
     FR["09:00 UTC daily<br/>backup freshness check"]
   end
@@ -1017,7 +1017,7 @@ flowchart LR
   E --> DB
   E --> BK[("Backblaze B2")]
   BK --> F
-  FR -->|"newest full/ dump older than 36 h,<br/>empty or unreachable: email"| BK
+  FR -->|"no full/ dump since 22:00 Paris yesterday,<br/>empty or unreachable: email"| BK
   IC --> DB
   AW --> DB
   A -. "every run recorded" .-> JR
@@ -1036,10 +1036,10 @@ flowchart LR
 | Awards drain | web process | 2 min, not at boot | looks up awards for a few books at a time (§6); a no-op when `AWARDS_LOOKUPS=off` |
 | Cover backfill | web process | 5 min, first run after 1 min | copies up to 20 book covers from their Open Library / archive.org source address into the `images` table, books on the shelves first; at most 3 failed attempts a week per cover, where only a 404, a placeholder or an invalid image counts as failed (a 5xx, timeout or network error does not, and 3 in a row stop the batch); sends a User-Agent with the site and a contact address; off with `COVER_BACKFILL=off` (`lib/coverStore.js`) |
 | Uptime check | Actions | hourly (about 720 billed minutes a month: see the runbook, section t) | emails on the **second** consecutive failure and on recovery |
-| Database backup | Actions | 03:00 UTC | full dump to Backblaze B2 (required); a second copy on the 1st of the month |
+| Database backup | Actions | 22:00 Paris (20:00/21:00 UTC lines + retries to 01:00 UTC; an idempotent gate makes one per Paris day) | full dump to Backblaze B2 (required); a second copy on the evening of the 1st of the month |
 | Restore test | Actions | monthly + manual | restores the newest Backblaze dump into a scratch Postgres and checks it (key tables, newest migration, images) |
 | Test alert | Actions | every Monday + manual | sends one email so a broken alert channel is noticed within a week |
-| Backup freshness check | Actions | 09:00 UTC daily + manual | emails if the newest nightly dump in Backblaze is older than 36 hours, empty, missing, or Backblaze cannot be reached; after the 3rd of the month also if the newest `monthly/` copy is over 35 days old (§12) |
+| Backup freshness check | Actions | 09:00 UTC daily + manual | emails if last night's dump (written from 22:00 Paris yesterday) is missing, or the newest is empty, or Backblaze cannot be reached; after the 3rd of the month also if the newest `monthly/` copy is over 35 days old (§12) |
 
 **Job tracking** (`lib/jobRuns.js`, table `job_runs`, migration 081). A job used
 to fail with only a `console.error` that nobody read. Now `guardJob(name, fn,
@@ -1159,7 +1159,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-  subgraph nightly["Nightly 03:00 UTC (GitHub Actions)"]
+  subgraph nightly["Nightly 22:00 Paris (GitHub Actions)"]
     G{"offsite settings<br/>all set?"} -- no --> E["any failure: email to admin"]
     G -- yes --> D["pg_dump --format=custom<br/>(client 18, 3 attempts,<br/>images included, sessions left out)"]
     D --> U[("Backblaze B2<br/>full/ every night,<br/>monthly/ copy on the 1st")]
@@ -1218,9 +1218,9 @@ flowchart TB
   is stale); and the existing row, admin and image-byte checks.
 * **Freshness check.** The nightly workflow emails when it *fails*, but cannot email
   if it never runs at all (workflow disabled, schedule dropped, a GitHub outage).
-  `.github/workflows/backup-freshness.yml` therefore runs six hours after the
-  backup, looks at Backblaze itself, and emails `admin@umasbooks.org` if the newest
-  `full/` dump is older than 36 hours, is empty, or is missing, or if Backblaze
+  `.github/workflows/backup-freshness.yml` therefore runs every morning (09:00 UTC,
+  after the backup's last retry), looks at Backblaze itself, and emails `admin@umasbooks.org`
+  if no `full/` dump was written from 22:00 Paris the evening before, the newest is empty, or if Backblaze
   cannot be reached or its settings are absent. From the 4th of each month it also
   requires the newest `monthly/` object to be under 35 days old, so a silently
   failing 1st-of-the-month copy is noticed. It uses the same `BACKUP_S3_*`

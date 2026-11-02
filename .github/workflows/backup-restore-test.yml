@@ -28,7 +28,7 @@ name: Monthly backup restore test
 
 on:
   schedule:
-    - cron: "0 5 1 * *" # 05:00 UTC on the 1st of each month
+    - cron: "0 5 1 * *" # 05:00 UTC on the 1st of each month (after the nightly backup's last try, 05:59 Paris at the latest = 03:59/04:59 UTC)
   workflow_dispatch: {}
 
 permissions:
@@ -132,7 +132,10 @@ jobs:
       - name: Integrity checks without decryption (default for encrypted backups)
         if: env.MODE == 'integrity-only'
         # Size within +-50% of the previous monthly copy (the monthly/ copy of the
-        # SAME file is skipped: it was written at 03:00 today, before this job).
+        # SAME file is skipped, if there is one: e.g. a manual run with force_monthly).
+        # On the 1st at 05:00 UTC the newest dump is the 22:00 Paris backup of the
+        # last evening of the month before; the new month's monthly copy is only
+        # written by the backup of the evening of the 1st, after this job.
         # Nothing is decrypted or restored here: do the quarterly restore drill.
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}

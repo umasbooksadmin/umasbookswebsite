@@ -1,4 +1,5 @@
-# Helpers shared by export-gate.sh and export-freshness.sh (sourced, not run on its own).
+# Helpers shared by export-gate.sh and export-freshness.sh (sourced, not run on its own; the nightly
+# backup's dump step also sources it for to_epoch / paris_text).
 # Dates: GNU date on the GitHub runner, BSD date on a Mac (the unit tests also run there).
 # shellcheck shell=bash
 # Needs: ENDPOINT, BUCKET (+ the AWS_* credentials); AWS_BIN = the aws command (default: aws), for tests.
@@ -47,6 +48,24 @@ written_since() {
   ts=$(to_epoch "$WRITTEN") || return 2
   [ -n "$ts" ] || return 2
   WRITTEN="$(paris_text "$ts" 2>/dev/null || echo "$WRITTEN") Paris time"
+  [ "$ts" -ge "$2" ] && return 0
+  return 3
+}
+
+# newest_since PREFIX CUTOFF_EPOCH: like written_since, but for the NEWEST object under PREFIX (the nightly
+# backup's file names carry the time they were made, so there is no one exact key to look for):
+# 0 = the newest object was written at or after the cutoff; 1 = nothing under the prefix;
+# 3 = the newest was written before the cutoff; 2 = could not ask / could not read its date. Sets WRITTEN.
+newest_since() {
+  local t ts
+  WRITTEN=""
+  # shellcheck disable=SC2016  # the backticks are JMESPath literals, not shell
+  t=$("$aws_bin" s3api list-objects-v2 --endpoint-url "${ENDPOINT:-}" --bucket "${BUCKET:-}" --prefix "$1" --delimiter "/" \
+        --query 'sort_by(Contents || `[]`, &LastModified)[-1].LastModified' --output text 2>/dev/null) || return 2
+  case "$t" in '') return 2 ;; None|null) return 1 ;; esac
+  ts=$(to_epoch "$t") || return 2
+  [ -n "$ts" ] || return 2
+  WRITTEN="$(paris_text "$ts" 2>/dev/null || echo "$t") Paris time"
   [ "$ts" -ge "$2" ] && return 0
   return 3
 }

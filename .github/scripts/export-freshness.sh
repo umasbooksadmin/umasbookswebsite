@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Daily check, used by backup-freshness.yml, that the two scheduled exports really happened.
+# Daily check, used by backup-freshness.yml, that the nightly backup and the two scheduled exports
+# really happened.
 # The export workflows email when they FAIL, but a run that never happens (disabled workflow,
 # dropped schedule) is silent; this looks at Backblaze itself, with the SAME rules as
 # export-gate.sh (a manual or test run does not count as the scheduled export):
@@ -11,11 +12,16 @@
 #               inventory-exports/inventory_books_<D>.csv written at or after 21:00 Paris on D,
 #               where D = yesterday (from 06:00 Paris; before that, the day before yesterday,
 #               since a delayed run may still be exporting yesterday).
+#   backup      the nightly database backup of the last night whose retry window is over must exist:
+#               the newest object under <PREFIX>/full/umas_books_full_ written at or after 22:00 Paris
+#               on D, D = yesterday (from 06:00 Paris; before that, the day before yesterday), the same
+#               rule as export-gate.sh backup. A daytime manual backup does not count for that night.
 #
-# Never fails the step: it writes outputs and the workflow sends the alert mail, so the existing
-# "no fresh backup" alert is not triggered by it.
-# Usage: export-freshness.sh accounting|inventory
+# Never fails the step: it writes outputs and the workflow sends the alert mail (for backup, the
+# workflow step fails itself on missing=true, which sends the "no fresh backup" email).
+# Usage: export-freshness.sh accounting|inventory|backup
 # Env:   BUCKET ENDPOINT (+ the AWS_* credentials)   GITHUB_OUTPUT (default: stdout)
+#        PREFIX (backup: the BACKUP_S3_PREFIX variable, default store-backups)
 #        GATE_NOW "YYYY-MM-DD HH" Paris time, AWS_BIN: for tests.
 # Output: missing=true|false   label=<YYYY-MM or YYYY-MM-DD>   reason=<one line>
 set -u
@@ -25,9 +31,11 @@ out="${GITHUB_OUTPUT:-/dev/stdout}"
 # shellcheck source-path=SCRIPTDIR source=export-lib.sh
 . "$(dirname "$0")/export-lib.sh" # helpers; AWS_BIN = the aws command (default: aws)
 
+missing_title="Export missing"
+if [ "$kind" = "backup" ]; then missing_title="Nightly backup missing"; fi
 emit() { # $1 = missing true|false, $2 = reason, $3 = label
   { echo "missing=$1"; echo "label=${3:-}"; echo "reason=$2"; } >> "$out"
-  if [ "$1" = "true" ]; then echo "::error title=Export missing::$2"; else echo "OK ($kind): $2"; fi
+  if [ "$1" = "true" ]; then echo "::error title=${missing_title}::$2"; else echo "OK ($kind): $2"; fi
   exit 0
 }
 
@@ -71,8 +79,22 @@ case "$kind" in
       *) emit true "Could not check Backblaze for ${key}." "$owed" ;;
     esac
     ;;
+  backup)
+    owed=$(day_before "$date_part")
+    if [ "$hour" -le 5 ]; then owed=$(day_before "$owed"); fi
+    pfx="${PREFIX:-store-backups}"; pfx="${pfx%/}"
+    cutoff=$(paris_epoch "$owed" "22:00")
+    [ -n "$cutoff" ] || emit true "Could not compute 22:00 Paris on ${owed}." "$owed"
+    newest_since "${pfx}/full/umas_books_full_" "$cutoff"
+    case "$?" in
+      0) emit false "the nightly backup for ${owed} is there (the newest file under ${pfx}/full/ was written ${WRITTEN})." "$owed" ;;
+      1) emit true "The nightly backup for ${owed} is missing: there is no file at all under ${pfx}/full/." "$owed" ;;
+      3) emit true "The nightly backup for ${owed} is missing: the newest file under ${pfx}/full/ was written ${WRITTEN}, before 22:00 Paris on ${owed}." "$owed" ;;
+      *) emit true "Could not check Backblaze for the nightly backup of ${owed}." "$owed" ;;
+    esac
+    ;;
   *)
-    echo "Usage: export-freshness.sh accounting|inventory" >&2
+    echo "Usage: export-freshness.sh accounting|inventory|backup" >&2
     exit 2
     ;;
 esac

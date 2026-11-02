@@ -68,8 +68,8 @@ test("nothing has ever reported: no alert (the watch is armed by the first repor
   assert.equal(m.sent.length, 0);
 });
 
-test("fresh reports raise nothing; limits are 6 h for the hourly check and 50 h for the nightly jobs", async () => {
-  assert.deepEqual(WATCHED.map((w) => [w.name, w.maxAgeHours]), [["uptime", 6], ["backup", 50], ["inventory", 50]]);
+test("fresh reports raise nothing; limits are 6 h for the hourly check, 58 h for the 22:00 backup and 50 h for the inventory export", async () => {
+  assert.deepEqual(WATCHED.map((w) => [w.name, w.maxAgeHours]), [["uptime", 6], ["backup", 58], ["inventory", 50]]);
   await setSeen("uptime", 5); await setSeen("backup", 49); await setSeen("inventory", 30);
   const m = mails();
   const r = await check(pool, { send: m.send });
@@ -131,7 +131,7 @@ test("the three workflows send the matching header, only after success, and neve
   const stepOf = (src) => src.split(/\n {6}- /).find((s) => /X-Umas-Probe/.test(s));
   const backup = stepOf(wf("nightly-db-backup.yml"));
   assert.match(backup, /X-Umas-Probe: backup/);
-  assert.match(backup, /if: success\(\)/);
+  assert.match(backup, /if: success\(\) && steps\.gate\.outputs\.run == 'true' && steps\.gate\.outputs\.manual != 'true'/, "a manual or skipped run is not the nightly backup");
   const inv = stepOf(wf("inventory-export.yml"));
   assert.match(inv, /X-Umas-Probe: inventory/);
   assert.match(inv, /steps\.gate\.outputs\.run == 'true' && steps\.gate\.outputs\.manual != 'true'/, "a manual or skipped run is not the nightly export");
