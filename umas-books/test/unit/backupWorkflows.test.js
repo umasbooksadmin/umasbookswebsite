@@ -94,7 +94,12 @@ test("nightly: bootstraps the monthly copy and has the force_monthly input", () 
   assert.match(nightly, /bootstrap: no monthly copy exists at all/);
   // one per calendar month: the first successful run of a month that finds none yet writes it (the 1st normally,
   // the next night if the 1st failed)
-  assert.match(nightly, /elif \[ "\$\{NEWEST_MONTHLY:0:7\}" != "\$THIS_MONTH" \]; then\n\s+WRITE_MONTHLY=yes/);
+  // the month is the Paris month of the backup's day (the gate's DAY), compared with the Paris month the newest
+  // monthly copy was written in (replayed end to end in backupSchedule.test.js)
+  assert.match(nightly, /THIS_MONTH="\$\{DAY:0:7\}"/);
+  assert.match(nightly, /NEWEST_MONTH=\$\(paris_text "\$E"\)/);
+  assert.match(nightly, /if \[ "\$NEWEST_MONTH" != "\$THIS_MONTH" \]; then\n\s+WRITE_MONTHLY=yes/);
+  assert.doesNotMatch(nightly, /date -u \+%Y-%m\)/, "not the runner's UTC month");
 });
 
 const { spawnSync: spawnJm } = require("node:child_process");
@@ -103,4 +108,60 @@ const haveJmespath = spawnJm(pyJm, ["-c", "import jmespath"]).status === 0;
 test("self-test: the list queries against sample JSON (needs python jmespath)", { skip: haveJmespath ? false : "python module jmespath is not installed" }, () => {
   const r = spawnJm("bash", [path.join(__dirname, "..", "..", "scripts", "backup-list-selftest.sh")], { encoding: "utf8", env: { ...process.env, PYTHON: pyJm } });
   assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+// ---- 22:00 Paris schedule (the behaviour is replayed end to end in backupSchedule.test.js) ----
+
+const code = nightly.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n"); // without comment lines
+const nightlySteps = code.split(/\n {6}- /).slice(1);
+
+test("nightly: 22:00 Paris (20:00 UTC summer, 21:00 UTC winter) plus retries; the old 03:00 UTC line is gone", () => {
+  assert.deepEqual([...code.matchAll(/- cron: "([^"]+)"/g)].map((m) => m[1]), ["0 20 * * *", "0 21 * * *", "0 22 * * *", "0 23 * * *", "0 1 * * *"]);
+  assert.doesNotMatch(code, /cron: "0 3 \* \* \*"/);
+});
+
+test("nightly: the gate comes right after checkout; every real step waits for it; a manual run always goes on", () => {
+  assert.match(nightlySteps[0], /^uses: actions\/checkout@/, "checkout first: the gate script lives in the repository");
+  const gate = nightlySteps[1];
+  assert.match(gate, /^name: Only go on from 22h in Paris/);
+  assert.match(gate, /id: gate/);
+  assert.match(gate, /run: bash \.github\/scripts\/export-gate\.sh backup/);
+  assert.match(gate, /IGNORE: \$\{\{ github\.event_name == 'workflow_dispatch' \}\}/);
+  assert.match(gate, /PREFIX: \$\{\{ vars\.BACKUP_S3_PREFIX \}\}/);
+  for (const s of nightlySteps.slice(2)) {
+    const name = s.split("\n")[0];
+    if (/Alert admin/.test(name)) { assert.match(s, /if: failure\(\)/); continue; }
+    // the yearly steps follow steps.dump.outputs.yearly (only set when the dump ran), the reminder follows steps.enc
+    assert.match(s, /if: [^\n]*steps\.(gate\.outputs\.run == 'true'|dump\.outputs\.yearly == 'true'|enc\.outputs\.nag == 'true')/, name);
+  }
+  const script = fs.readFileSync(path.join(wfDir, "..", "scripts", "export-gate.sh"), "utf8");
+  assert.match(script, /"\$hour" -lt 22/);
+  assert.match(script, /paris_epoch "\$for_day" "22:00"/);
+  assert.match(script, /newest_since "\$\{pfx\}\/full\/umas_books_full_"/, "the gate looks where the dump step writes");
+});
+
+test("nightly: the dump, monthly and yearly copies use the gate's Paris day; the file name stays the UTC time of the dump", () => {
+  const dump = nightlySteps.find((s) => s.startsWith("name: Dump database and upload"));
+  assert.match(dump, /DAY: \$\{\{ steps\.gate\.outputs\.day \}\}/);
+  assert.match(dump, /STAMP=\$\(date -u \+%Y-%m-%dT%H-%M-%SZ\)/);
+  assert.match(dump, /FILE="full\/umas_books_full_\$\{STAMP\}\.dump"/);
+  assert.match(dump, /s3:\/\/\$\{BUCKET\}\/\$\{PREFIX\}\/full\/\$\(basename "\$UPLOAD"\)/);
+  const enc = nightlySteps.find((s) => s.startsWith("name: Check the encryption setting"));
+  assert.match(enc, /DAY: \$\{\{ steps\.gate\.outputs\.day \}\}/);
+  assert.doesNotMatch(enc, /date -u \+%u\)/, "the weekly reminder goes by the backup's Paris day");
+});
+
+test("nightly: only the scheduled night's backup reports in to the site", () => {
+  const probe = nightlySteps.find((s) => /X-Umas-Probe: backup/.test(s));
+  assert.match(probe, /if: success\(\) && steps\.gate\.outputs\.run == 'true' && steps\.gate\.outputs\.manual != 'true'/);
+});
+
+test("freshness: last night's backup is checked with the gate's rule (22:00 Paris), not a fixed age", () => {
+  const s = freshness.split(/\n {6}- /).find((x) => x.startsWith("name: Check last night's backup is in Backblaze"));
+  assert.ok(s);
+  assert.match(s, /id: backup/);
+  assert.match(s, /bash \.github\/scripts\/export-freshness\.sh backup/);
+  assert.match(s, /grep -qx 'missing=true'[^\n]*\n\s+exit 1/);
+  assert.doesNotMatch(freshness, /MAX_AGE_HOURS|AGE_HOURS/);
+  assert.match(freshness, /cron: "0 9 \* \* \*"/);
 });

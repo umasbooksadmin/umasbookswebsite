@@ -686,11 +686,12 @@ by hand — it downloads the newest dump from B2 and restores it.
 ## Restoring from a backup
 
 `.github/workflows/nightly-db-backup.yml` dumps the production database
-every night (03:00 UTC) with `pg_dump --format=custom`, **encrypts it with
+every evening at 22:00 Paris (once per Paris day; GitHub may start it up to a few hours late:
+runbook section aj, "When the nightly backup runs") with `pg_dump --format=custom`, **encrypts it with
 `age`** (when the repository variable `BACKUP_AGE_RECIPIENT` is set: runbook
 section ad), and uploads it to the
 private Backblaze B2 bucket as `store-backups/full/umas_books_full_<UTC
-timestamp>.dump.age` (`.dump` while unencrypted; kept 30 days; the 1st-of-month copy under
+timestamp>.dump.age` (`.dump` while unencrypted; kept 30 days; the first backup of each month (the evening of the 1st) is copied under
 `store-backups/monthly/` is kept 2 years). Once a month,
 `.github/workflows/backup-restore-test.yml` downloads the newest dump,
 restores it into a scratch Postgres and checks the data (including that it is as

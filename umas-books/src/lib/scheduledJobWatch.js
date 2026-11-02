@@ -26,7 +26,11 @@ const seenKey = (name) => `gha-seen:${name}`;
 const silentKey = (name) => `gha-silent:${name}`;
 
 // maxAgeHours: how old the last report may be. uptime runs hourly (GitHub often starts runs late or skips one):
-// 6 h. backup and inventory run nightly: 50 h = a night may be missed (a blip, a failed ping) but not two.
+// 6 h. backup and inventory run nightly: a night may be missed (a blip, a failed ping) but not two.
+// backup: 58 h. Its report comes from the 22:00 Paris backup, which GitHub may start anywhere between 20:00 UTC
+// (22:00 summer time, on time) and about 05:00 UTC (the last retry the gate accepts, 05:59 Paris): a 9-hour
+// window. One lost night = at most 48 + 9 = 57 h without a report; two lost nights = at least 72 - 9 = 63 h.
+// inventory: 50 h (unchanged).
 const WATCHED = [
   {
     name: "uptime", job: "Site uptime check", maxAgeHours: 6,
@@ -34,7 +38,7 @@ const WATCHED = [
     fix: "Actions tab > \"Site uptime check\" > the latest runs. If nothing ran, see the steps below.",
   },
   {
-    name: "backup", job: "Nightly database backup", maxAgeHours: 50,
+    name: "backup", job: "Nightly database backup", maxAgeHours: 58,
     what: "the nightly database backup", also: "No new backup has been confirmed. Older backups in Backblaze are safe.",
     fix: "Actions tab > \"Nightly database backup\" > Run workflow (it makes a backup right away).",
   },
