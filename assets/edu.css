@@ -13,14 +13,26 @@
 .edu-genre-row { display: flex; flex-wrap: wrap; gap: 8px 22px; list-style: none; margin: 0; padding: 0; }
 .edu-genre-row .bk-genre { text-decoration: none; color: var(--ink); min-width: 92px; }
 
-/* The card: a square picture (worksheets and card packs are rarely book-shaped), then name, genre, price, button. */
+/* The card: a square picture (worksheets and card packs are rarely book-shaped), then name, genre, and the price line
+   (price, "New", and the same cart icon as a book card, public/site-header.css .bk-cart). Cards in a row line up: the card
+   is a column with the price line pushed to the bottom; where subgrid is supported (all browsers the site targets use
+   container queries, which arrived together with it or earlier) the cards share the row's tracks, so the picture, name,
+   genre and price line each start at the same height in every card of the row, whatever the name's length. */
+.edu-card { display: flex; flex-direction: column; }
 .edu-card .cover { aspect-ratio: 1 / 1; object-fit: contain; }
 .edu-card .edu-genre { font-size: 15px; margin-top: 2px; }
-.edu-card .p { flex-wrap: wrap; margin-top: 4px; }
-.edu-card form { margin: 6px 0 0; }
-.edu-card .edu-add { min-height: 44px; padding: 6px 14px; font-size: 15px; }
-.edu-card .edu-soldout { opacity: .65; cursor: not-allowed; }
-.edu-card .edu-incart { display: inline-block; margin-top: 6px; font-size: 15px; color: var(--ink); }
+.edu-card .p { margin-top: auto; padding-top: 4px; gap: 4px 8px; }
+.edu-card .bk-cart-soldout { cursor: not-allowed; opacity: .55; }
+.edu-card .bk-cart-soldout:hover { color: var(--ink); }
+@supports (grid-template-rows: subgrid) {
+  .edu-card { display: grid; grid-template-rows: subgrid; grid-row: span 4; row-gap: 0; }
+  .edu-card > .cover { grid-row: 1; }
+  .edu-card > .t { grid-row: 2; }
+  .edu-card > .edu-genre { grid-row: 3; }
+  .edu-card > .p { grid-row: 4; align-self: end; }
+  #edu-grid { row-gap: 0; }
+  #edu-grid > .edu-card { margin-bottom: 26px; }
+}
 
 .edu-status { margin: 14px 0 0; }
 .edu-empty { padding: 8px 0 20px; max-width: 60ch; }

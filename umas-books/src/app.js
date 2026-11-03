@@ -57,7 +57,7 @@ const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
 const adminRoutes = require("./routes/admin");
 
 const { newInPage } = require("./lib/latestArrivals");
-const { cardBuy, setCardCartLocals, cartBookIds } = require("./lib/cardCart");
+const { cardBuy, setCardCartLocals, cartBookIds, cartEduIds } = require("./lib/cardCart");
 const { listButtonCollections, browseFilterActive } = require("./lib/collections");
 const { assetUrl, staticHeaders, isVersioned, IMMUTABLE_CACHE, SHORT_CACHE, STATIC_SECURITY_HEADERS } = require("./lib/assetUrl");
 
@@ -420,6 +420,7 @@ function createApp() {
     res.json({
       cartCount: require("./routes/cart").cartUnits(req.session.cart),
       cartBookIds: cartBooks,
+      cartEduIds: cartEduIds(req.session),
       loggedIn: Boolean(req.session.user),
       // Signed in and the browser's favourites not merged into the account yet this session (public/favorites.js).
       favoritesMerge: Boolean(req.session.user && !req.session.favoritesMerged),

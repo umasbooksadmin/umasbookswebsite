@@ -35,6 +35,7 @@ function favName(title, pageLang, language) {
 const CART_NAMES = {
   add: ["Add {t} to cart", "Ajouter {t} au panier"],
   inCart: ["{t} is in your cart (view cart)", "{t} est dans votre panier (voir le panier)"],
+  soldOut: ["{t} is sold out", "{t} est épuisé"],
   choose: ["Choose a copy of {t} to add to cart", "Choisir un exemplaire de {t} à ajouter au panier"],
 };
 function cartName(key, title, pageLang, language) {

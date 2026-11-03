@@ -51,6 +51,12 @@ async function cartBookIds(pool, session) {
   return rows.map((r) => r.book_id);
 }
 
+// The educational item ids in this session's cart (their cards show "in your cart", public/cart-add.js).
+function cartEduIds(session) {
+  const lines = session && Array.isArray(session.cart) ? session.cart : [];
+  return lines.filter((l) => l && l.kind === "edu" && Number.isSafeInteger(Number(l.eduItemId))).map((l) => Number(l.eduItemId));
+}
+
 // res.locals.cardCart for a page that draws cards on the server.
 //   personal: the page is already drawn for this one session (a signed-in person's page, or a page that prints a CSRF
 //   token anyway, like the book page). Only then does the HTML carry the session's own things: a real POST form with the
@@ -68,4 +74,4 @@ async function setCardCartLocals(pool, req, res, { personal = false } = {}) {
   };
 }
 
-module.exports = { BUY_COPY_SQL, BUY_FROM_SQL, cardBuy, cartBookIds, setCardCartLocals };
+module.exports = { BUY_COPY_SQL, BUY_FROM_SQL, cardBuy, cartBookIds, cartEduIds, setCardCartLocals };

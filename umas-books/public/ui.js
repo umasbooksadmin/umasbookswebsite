@@ -100,15 +100,17 @@
   // src/lib/bookText.js cartName() are the server's copy (test/unit/uiHelpers.test.js compares the HTML).
   var CART_TEXT = {
     en: {
-      add: 'Add {t} to cart', inCart: '{t} is in your cart (view cart)', choose: 'Choose a copy of {t} to add to cart',
+      add: 'Add {t} to cart', inCart: '{t} is in your cart (view cart)', choose: 'Choose a copy of {t} to add to cart', soldOut: '{t} is sold out',
       added: 'Added to your cart: {t}.', gone: 'Sorry, {t} is no longer available.',
       full: 'Your cart is full: reserve or remove a book first.', error: 'Could not add {t} to your cart. Please try again.',
+      fullEdu: 'Your cart is full: reserve or remove something first.',
       busy: 'Too many tries. Please wait a moment and try again.',
     },
     fr: {
-      add: 'Ajouter {t} au panier', inCart: '{t} est dans votre panier (voir le panier)', choose: 'Choisir un exemplaire de {t} à ajouter au panier',
+      add: 'Ajouter {t} au panier', inCart: '{t} est dans votre panier (voir le panier)', choose: 'Choisir un exemplaire de {t} à ajouter au panier', soldOut: '{t} est épuisé',
       added: 'Ajouté à votre panier : {t}.', gone: 'Désolé, {t} n’est plus disponible.',
       full: 'Votre panier est plein : réservez ou retirez d’abord un livre.', error: 'Impossible d’ajouter {t} à votre panier. Veuillez réessayer.',
+      fullEdu: 'Votre panier est plein : réservez ou retirez d’abord un article.',
       busy: 'Trop de tentatives. Veuillez patienter un instant puis réessayer.',
     },
   };
