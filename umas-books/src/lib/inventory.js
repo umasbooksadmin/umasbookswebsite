@@ -223,14 +223,22 @@ function normalizeGenres(value) {
 // collapsed and at most 40 characters. Returns null when nothing is left.
 // Capitals do not make a different place: compare with sameLocation() and list
 // with uniqueLocations(), never with ===.
+// A barcode is never a place: a scanner whose cursor sat in the Location box
+// types an ISBN there ("9780141024479Storage"). A run of 8 to 14 digits at the
+// start or end is cut off when other text remains ("Storage"); a value that is
+// only such a run is blank (the default applies). "Shelf 12" and "Box 2024" stay.
+// The same rule is in public/inventory-location.js (split).
 const LOCATION_MAX = 40;
+const BARCODE_AT_START = /^\d{8,14}(?!\d)/;
+const BARCODE_AT_END = /(^|\D)\d{8,14}$/;
 function normalizeLocation(value) {
-  const s = String(value == null ? "" : value)
+  let s = String(value == null ? "" : value)
     .replace(/[\u0000-\u001f\u007f]/g, " ") // eslint-disable-line no-control-regex
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, LOCATION_MAX)
     .trim();
+  s = s.replace(BARCODE_AT_START, "").trim();
+  s = s.replace(BARCODE_AT_END, "$1").trim();
+  s = s.slice(0, LOCATION_MAX).trim();
   return s || null;
 }
 
