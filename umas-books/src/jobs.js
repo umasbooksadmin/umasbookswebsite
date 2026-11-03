@@ -264,7 +264,7 @@ function jobSpecs(pool) {
       },
     },
     // The app's own check that GitHub Actions is still running the nightly backup, the nightly inventory export and the
-    // hourly uptime check (lib/scheduledJobWatch.js): each reports in at the end of a successful run; silence emails ALERT_TO,
+    // site uptime check (lib/scheduledJobWatch.js): each reports in at the end of a successful run; silence emails ALERT_TO,
     // at most once a day per job. Not at boot (a restart-heavy host would repeat it): first run 15 minutes after boot.
     {
       name: "Scheduled-job watchdog",
