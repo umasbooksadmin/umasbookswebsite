@@ -66,3 +66,13 @@ test("loadStoredCover reads only our own stored pictures and never makes a netwo
   }
   await assert.rejects(() => loadStoredCover(`/img/${"a".repeat(64)}.jpg`, { query: async () => ({ rows: [] }) }), (e) => e.code === "not-stored", "a stored-looking address with no image behind it");
 });
+
+test("PICTURE_ERRORS / PICTURE_NOTICES: the same codes and statuses as the cover ones, in item wording (no 'cover', no 'book')", () => {
+  const { COVER_ERRORS, PICTURE_ERRORS, PICTURE_NOTICES } = require("../../src/lib/coverEdit");
+  assert.deepEqual(Object.keys(PICTURE_ERRORS).sort(), Object.keys(COVER_ERRORS).sort());
+  for (const [code, e] of Object.entries(PICTURE_ERRORS)) {
+    assert.equal(e.status, COVER_ERRORS[code].status, code);
+    assert.ok(!/\bcover|\bbook\b/i.test(e.message), `${code}: ${e.message}`);
+  }
+  for (const text of Object.values(PICTURE_NOTICES)) assert.ok(!/\bcover|\bbook\b/i.test(text), text);
+});

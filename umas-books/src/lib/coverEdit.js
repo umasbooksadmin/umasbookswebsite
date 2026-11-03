@@ -60,6 +60,23 @@ const COVER_NOTICES = {
   "no-change": "The selection was the whole picture, so nothing was changed.",
 };
 
+// The same sentences for an educational item's PICTURE (routes/admin/eduItems.js): "cover" becomes "picture", and the few
+// that name a book or a button are written out.
+const PICTURE_ERRORS = Object.fromEntries(Object.entries(COVER_ERRORS).map(([code, e]) => [code, { ...e, message: e.message.replace("too small to be a cover", "too small for an item picture").replace(/\bcover\b/g, "picture") }]));
+Object.assign(PICTURE_ERRORS, {
+  "no-cover": { status: 409, message: "This item has no picture to change. Use Add picture first." },
+  "not-stored": { status: 409, message: "This picture is not saved on our server, so it cannot be rotated or cropped. Use Replace picture, or Remove picture." },
+  changed: { status: 409, message: "The picture was changed a moment ago, so nothing was done. Check the picture below and try again." },
+  busy: { status: 429, message: "Too many picture changes in a short time. Please wait a minute and try again. Nothing was changed." },
+});
+const PICTURE_NOTICES = {
+  rotated: "Picture rotated.",
+  cropped: "Picture cropped.",
+  replaced: "Picture saved.",
+  removed: "The picture was removed. The item now shows “No picture”.",
+  "no-change": COVER_NOTICES["no-change"],
+};
+
 class CoverEditError extends Error {
   constructor(code) {
     super((COVER_ERRORS[code] || COVER_ERRORS.failed).message);
@@ -188,6 +205,6 @@ async function loadStoredCover(coverUrl, db) {
 }
 
 module.exports = {
-  CoverEditError, COVER_ERRORS, COVER_NOTICES, MAX_SIDE, MIN_CROP_FRACTION, UPLOAD_LIMIT_MB,
+  CoverEditError, COVER_ERRORS, COVER_NOTICES, PICTURE_ERRORS, PICTURE_NOTICES, MAX_SIDE, MIN_CROP_FRACTION, UPLOAD_LIMIT_MB,
   rotateCover, parseCrop, cropCover, coverFromPhoto, loadStoredCover,
 };

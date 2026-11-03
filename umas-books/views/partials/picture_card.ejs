@@ -1,0 +1,76 @@
+<%# The picture card shared by the book's Cover card (admin/inventory/show.ejs) and an educational item's Picture card
+    (admin/edu_item_form.ejs): replace, rotate, crop, remove. public/cover-edit.js adds the crop box; everything else is a
+    plain form post. Locals: anchor, title, noun, base (URL prefix of /rotate /crop /replace /remove), field (the file field
+    name multer reads), message ({text, error} | null), pic ({stored, url, preview, external}), alt, emptyText, externalText,
+    addLabel, replaceLabel, removeLabel, removeConfirm, noteExternal, noteEmpty, noteNormal (the last four are fixed sentences
+    written in the calling view, never user data: they are printed as written), findHref (optional). %>
+<div class="card" id="<%= anchor %>" data-cover-edit data-noun="<%= noun %>">
+  <div class="section-title"><%= title %></div>
+  <% if (message) { %>
+    <div class="<%= message.error ? 'error-box' : 'notice-box' %> cvr-message" tabindex="-1" data-cover-message <%- message.error ? 'role="alert"' : 'role="status"' %>><%= message.text %></div>
+  <% } %>
+  <p class="visually-hidden" role="status" aria-live="polite" data-cover-live></p>
+  <div class="cvr-body">
+    <div class="cvr-preview">
+      <% if (pic.preview) { %>
+        <img class="cvr-img" src="<%= pic.preview %>" alt="<%= alt %>" data-cover-img>
+      <% } else { %>
+        <div class="cvr-empty"><%= pic.external ? externalText : emptyText %></div>
+      <% } %>
+    </div>
+    <div class="cvr-side">
+      <% if (pic.external) { %>
+        <p class="muted small cvr-note"><%- noteExternal %></p>
+      <% } else if (!pic.url) { %>
+        <p class="muted small cvr-note"><%- noteEmpty %></p>
+      <% } else { %>
+        <p class="muted small cvr-note"><%- noteNormal %></p>
+      <% } %>
+      <div class="cvr-actions">
+        <% if (typeof findHref !== 'undefined' && findHref) { %><a class="btn btn-outline btn-small" href="<%= findHref %>">Find a cover</a><% } %>
+        <form method="post" action="<%= base %>/replace" enctype="multipart/form-data">
+          <%- include('csrf_field') %>
+          <button type="button" class="btn btn-outline btn-small" data-trigger-file="cover-photo"><%= pic.url ? replaceLabel : addLabel %></button>
+          <input id="cover-photo" name="<%= field %>" type="file" aria-label="<%= pic.url ? replaceLabel : addLabel %>" accept="image/*" capture="environment" class="file-input-hidden" data-file-name-target="cover-photo-name" data-max-bytes="8388608" data-max-label="8 MB" data-auto-submit-file>
+          <span id="cover-photo-name" class="visually-hidden"></span>
+          <noscript><label for="cover-photo-plain">Photo</label> <input id="cover-photo-plain" name="<%= field %>" type="file" accept="image/*"> <button class="btn btn-small" type="submit">Upload</button></noscript>
+        </form>
+        <% if (pic.stored) { %>
+          <form method="post" action="<%= base %>/rotate">
+            <%- include('csrf_field') %>
+            <button class="btn btn-outline btn-small" type="submit" name="direction" value="left"><span aria-hidden="true">&#8634;</span> Rotate left</button>
+            <button class="btn btn-outline btn-small" type="submit" name="direction" value="right"><span aria-hidden="true">&#8635;</span> Rotate right</button>
+          </form>
+          <button type="button" class="btn btn-outline btn-small" data-cover-crop-open hidden aria-expanded="false" aria-controls="cover-crop">Crop</button>
+        <% } %>
+        <% if (pic.url) { %>
+          <form method="post" action="<%= base %>/remove" data-confirm="<%- removeConfirm.replace(/"/g, '&quot;') %>">
+            <%- include('csrf_field') %>
+            <button class="btn btn-outline btn-small" type="submit"><%= removeLabel %></button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+  </div>
+  <% if (pic.stored) { %>
+    <div class="cvr-crop" id="cover-crop" data-cover-crop hidden>
+      <p class="muted small" id="cover-crop-help">Drag the box, or its corners, to choose the part to keep. You can also drag on the picture to draw a new box. With a keyboard, focus the box: arrow keys move it, Shift plus arrow keys change its size, Escape cancels.</p>
+      <div class="cvr-stage" data-cover-stage>
+        <img class="cvr-stage-img" src="<%= pic.preview %>" alt="" data-cover-stage-img>
+        <div class="cvr-overlay" data-cover-overlay>
+          <div class="cvr-box" tabindex="0" role="group" aria-label="Crop area" aria-describedby="cover-crop-help" data-cover-box>
+            <span class="cvr-handle" data-handle="nw"></span><span class="cvr-handle" data-handle="ne"></span><span class="cvr-handle" data-handle="sw"></span><span class="cvr-handle" data-handle="se"></span>
+          </div>
+        </div>
+      </div>
+      <p class="small cvr-readout" data-cover-readout></p>
+      <form class="cvr-crop-form" method="post" action="<%= base %>/crop" data-cover-crop-form>
+        <%- include('csrf_field') %>
+        <input type="hidden" name="x" value="0"><input type="hidden" name="y" value="0"><input type="hidden" name="w" value="1"><input type="hidden" name="h" value="1">
+        <button class="btn btn-small" type="submit">Apply crop</button>
+        <button class="btn btn-outline btn-small" type="button" data-cover-reset>Reset</button>
+        <button class="btn btn-outline btn-small" type="button" data-cover-cancel>Cancel</button>
+      </form>
+    </div>
+  <% } %>
+</div>

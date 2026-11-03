@@ -1,8 +1,19 @@
 <% const _title = item ? 'Edit educational item' : 'Add an educational item'; %>
-<%- include('../partials/admin_header', { title: _title, active: active, pageTitle: _title, pageSub: 'A picture, a name, a price, what it cost us, how many are in stock and (optional) the barcode. Every educational item is sold as NEW.', extraCss: ['/edu-item-form.css'] }) %>
+<%- include('../partials/admin_header', { title: _title, active: active, pageTitle: _title, pageSub: 'A picture, a name, a price, what it cost us, how many are in stock and (optional) the barcode. Every educational item is sold as NEW.', extraCss: ['/edu-item-form.css', '/cover-edit.css'] }) %>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 
+<% if (item) { %>
+<%- include('../partials/picture_card', {
+  anchor: 'picture', title: 'Picture', noun: 'picture', base: '/admin/edu-items/' + item.id + '/image', field: 'image', message: pictureMessage,
+  pic: pic, alt: 'Current picture of ' + item.name, emptyText: 'No picture', externalText: 'Picture not saved on our server',
+  addLabel: 'Add picture', replaceLabel: 'Replace picture', removeLabel: 'Remove picture',
+  removeConfirm: 'Remove this picture? The item will show "No picture" until you add one.',
+  noteExternal: 'This picture is not saved on our server, so it can\'t be rotated or cropped. Replace it with a photo, or remove it.',
+  noteEmpty: 'This item has no picture. Take a photo, or choose one from your files (JPEG, PNG or WebP, up to 8 MB). Customers see "No picture" until you add one.',
+  noteNormal: 'Picture changes are saved at once, without pressing Save below. The picture you replace is cleaned up automatically later.'
+}) %>
+<% } %>
 <div class="card">
   <form class="stack" method="post" action="<%= item ? "/admin/edu-items/" + item.id : "/admin/edu-items" %>" enctype="multipart/form-data" id="edu-item-form">
     <%- include('../partials/csrf_field') %>
@@ -35,19 +46,15 @@
     <p class="muted small"><a href="/admin/edu-items#edu-genres">Add or rename genres</a> on the list page.</p>
     <label for="edu-sort">Position on the page (smaller first)</label>
     <input id="edu-sort" name="sortOrder" type="text" inputmode="numeric" value="<%= values.sortOrder %>" style="max-width:100px">
-    <label for="edu-image">Picture<%= item && item.image_url ? ' (choose one to replace the current picture)' : ' (optional)' %></label>
-    <% if (item && item.image_url) { %><img src="<%= item.image_url %>" alt="Current picture" width="160" height="160" style="object-fit:contain;background:#f5f0e6"><% } %>
+    <% if (!item) { %>
+    <label for="edu-image">Picture (optional)</label>
     <input id="edu-image" name="image" type="file" accept="image/jpeg,image/png,image/webp">
-    <p class="muted small">JPEG, PNG or WebP, up to 8 MB. It is turned upright and made smaller, like a book cover photo.</p>
+    <p class="muted small">JPEG, PNG or WebP, up to 8 MB. It is turned upright and made smaller, like a book cover photo. After you add the item, you can turn, crop or remove the picture on its edit page.</p>
+    <% } %>
     <label class="ann-check"><input type="checkbox" name="isHidden"<%= values.isHidden === 'on' ? ' checked' : '' %>> <span>Hidden (customers do not see it)</span></label>
     <p><button class="btn" type="submit"><%= item ? 'Save' : 'Add item' %></button> <a href="/admin/edu-items">Cancel</a></p>
   </form>
-  <% if (item && item.image_url) { %>
-  <form method="post" action="/admin/edu-items/<%= item.id %>/image/remove" data-confirm="Remove this picture?">
-    <%- include('../partials/csrf_field') %>
-    <button class="btn btn-outline btn-small" type="submit">Remove the picture</button>
-  </form>
-  <% } %>
 </div>
 <script src="<%= assetUrl('/edu-item-form.js') %>"></script>
+<% if (item) { %><script src="<%= assetUrl('/cover-edit.js') %>"></script><% } %>
 <%- include('../partials/admin_footer') %>

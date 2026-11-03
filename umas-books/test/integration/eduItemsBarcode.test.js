@@ -337,6 +337,47 @@ test("'Use this picture': the save fetches Open Library's exact-ISBN cover for t
   assert.ok(!outside.some((u) => u.includes("96385074")));
 });
 
+// The Picture card (views/partials/picture_card.ejs, routes/admin/eduItems.js "/image/...") and "Use this picture" together.
+async function multipart(p, fields, file, user = admin) {
+  const form = new FormData();
+  for (const [k, v] of Object.entries(fields)) form.append(k, v);
+  if (file) form.append("image", new Blob([file], { type: "image/jpeg" }), "own.jpg");
+  const res = await realFetch(`${server.base}${p}`, { method: "POST", redirect: "manual", headers: header(user), body: form });
+  return { status: res.status, location: res.headers.get("location") };
+}
+
+test("Picture card + 'Use this picture': an admin's own (edited) photo is never replaced by a plain Save; Open Library's picture only on the press; an own photo sent with the press wins", async () => {
+  const isbn = fresh13();
+  covers.add(isbn);
+  const it = await item({ name: "Workbook With Own Photo", barcode: isbn });
+  const own = await require("sharp")({ create: { width: 300, height: 200, channels: 3, background: "#c33" } }).jpeg().toBuffer();
+  assert.equal((await multipart(`/admin/edu-items/${it.id}/image/replace`, {}, own)).location, `/admin/edu-items/${it.id}/edit?picture=replaced#picture`);
+  await post(`/admin/edu-items/${it.id}/image/rotate`, { direction: "right" });
+  const edited = (await pool.query("SELECT image_url FROM edu_items WHERE id = $1", [it.id])).rows[0].image_url;
+  assert.match(edited, /^\/img\/[0-9a-f]{64}\.jpg$/);
+  const fields = { name: "Workbook With Own Photo", price: "4", stock: "1", genreId: "", barcode: isbn };
+  await post(`/admin/edu-items/${it.id}`, fields);
+  assert.equal((await pool.query("SELECT image_url FROM edu_items WHERE id = $1", [it.id])).rows[0].image_url, edited, "a plain Save keeps the edited photo");
+  assert.ok(!outside.some((u) => u.includes("covers.openlibrary.org")), "nothing fetched without the press");
+  // The edit page still offers the lookup's picture and shows the card.
+  const page = await get(`/admin/edu-items/${it.id}/edit`);
+  assert.match(page.text, /id="picture"/);
+  assert.equal((await lookup(isbn, admin, `&itemId=${it.id}`)).body.picture.startsWith("/img/"), true);
+  // Own photo and the press in the same Save: the own photo wins.
+  const own2 = await require("sharp")({ create: { width: 220, height: 220, channels: 3, background: "#33c" } }).jpeg().toBuffer();
+  await multipart(`/admin/edu-items/${it.id}`, { ...fields, useIsbnCover: "1" }, own2);
+  const second = (await pool.query("SELECT image_url FROM edu_items WHERE id = $1", [it.id])).rows[0].image_url;
+  assert.notEqual(second, edited);
+  assert.ok(!(await auditOf("edu_item.edit")).pop().detail.includes("Open Library"), "the own photo was used, not Open Library's");
+  // The press alone replaces the picture with Open Library's (the explicit choice), audited as such.
+  await post(`/admin/edu-items/${it.id}`, { ...fields, useIsbnCover: "1" });
+  assert.match((await auditOf("edu_item.edit")).pop().detail, /new picture \(Open Library, exact ISBN\)/);
+  assert.notEqual((await pool.query("SELECT image_url FROM edu_items WHERE id = $1", [it.id])).rows[0].image_url, second);
+  // ...and the card can still remove it.
+  await post(`/admin/edu-items/${it.id}/image/remove`, {});
+  assert.equal((await pool.query("SELECT image_url FROM edu_items WHERE id = $1", [it.id])).rows[0].image_url, null);
+});
+
 // ---------- find by barcode ----------
 
 test("find by barcode: to the edit page (any equivalent form); not found shows the sentence and the pre-filled add button", async () => {
