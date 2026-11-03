@@ -13,7 +13,7 @@
   var UI = window.UmasUI;
   if (!UI || !window.fetch || !document.querySelectorAll) return;
 
-  var inCart = {};   // book id -> true
+  var inCart = {};   // book id -> true; an educational item is 'e<id>' -> true (cards with data-edu-id, POST /cart/add-edu)
 
   // A visually-hidden polite status line (assets: .bk-cart-status in public/site-header.css). Cleared first so the same
   // sentence twice in a row is announced again.
@@ -29,8 +29,13 @@
     setTimeout(function () { statusEl.textContent = text; }, 60);
   }
 
-  function boxesOf(root, bookId) {
-    return Array.prototype.slice.call((root || document).querySelectorAll(bookId != null ? '.bk-cart[data-book-id="' + String(Number(bookId)) + '"]' : '.bk-cart[data-book-id]'));
+  // The key of an icon: the book id, or 'e' + the educational item id.
+  function keyOf(box) { return box.hasAttribute('data-edu-id') ? 'e' + box.getAttribute('data-edu-id') : box.getAttribute('data-book-id'); }
+  function boxesOf(root, key) {
+    var r = root || document;
+    if (key == null) return Array.prototype.slice.call(r.querySelectorAll('.bk-cart[data-book-id], .bk-cart[data-edu-id]'));
+    var sel = String(key).charAt(0) === 'e' ? '.bk-cart[data-edu-id="' + String(Number(String(key).slice(1))) + '"]' : '.bk-cart[data-book-id="' + String(Number(key)) + '"]';
+    return Array.prototype.slice.call(r.querySelectorAll(sel));
   }
   // Show "in your cart" in one icon. Focus that was on the add button moves onto the cart link in its place.
   function showInCart(box) {
@@ -42,7 +47,7 @@
     if (hadFocus) { try { link.focus(); } catch { /* the state is shown anyway */ } }
   }
   function sync(root) {
-    boxesOf(root).forEach(function (box) { if (inCart[box.getAttribute('data-book-id')]) showInCart(box); });
+    boxesOf(root).forEach(function (box) { if (inCart[keyOf(box)]) showInCart(box); });
   }
 
   // The card around an icon, for its title (status lines) and its link (where focus goes if the icon has to go).
@@ -66,11 +71,15 @@
     }
     return tokenPromise;
   }
-  function post(copyId, retried) {
+  // id = a book copy's id, or { edu: itemId } for an educational item (one unit; the quantity is changed in the cart).
+  function post(id, retried) {
     return csrfToken(retried).then(function (token) {
       if (!token) throw new Error('no token');
-      var body = 'copyId=' + encodeURIComponent(copyId) + '&backTo=' + encodeURIComponent(UI.here()) + '&via=card&_csrf=' + encodeURIComponent(token);
-      return fetch('/cart/add', {
+      var body = (typeof id === 'object'
+        ? 'eduItemId=' + encodeURIComponent(id.edu) + '&qty=1'
+        : 'copyId=' + encodeURIComponent(id)) +
+        '&backTo=' + encodeURIComponent(UI.here()) + '&via=card&_csrf=' + encodeURIComponent(token);
+      return fetch(typeof id === 'object' ? '/cart/add-edu' : '/cart/add', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
@@ -78,7 +87,7 @@
       });
     }).then(function (res) {
       // A stale token (the session changed since it was read): read a fresh one once.
-      if (res.status === 403 && !retried) return post(copyId, true);
+      if (res.status === 403 && !retried) return post(id, true);
       return res;
     });
   }
@@ -87,11 +96,11 @@
     var box = form.closest('.bk-cart');
     var btn = form.querySelector('button');
     if (!box || !btn || btn.getAttribute('aria-busy') === 'true') return;
-    var bookId = box.getAttribute('data-book-id');
+    var key = keyOf(box), isEdu = box.hasAttribute('data-edu-id');
     var title = titleOf(box);
     btn.setAttribute('aria-busy', 'true');
     function done() { btn.removeAttribute('aria-busy'); }
-    post(form.getAttribute('data-copy-id'), false).then(function (res) {
+    post(isEdu ? { edu: box.getAttribute('data-edu-id') } : form.getAttribute('data-copy-id'), false).then(function (res) {
       if (res.status === 429) { done(); say(UI.cartText('busy')); return null; }
       if (!res.ok) throw new Error('status ' + res.status);
       return res.json();
@@ -99,24 +108,32 @@
       if (!data) return;
       done();
       if (data.ok) {
-        inCart[bookId] = true;
-        boxesOf(document, bookId).forEach(showInCart);
+        inCart[key] = true;
+        boxesOf(document, key).forEach(showInCart);
         if (typeof data.cartCount === 'number') {
           if (window.UmasShowCartCount) window.UmasShowCartCount(data.cartCount);
           else document.querySelectorAll('[data-cart-count]').forEach(function (el) { el.textContent = String(data.cartCount); });
         }
         say(UI.cartText('added', title));
       } else if (data.error === 'full') {
-        say(UI.cartText('full'));
+        say(UI.cartText(isEdu ? 'fullEdu' : 'full'));
       } else {
         // Sold or reserved since the page was drawn: the icon goes (never a dead one); focus goes to the book's link.
-        boxesOf(document, bookId).forEach(function (b) {
+        boxesOf(document, key).forEach(function (b) {
+          var soldOut = isEdu && b.querySelector('.bk-cart-soldout');
+          if (soldOut) {
+            // An educational item that ran out: its icon becomes the disabled "sold out" one (focus stays on the card).
+            var had = b.contains(document.activeElement);
+            Array.prototype.forEach.call(b.children, function (el) { el.hidden = el !== soldOut; });
+            if (had) { var t = cardOf(b); t = t && t.querySelector('.t'); if (t) { t.setAttribute('tabindex', '-1'); try { t.focus(); } catch { /* shown anyway */ } } }
+            return;
+          }
           var hadFocus = b.contains(document.activeElement);
           b.hidden = true;
           var link = hadFocus && cardOf(b) && cardOf(b).querySelector('a[href]:not(.bk-cart-btn)');
           if (link) { try { link.focus(); } catch { /* the icon is gone anyway */ } }
         });
-        say(UI.cartText('gone', title));
+        say(UI.cartText(isEdu ? 'soldOut' : 'gone', title));
       }
     }).catch(function () { done(); say(UI.cartText('error', title)); });
   }
@@ -131,6 +148,7 @@
   if (window.UmasSession) {
     window.UmasSession().then(function (data) {
       ((data && data.cartBookIds) || []).forEach(function (id) { inCart[String(id)] = true; });
+      ((data && data.cartEduIds) || []).forEach(function (id) { inCart['e' + String(id)] = true; });
       sync(document);
     });
   }

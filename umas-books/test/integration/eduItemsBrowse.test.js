@@ -38,11 +38,16 @@ test("the English page: nav tab, genres, the 'new' line, items with Add or Sold 
   assert.match(text, /All educational items are new\./);
   assert.match(text, />Worksheets</);
   assert.match(text, />Flash Cards</);
-  assert.match(card(text, items.phonics.id), /action="\/cart\/add-edu"/);
+  // the same cart icon as a book card (views/partials/edu_cart.ejs): a POST form with the icon button on the price line
+  const phonics = card(text, items.phonics.id);
+  assert.match(phonics, /<div class="p">.*<span class="bk-cart" data-edu-id="\d+"><form class="bk-cart-add" method="post" action="\/cart\/add-edu"/s);
+  assert.match(phonics, /<button type="submit" class="bk-cart-btn" aria-label="Add Phonics Picture Cards to cart">/);
+  assert.ok(!/edu-add|Add to cart</.test(phonics), "no wide text button any more");
   assert.match(card(text, items.phonics.id), /€8\.50|8,50/);
   for (const id of [items.verbs.id, items.held.id]) {
     const c = card(text, id);
-    assert.match(c, /disabled>Sold out</, "stock 0 and fully held both read Sold out");
+    assert.match(c, /class="bk-cart-btn bk-cart-soldout" disabled aria-label="[^"]+ is sold out">/, "stock 0 and fully held both show the disabled sold-out icon, named for screen readers");
+    assert.ok(!/class="bk-cart-add"/.test(c), "no add form on a sold-out card");
     assert.ok(!/add-edu/.test(c));
   }
   assert.ok(!text.includes("Hidden Cards"));
@@ -55,7 +60,9 @@ test("the French twin: Épuisé, the French 'new' line, names marked lang=en", a
   assert.match(text, /Tous les articles éducatifs sont neufs\./);
   assert.match(text, /href="\/fr\/educational-items\.html"[^>]*>Articles éducatifs</, "the short nav tab");
   assert.match(text, /<h1>Parcourir les articles éducatifs<\/h1>/, "the page heading keeps the long wording");
-  assert.match(card(text, items.verbs.id), /disabled>Épuisé</);
+  assert.match(card(text, items.verbs.id), /bk-cart-soldout" disabled><svg[^>]*>.*<\/svg><span class="bk-cart-name"><span lang="en">Irregular Verbs Cards<\/span> est épuisé<\/span>/s, "French name of the sold-out icon");
+  assert.match(card(text, items.phonics.id), /<span class="bk-cart-name">Ajouter <span lang="en">Phonics Picture Cards<\/span> au panier<\/span>/);
+  assert.match(text, /<script src="\/cart-add\.js/, "the page runs the book cards' add script");
   assert.match(text, /<div class="t" lang="en">Phonics Picture Cards<\/div>/);
   assert.match(text, /<span lang="en">Flash Cards<\/span>/);
 });
@@ -71,7 +78,7 @@ test("a genre with no items shows the empty state; search finds by name; an unkn
   assert.match((await visit("/educational-items.html?genre=nope")).text, /Phonics Picture Cards/);
 });
 
-test("adding from the card: back on the page with the notice and 'In your cart (2)', cart count in units", async () => {
+test("adding from the card without JavaScript: back on the page with the notice and the 'in your cart' icon, cart count in units", async () => {
   const jar = makeCookieJar();
   const csrf = await fetchCsrfToken(h.app.base, jar, { "x-forwarded-for": "10.51.14.3" });
   const res = await fetch(`${h.app.base}/cart/add-edu`, {
@@ -83,7 +90,9 @@ test("adding from the card: back on the page with the notice and 'In your cart (
   assert.equal(res.status, 303);
   const page = await visit(res.headers.get("location"), jar);
   assert.match(page.text, /Added to your cart\./);
-  assert.match(card(page.text, items.phonics.id), /In your cart \(2\)/);
+  const c = card(page.text, items.phonics.id);
+  assert.match(c, /<form class="bk-cart-add"[^>]* hidden>/, "the add form is hidden once the item is in the cart");
+  assert.match(c, /<a class="bk-cart-btn bk-cart-in" href="\/cart" aria-label="Phonics Picture Cards is in your cart \(view cart\)">/);
   assert.equal(JSON.parse((await visit("/api/cart/count", jar)).text).count, 2);
 });
 
@@ -135,4 +144,22 @@ test("the barcode (admin only, migration 116) is on neither Browse page, nor the
   }
   assert.match((await visit("/educational-items.html")).text, /Phonics Picture Cards/);
   assert.match((await visit("/educational-items.html?q=5901234123457")).text, /No educational items match that search/, "a barcode is not a public search key (the page only echoes what was typed)");
+});
+
+test("the icon's AJAX add (Accept: application/json): one unit, cart count, 'in cart' in /api/session, a second press changes nothing, sold out and full are refused", async () => {
+  const jar = makeCookieJar();
+  const csrf = await fetchCsrfToken(h.app.base, jar, { "x-forwarded-for": "10.51.14.4" });
+  const post = (id) => fetch(`${h.app.base}/cart/add-edu`, {
+    method: "POST", redirect: "manual",
+    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json", cookie: jar.header(), "x-forwarded-for": "10.51.14.4" },
+    body: new URLSearchParams({ _csrf: csrf, eduItemId: String(id), qty: "1", via: "card", backTo: "/educational-items.html" }).toString(),
+  }).then(async (r) => { jar.capture(r); return { status: r.status, json: await r.json() }; });
+  const first = await post(items.phonics.id);
+  assert.equal(first.status, 200);
+  assert.deepEqual(first.json, { ok: true, inCart: true, cartCount: 1, eduItemId: items.phonics.id });
+  assert.equal((await post(items.phonics.id)).json.cartCount, 1, "pressing again does not add a second unit (the quantity is changed in the cart)");
+  const sess = JSON.parse((await visit("/api/session", jar)).text);
+  assert.deepEqual(sess.cartEduIds, [items.phonics.id]);
+  assert.deepEqual((await post(items.verbs.id)).json, { ok: false, error: "unavailable" }, "sold out: nothing added");
+  assert.equal(JSON.parse((await visit("/api/cart/count", jar)).text).count, 1);
 });

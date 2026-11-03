@@ -27,6 +27,7 @@ const MAY_SEND = new Set([
   "/api/favorites/toggle", // fetch() from public/favorites.js: 204 / 400 / 404, no body
   "/api/favorites/merge", // fetch() from public/favorites.js at sign-in: JSON list of the account's favourites
   "/cart/add", // JSON only to fetch() from public/cart-add.js (Accept: application/json); a form post still redirects
+  "/cart/add-edu", // the same, for the cart icon on an educational card (a form post still redirects)
   "/events/:id/signup", // plain-text 404 for a forged event id only
   "/volunteer/:id/signup", // plain-text 404 for a forged shift id only
 ]);

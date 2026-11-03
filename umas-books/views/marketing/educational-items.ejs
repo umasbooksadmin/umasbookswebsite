@@ -62,18 +62,7 @@
             <% if (it.image_url) { %><img class="cover" src="<%= it.image_url %>"<% if (srcset) { %> srcset="<%= srcset %>" sizes="(max-width: 700px) 45vw, 200px"<% } %> alt="" width="200" height="200" loading="lazy" decoding="async"><% } else { %><div class="cover cover-none" aria-hidden="true"><%= tr('No picture', 'Pas d’image') %></div><% } %>
             <div class="t"<%- _enAttr %>><%= it.name %></div>
             <% if (it.genre_name) { %><div class="a edu-genre"<%- _enAttr %>><%= it.genre_name %></div><% } %>
-            <div class="p"><span><%= eur(it.price) %></span> <span class="edu-card-new"><%= tr('New', 'Neuf') %></span></div>
-            <% if (soldOut) { %>
-              <button type="button" class="btn btn-outline edu-add edu-soldout" disabled><%= tr('Sold out', 'Épuisé') %></button>
-            <% } else { %>
-              <form method="post" action="/cart/add-edu">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <input type="hidden" name="eduItemId" value="<%= it.id %>">
-                <input type="hidden" name="backTo" value="<%= eduBackTo %>">
-                <button type="submit" class="btn btn-outline edu-add" aria-label="<%= tr('Add {t} to cart', 'Ajouter {t} au panier', { t: it.name }) %>"><%= tr('Add to cart', 'Ajouter au panier') %></button>
-              </form>
-              <% if (inCart) { %><a class="edu-incart" href="/cart"><%= tr('In your cart ({n})', 'Dans votre panier ({n})', { n: eduInCart.get(it.id) }) %></a><% } %>
-            <% } %>
+            <div class="p"><span><%= eur(it.price) %></span> <span class="edu-card-new"><%= tr('New', 'Neuf') %></span><%- include('../partials/edu_cart', { it, inCart, soldOut, csrfToken, eduBackTo }) %></div>
           </div>
           <% }) %>
         </div>
@@ -81,4 +70,4 @@
       <p class="bk-covernote"><%= tr('Reserve online, then pay and collect at the shop. Nothing is paid online.', 'Réservez en ligne, puis réglez et retirez à la boutique. Rien n’est payé en ligne.') %></p>
     </section>
   </div>
-<%- include('partials/mkt_footer', { pageI18nEn: eduPageI18n.en, pageI18nFr: eduPageI18n.fr, extraScripts: [] }) %>
+<%- include('partials/mkt_footer', { pageI18nEn: eduPageI18n.en, pageI18nFr: eduPageI18n.fr, extraScripts: ['/ui.js', '/cart-add.js'] }) %>

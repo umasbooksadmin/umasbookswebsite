@@ -359,7 +359,9 @@ router.post("/cart/add-edu", cartEditLimiter, async (req, res) => {
       const cart = getCart(req);
       const line = cart.find((l) => l.kind === "edu" && Number(l.eduItemId) === id);
       const cap = Math.min(eduItems.MAX_EDU_QTY, r.available);
-      if (line) {
+      if (line && req.body.via === "card") {
+        outcome = "added"; // the icon is "in your cart" once it is there: a second press changes nothing (the cart changes the quantity)
+      } else if (line) {
         line.qty = Math.min((eduItems.parseQty(line.qty) || 1) + want, cap);
         outcome = "added";
       } else if (cart.length < MAX_CART_LINES) {
@@ -371,6 +373,13 @@ router.post("/cart/add-edu", cartEditLimiter, async (req, res) => {
     }
   }
   await saveSession(req);
+  // The cart icon on an educational card (public/cart-add.js) asks for JSON: { ok: true, inCart: true, cartCount, eduItemId }
+  // or { ok: false, error: "unavailable" | "full" }.
+  if (req.accepts(["html", "json"]) === "json") {
+    res.set("Cache-Control", "no-store");
+    if (outcome !== "added") return res.json({ ok: false, error: outcome });
+    return res.json({ ok: true, inCart: true, cartCount: cartUnits(req.session.cart), eduItemId: id });
+  }
   const sep = backTo.includes("?") ? "&" : "?";
   res.redirect(303, `${backTo}${sep}${outcome === "added" ? `added=${id}` : `notadded=${outcome}`}#edu-item-${id || 0}`);
 });
