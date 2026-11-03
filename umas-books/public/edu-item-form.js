@@ -99,17 +99,17 @@
     if (running) running.abort();
     var ctrl = new AbortController();
     running = ctrl;
-    var timer = setTimeout(function () { ctrl.abort(); }, 12000);
+    var timer = setTimeout(function () { ctrl.abort(); }, 16000);
     show([el('p', 'muted small', 'Looking up ' + code + '…')]);
     var q = 'barcode=' + encodeURIComponent(code) + (box.getAttribute('data-item-id') ? '&itemId=' + encodeURIComponent(box.getAttribute('data-item-id')) : '');
     fetch('/admin/edu-items/lookup?' + q, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: ctrl.signal })
-      .then(function (r) { return r.json().catch(function () { return { ok: false, state: 'unavailable' }; }); })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, state: 'unavailable', message: 'The site answered with an error (' + r.status + '). Try again, or type the details in.' }; }); })
       .then(function (body) {
         if (running !== ctrl) return;
         if (!body || !body.ok) { show([el('p', body && body.state === 'invalid' ? 'edu-lookup-warn' : 'edu-lookup-none', (body && body.message) || UNAVAILABLE)]); return; }
         render(body);
       })
-      .catch(function () { if (running === ctrl) show([el('p', 'edu-lookup-none', UNAVAILABLE)]); })
+      .catch(function (err) { if (running === ctrl) show([el('p', 'edu-lookup-none', err && err.name === 'AbortError' ? 'The lookup took too long. Try again, or type the details in.' : 'Could not reach the site. Check the connection, then try again, or type the details in.')]); })
       .then(function () { clearTimeout(timer); if (running === ctrl) running = null; });
   }
 

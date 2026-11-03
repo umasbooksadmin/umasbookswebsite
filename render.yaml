@@ -128,11 +128,14 @@ services:
       #   NYT_API_KEY         New York Times Books API (bestseller / award badges)
       #   GOOGLE_BOOKS_API_KEY  Google Books (higher quota for the lookup)
       #   ISBNDB_API_KEY      ISBNdb (paid, last-resort lookup; unset = not used)
+      #   UPCITEMDB_USER_KEY  UPCitemdb paid plan (educational-item barcodes; unset = free trial)
       - key: NYT_API_KEY
         sync: false
       - key: GOOGLE_BOOKS_API_KEY
         sync: false
       - key: ISBNDB_API_KEY
+        sync: false
+      - key: UPCITEMDB_USER_KEY
         sync: false
       # Online price check (uses ANTHROPIC_API_KEY above). PRICING_AI=1 switches it
       # on (unset/0 = off). PRICING_AI_DAILY_MAX = most lookups a day (default 150;

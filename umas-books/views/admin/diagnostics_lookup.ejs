@@ -43,4 +43,35 @@
   <p>Switch list (<code>SCAN_LOOKUP_SOURCES</code>): <code><%= sources %></code>. This page shows what this running copy of the site has seen since it started. What to do: <code>docs/runbook.md</code>, &ldquo;Scan speed&rdquo;. How often each source was used over time: <a href="/admin/reports/lookup-sources">report &ldquo;Book lookup sources used&rdquo;</a>.</p>
 </div>
 
+<div class="card">
+  <h2>Barcode lookup for educational items</h2>
+  <p>Admin &gt; Educational items &gt; <em>Scan or type barcode</em> (not books). The site asks <strong>Open Products Facts</strong> first, then <strong>UPCitemdb</strong> (<%= product.keyed ? 'paid plan: the key is set' : 'free trial: about 100 lookups a day and 6 a minute for the whole server address; no key is set' %>).</p>
+  <% product.sources.forEach(function (src) { %>
+    <h3><%= src.name %></h3>
+    <p>
+      <% if (!src.calls) { %>
+        Not asked since the site started.
+      <% } else { %>
+        Answers since the site started: <%= src.calls %>
+        (<% Object.keys(src.counts).sort().forEach(function (k, i) { %><%= i ? ', ' : '' %><%= k %>: <%= src.counts[k] %><% }) %>).
+      <% } %>
+      <% if (src.lastKind) { %>
+        <br>Last failure: <strong><%= src.lastKind %></strong> at <%= new Date(src.lastAt).toLocaleString('en-GB', { timeZone: 'Europe/Paris', dateStyle: 'medium', timeStyle: 'medium' }) %><%= src.lastReason ? ' (the service says: ' + src.lastReason + ')' : '' %>.
+      <% } else if (src.calls) { %>
+        <br>No failure since the site started.
+      <% } %>
+      <% if (src.lastOkAt) { %><br>Last successful find: <%= new Date(src.lastOkAt).toLocaleString('en-GB', { timeZone: 'Europe/Paris', dateStyle: 'medium', timeStyle: 'medium' }) %>.<% } %>
+      <% if (src.key === 'upc') { %>
+        <% if (src.quota && src.quota.remaining != null) { %>
+          <br>Free allowance: <strong><%= src.quota.remaining %><%= src.quota.limit != null ? ' of ' + src.quota.limit : '' %> left</strong><%= src.quota.resetAt ? ', resets at ' + new Date(src.quota.resetAt).toLocaleString('en-GB', { timeZone: 'Europe/Paris', dateStyle: 'medium', timeStyle: 'short' }) : '' %> (as of its last answer, <%= new Date(src.quota.seenAt).toLocaleTimeString('en-GB', { timeZone: 'Europe/Paris' }) %>).
+        <% } else { %>
+          <br>Free allowance: not known yet (UPCitemdb reports it with each answer it sends).
+        <% } %>
+        <% if (product.pausedUntil) { %><br><strong>Paused until <%= new Date(product.pausedUntil).toLocaleTimeString('en-GB', { timeZone: 'Europe/Paris' }) %></strong> after a &ldquo;too many requests&rdquo; answer: UPCitemdb is not asked until then.<% } else { %><br>Not paused.<% } %>
+      <% } %>
+    </p>
+  <% }) %>
+  <p><small>What the words mean: <code>found</code> / <code>not found</code> = a normal answer. <code>http 429</code> = too many requests (a quota is used up, or the server address is shared with others: the site then waits, see &ldquo;Paused&rdquo;). <code>http 403</code> or <code>http 401</code> = the service refuses this site (blocked address, or a wrong key). <code>http 5xx</code> = a problem on the service&rsquo;s side. <code>timeout</code> = no answer within 6 seconds. <code>network</code> = the connection failed. <code>parse</code> / <code>too large</code> = the answer was unreadable or over 1 MB. <code>odd answer</code> = a reply that was not a product answer. <code>paused</code> = skipped on purpose during a pause. These counts live in memory and start again at zero whenever the app restarts or is redeployed. No barcode, address or key is kept. To use a paid UPCitemdb plan: <code>docs/runbook.md</code>, &ldquo;Barcodes of educational items&rdquo;.</small></p>
+</div>
+
 <%- include('../partials/admin_footer') %>
