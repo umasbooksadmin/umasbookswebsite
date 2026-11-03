@@ -1,6 +1,6 @@
 // The app's own safety net for "GitHub Actions stopped running our scheduled jobs".
 //
-// The nightly database backup, the nightly inventory export and the hourly uptime check all run on GitHub
+// The nightly database backup, the nightly inventory export and the site uptime check all run on GitHub
 // Actions. Each emails when it FAILS, and a daily freshness check looks at Backblaze, but that check is a
 // GitHub scheduled workflow too: if GitHub stops running schedules (the monthly minutes run out, the
 // workflows get disabled, an outage), every one of those alerts goes quiet together and nothing says so.
@@ -25,16 +25,18 @@ const ALERT_EVERY_MINUTES = 24 * HOUR;
 const seenKey = (name) => `gha-seen:${name}`;
 const silentKey = (name) => `gha-silent:${name}`;
 
-// maxAgeHours: how old the last report may be. uptime runs hourly (GitHub often starts runs late or skips one):
-// 6 h. backup and inventory run nightly: a night may be missed (a blip, a failed ping) but not two.
+// maxAgeHours: how old the last report may be. uptime is scheduled hourly, but GitHub throttles scheduled runs on
+// this repo: the observed gaps (30 Oct - 3 Nov 2026) were 4 to 9 h 45 min, so the old 6 h limit false-alarmed several
+// times a week. 20 h: twice the biggest gap seen, and still catches "GitHub stopped running schedules" within a day.
+// (It cannot catch a short outage: that is UptimeRobot's job, see the runbook.) backup and inventory run nightly: a night may be missed (a blip, a failed ping) but not two.
 // backup: 58 h. Its report comes from the 22:00 Paris backup, which GitHub may start anywhere between 20:00 UTC
 // (22:00 summer time, on time) and about 05:00 UTC (the last retry the gate accepts, 05:59 Paris): a 9-hour
 // window. One lost night = at most 48 + 9 = 57 h without a report; two lost nights = at least 72 - 9 = 63 h.
 // inventory: 50 h (unchanged).
 const WATCHED = [
   {
-    name: "uptime", job: "Site uptime check", maxAgeHours: 6,
-    what: "the hourly site uptime check", also: "So the site-down alert, which this check sends, is not working either.",
+    name: "uptime", job: "Site uptime check", maxAgeHours: 20,
+    what: "the site uptime check", also: "So the site-down alert, which this check sends, is not working either.",
     fix: "Actions tab > \"Site uptime check\" > the latest runs. If nothing ran, see the steps below.",
   },
   {

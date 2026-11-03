@@ -68,13 +68,27 @@ test("nothing has ever reported: no alert (the watch is armed by the first repor
   assert.equal(m.sent.length, 0);
 });
 
-test("fresh reports raise nothing; limits are 6 h for the hourly check, 58 h for the 22:00 backup and 50 h for the inventory export", async () => {
-  assert.deepEqual(WATCHED.map((w) => [w.name, w.maxAgeHours]), [["uptime", 6], ["backup", 58], ["inventory", 50]]);
-  await setSeen("uptime", 5); await setSeen("backup", 49); await setSeen("inventory", 30);
+test("fresh reports raise nothing; limits are 20 h for the throttled uptime check, 58 h for the 22:00 backup and 50 h for the inventory export", async () => {
+  assert.deepEqual(WATCHED.map((w) => [w.name, w.maxAgeHours]), [["uptime", 20], ["backup", 58], ["inventory", 50]]);
+  await setSeen("uptime", 19); await setSeen("backup", 49); await setSeen("inventory", 30);
   const m = mails();
   const r = await check(pool, { send: m.send });
   assert.deepEqual(r.ok.sort(), ["backup", "inventory", "uptime"]);
   assert.equal(m.sent.length, 0);
+});
+
+test("uptime: a 9.5 h gap (GitHub throttling) does NOT alert; 21 h does, naming the 20 h limit", async () => {
+  await setSeen("backup", 1); await setSeen("inventory", 1);
+  const m = mails();
+  await setSeen("uptime", 9.5);
+  assert.deepEqual((await check(pool, { send: m.send })).ok.includes("uptime"), true);
+  assert.equal(m.sent.length, 0, "the biggest observed gap is not an outage");
+  await setSeen("uptime", 21);
+  assert.deepEqual((await check(pool, { send: m.send })).silent, ["uptime"]);
+  assert.equal(m.sent.length, 1);
+  assert.match(m.sent[0].subject, /No report from the site uptime check for 21 hours$/);
+  assert.match(m.sent[0].text, /at least every 20 hours/);
+  assert.doesNotMatch(m.sent[0].text, /hourly/);
 });
 
 test("a report that is overdue emails ALERT_TO once, plainly; the next hourly run stays quiet", async () => {
@@ -104,7 +118,7 @@ test("after 24 h of continued silence it reminds once more; two problems send tw
 });
 
 test("when the job reports again the flag is cleared, so the next outage alerts at once", async () => {
-  await setSeen("uptime", 9); await setSeen("backup", 1); await setSeen("inventory", 1);
+  await setSeen("uptime", 21); await setSeen("backup", 1); await setSeen("inventory", 1);
   const m = mails();
   await check(pool, { send: m.send });
   assert.equal(m.sent.length, 1);
@@ -112,7 +126,7 @@ test("when the job reports again the flag is cleared, so the next outage alerts 
   await setSeen("uptime", 0);
   await check(pool, { send: m.send });
   assert.equal(await flag("gha-silent:uptime"), undefined);
-  await setSeen("uptime", 9);
+  await setSeen("uptime", 21);
   await check(pool, { send: m.send });
   assert.equal(m.sent.length, 2, "a new outage alerts straight away");
 });

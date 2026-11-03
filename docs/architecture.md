@@ -1035,7 +1035,7 @@ flowchart LR
 | Unused-image cleanup | web process | daily, and at boot | deletes at most one batch of images older than 7 days that no row references (`lib/imageCleanup.js`) |
 | Awards drain | web process | 2 min, not at boot | looks up awards for a few books at a time (§6); a no-op when `AWARDS_LOOKUPS=off` |
 | Cover backfill | web process | 5 min, first run after 1 min | copies up to 20 book covers from their Open Library / archive.org source address into the `images` table, books on the shelves first; at most 3 failed attempts a week per cover, where only a 404, a placeholder or an invalid image counts as failed (a 5xx, timeout or network error does not, and 3 in a row stop the batch); sends a User-Agent with the site and a contact address; off with `COVER_BACKFILL=off` (`lib/coverStore.js`) |
-| Uptime check | Actions | hourly (about 720 billed minutes a month: see the runbook, section t) | emails on the **second** consecutive failure and on recovery |
+| Uptime check | Actions | scheduled hourly, but GitHub throttles it to a run every 4-10 h in practice (about 720 billed minutes a month: see the runbook, section t) | emails on the **second** consecutive failure and on recovery |
 | Database backup | Actions | 22:00 Paris (20:00/21:00 UTC lines + retries to 01:00 UTC; an idempotent gate makes one per Paris day) | full dump to Backblaze B2 (required); a second copy on the evening of the 1st of the month |
 | Restore test | Actions | monthly + manual | restores the newest Backblaze dump into a scratch Postgres and checks it (key tables, newest migration, images) |
 | Test alert | Actions | every Monday + manual | sends one email so a broken alert channel is noticed within a week |
