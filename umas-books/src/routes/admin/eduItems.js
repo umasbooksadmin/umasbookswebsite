@@ -12,7 +12,10 @@
 //   GET  /admin/edu-items/:id/edit           the edit form
 //   POST /admin/edu-items/:id                save (name, price, cost, stock, genre, sort, hidden, barcode, a new picture)
 //   POST /admin/edu-items/:id/visibility     hide / show
-//   POST /admin/edu-items/:id/image/remove   remove the picture
+//   POST /admin/edu-items/:id/image/replace  the Picture card: add or replace the picture (multipart, field "image"; 8 MB)
+//   POST /admin/edu-items/:id/image/rotate   direction=left|right
+//   POST /admin/edu-items/:id/image/crop     x, y, w, h (fractions 0..1 of the current picture)
+//   POST /admin/edu-items/:id/image/remove   remove the picture (the card then shows "No picture")
 //   POST /admin/edu-items/:id/delete         delete: only an item that is on NO order (else it must be hidden; the
 //                                            order lines keep their own copy of the name and price either way)
 //   POST /admin/edu-genres                   add a genre
@@ -41,10 +44,11 @@ const express = require("express");
 const { pool, withTransaction } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { validateIdParams } = require("../../middleware/idParams");
-const { limit } = require("../../middleware/rateLimits");
+const { limit, coverEditLimiter } = require("../../middleware/rateLimits");
 const { audit } = require("../../lib/audit");
-const { saveImage } = require("../../lib/imageStore");
-const { coverFromPhoto, CoverEditError, COVER_ERRORS } = require("../../lib/coverEdit");
+const { saveImage, isStoredImageUrl } = require("../../lib/imageStore");
+const { variantUrl } = require("../../lib/imageVariants");
+const { coverFromPhoto, CoverEditError, PICTURE_ERRORS, PICTURE_NOTICES, rotateCover, parseCrop, cropCover, loadStoredCover } = require("../../lib/coverEdit");
 const { redirectWithFlash, takePageFlash } = require("../../lib/postRedirect");
 const edu = require("../../lib/eduItems");
 const { PALETTE_KEYS } = require("../../lib/browseGenres");
@@ -86,8 +90,8 @@ const costText = (c, bare = false) => `${bare ? "" : "cost "}${c == null ? "not 
 const back = (req, res, to, message, extra = {}) => redirectWithFlash(req, res, to, FLASH, { error: message, ...extra });
 const done = (req, res, to, notice) => redirectWithFlash(req, res, to, FLASH, { notice });
 
-// The picture, when one was sent: the same processing as a book cover photo (lib/coverEdit.js: turned upright, at most
-// 900 px, JPEG), stored in `images`. -> { url } | { error } | {} (no file).
+// The picture, when one was sent with the add / save form: the same processing as a book cover photo (lib/coverEdit.js:
+// turned upright, at most 900 px, JPEG), stored in `images`. -> { url } | { error } | {} (no file).
 async function pictureFrom(req) {
   const file = req.files && req.files.image && req.files.image[0];
   if (!file || !file.buffer || !file.buffer.length) return {};
@@ -95,7 +99,7 @@ async function pictureFrom(req) {
     const data = await coverFromPhoto(file.buffer);
     return { url: await saveImage(data, "image/jpeg", pool) };
   } catch (err) {
-    if (err instanceof CoverEditError) return { error: (COVER_ERRORS[err.code] || COVER_ERRORS["not-image"]).message.replace("to be a cover", "for an item") };
+    if (err instanceof CoverEditError) return { error: (PICTURE_ERRORS[err.code] || PICTURE_ERRORS["not-image"]).message };
     throw err;
   }
 }
@@ -174,8 +178,15 @@ async function renderForm(req, res, item, { barcode = "" } = {}) {
   if (v.barcode === undefined) v.barcode = "";
   // The saved barcode is also a book of the shop: the same gentle warning as the lookup gives.
   const book = item && item.barcode ? await bookWithIsbn(item.barcode) : null;
+  // The Picture card (views/partials/picture_card.ejs, public/cover-edit.js): the same one a book's Cover card is.
+  const stored = Boolean(item) && isStoredImageUrl(item.image_url);
+  const pic = { stored, url: item ? item.image_url : null, preview: stored ? variantUrl(item.image_url, 450) : null, external: Boolean(item && item.image_url) && !stored };
+  const code = typeof req.query.picture === "string" ? req.query.picture : "";
+  let pictureMessage = null;
+  if (Object.hasOwn(PICTURE_NOTICES, code)) pictureMessage = { text: PICTURE_NOTICES[code], error: false };
+  else if (Object.hasOwn(PICTURE_ERRORS, code)) pictureMessage = { text: PICTURE_ERRORS[code].message, error: true };
   res.render("admin/edu_item_form", {
-    active: "edu-items", item, held, values: v, genres, error: flash.error || null, notice: flash.notice || null, maxStock: edu.STOCK_MAX,
+    active: "edu-items", item, held, pic, pictureMessage, values: v, genres, error: flash.error || null, notice: flash.notice || null, maxStock: edu.STOCK_MAX,
     bookWarning: book ? bookWarning(book) : null,
     // Arriving from "Add a new item with this barcode": the page looks the barcode up at once.
     autoLookup: !item && !flash.values && Boolean(barcode),
@@ -366,12 +377,107 @@ router.post(`${LIST}/:id/visibility`, requireAdmin, writeLimiter, async (req, re
   return done(req, res, LIST, hide ? `"${rows[0].name}" is hidden: customers no longer see it. Reservations already made keep it.` : `"${rows[0].name}" is shown again.`);
 });
 
-router.post(`${LIST}/:id/image/remove`, requireAdmin, writeLimiter, async (req, res) => {
-  const id = Number(req.params.id);
-  const { rows } = await pool.query("UPDATE edu_items SET image_url = NULL, updated_at = now() WHERE id = $1 RETURNING name", [id]);
-  if (!rows[0]) return res.status(404).render("404");
-  await audit(req, { action: "edu_item.image_remove", targetType: "edu_item", targetId: id, detail: rows[0].name });
-  return done(req, res, `${LIST}/${id}/edit`, "The picture was removed.");
+// ---------- the Picture card: replace, rotate, crop, remove (the same image work as a book's Cover card, lib/coverEdit.js) ----------
+// Plain form posts that work without JavaScript: the answer is a redirect back to the item (#picture) with the result in the
+// card; a script sending `Accept: application/json` gets JSON and the real status. Every edit makes a NEW stored image; the old
+// one stays in `images` until lib/imageCleanup.js finds that no edu_items.image_url (or any other column) refers to it.
+
+const wantsJson = (req) => req.accepts(["html", "json"]) === "json";
+
+function answerPicture(req, res, id, code, extra = {}) {
+  const failed = Object.hasOwn(PICTURE_ERRORS, code);
+  if (wantsJson(req)) {
+    const status = failed ? PICTURE_ERRORS[code].status : 200;
+    return res.status(status).json({ ok: !failed, code, message: failed ? PICTURE_ERRORS[code].message : PICTURE_NOTICES[code], ...extra });
+  }
+  return res.redirect(303, `${LIST}/${id}/edit?picture=${encodeURIComponent(code)}#picture`);
+}
+
+const pictureLimiter = coverEditLimiter({
+  handler: (req, res) => {
+    const m = /^\/admin\/edu-items\/(\d+)\/image\//.exec(req.originalUrl || "");
+    if (m && !wantsJson(req)) return res.redirect(303, `${LIST}/${m[1]}/edit?picture=busy#picture`);
+    return res.status(429).json({ ok: false, code: "busy", message: PICTURE_ERRORS.busy.message });
+  },
+});
+
+async function loadItem(req, res) {
+  const { rows } = await pool.query("SELECT id, name, image_url FROM edu_items WHERE id = $1", [Number(req.params.id)]);
+  if (!rows[0]) { res.status(404).render("404"); return null; }
+  return rows[0];
+}
+
+// Points the item at the new picture, but only while it still shows the picture that was edited (two people pressing at once
+// cannot silently undo each other).
+async function setPicture(item, url) {
+  const { rowCount } = await pool.query("UPDATE edu_items SET image_url = $1, updated_at = now() WHERE id = $2 AND image_url IS NOT DISTINCT FROM $3", [url, item.id, item.image_url]);
+  return rowCount > 0;
+}
+
+async function editStoredPicture(req, res, kind, change, detail) {
+  const item = await loadItem(req, res);
+  if (!item) return;
+  try {
+    const bytes = await loadStoredCover(item.image_url, pool);
+    const result = await change(bytes);
+    if (result.unchanged) return answerPicture(req, res, item.id, "no-change");
+    const url = await saveImage(result.data, "image/jpeg", pool);
+    if (!(await setPicture(item, url))) return answerPicture(req, res, item.id, "changed");
+    await audit(req, { action: `edu_item.image_${kind}`, targetType: "edu_item", targetId: item.id, detail: `${item.name}: ${detail(result)}` });
+    return answerPicture(req, res, item.id, kind === "rotate" ? "rotated" : "cropped", { imageUrl: url });
+  } catch (err) {
+    if (!(err instanceof CoverEditError)) throw err;
+    return answerPicture(req, res, item.id, err.code);
+  }
+}
+
+router.post(`${LIST}/:id/image/rotate`, requireAdmin, pictureLimiter, writeLimiter, (req, res) => {
+  const direction = req.body && typeof req.body.direction === "string" ? req.body.direction : "";
+  return editStoredPicture(req, res, "rotate", async (bytes) => ({ data: await rotateCover(bytes, direction) }), () => direction);
+});
+
+router.post(`${LIST}/:id/image/crop`, requireAdmin, pictureLimiter, writeLimiter, async (req, res) => {
+  let crop;
+  try {
+    crop = parseCrop(req.body);
+  } catch (err) {
+    if (!(err instanceof CoverEditError)) throw err;
+    const item = await loadItem(req, res);
+    return item ? answerPicture(req, res, item.id, err.code) : undefined;
+  }
+  const r4 = (n) => Math.round(n * 10000) / 10000;
+  return editStoredPicture(req, res, "crop", async (bytes) => {
+    const out = await cropCover(bytes, crop);
+    return out.changed ? { data: out.data } : { unchanged: true };
+  }, () => `x=${r4(crop.x)} y=${r4(crop.y)} w=${r4(crop.w)} h=${r4(crop.h)}`);
+});
+
+router.post(`${LIST}/:id/image/replace`, requireAdmin, pictureLimiter, writeLimiter, async (req, res) => {
+  const item = await loadItem(req, res);
+  if (!item) return;
+  const file = req.files && req.files.image && req.files.image[0];
+  try {
+    const data = await coverFromPhoto(file && file.buffer);
+    const url = await saveImage(data, "image/jpeg", pool);
+    await pool.query("UPDATE edu_items SET image_url = $1, updated_at = now() WHERE id = $2", [url, item.id]);
+    await audit(req, { action: "edu_item.image_replace", targetType: "edu_item", targetId: item.id, detail: `${item.name}: ${item.image_url ? "picture replaced" : "picture added"}` });
+    return answerPicture(req, res, item.id, "replaced", { imageUrl: url });
+  } catch (err) {
+    if (!(err instanceof CoverEditError)) throw err;
+    return answerPicture(req, res, item.id, err.code);
+  }
+});
+
+// The picture itself stays in `images` for the unused-image cleanup (deleted there once nothing refers to it and it is older
+// than the grace period).
+router.post(`${LIST}/:id/image/remove`, requireAdmin, pictureLimiter, writeLimiter, async (req, res) => {
+  const item = await loadItem(req, res);
+  if (!item) return;
+  if (item.image_url) {
+    await pool.query("UPDATE edu_items SET image_url = NULL, updated_at = now() WHERE id = $1", [item.id]);
+    await audit(req, { action: "edu_item.image_remove", targetType: "edu_item", targetId: item.id, detail: item.name });
+  }
+  return answerPicture(req, res, item.id, "removed", { imageUrl: null });
 });
 
 router.post(`${LIST}/:id/delete`, requireAdmin, writeLimiter, async (req, res) => {

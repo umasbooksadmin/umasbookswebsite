@@ -76,7 +76,7 @@
     var img = el('img');
     img.src = src; img.alt = 'Open Library picture for this ISBN'; img.width = 96; img.height = 128;
     var side = el('div');
-    side.appendChild(el('p', 'small', 'Open Library has a picture for this exact ISBN. It is saved only if you press "Use this picture". A photo you choose below always wins.'));
+    side.appendChild(el('p', 'small', 'Open Library has a picture for this exact ISBN. It is saved only if you press "Use this picture"' + (form.elements.image ? '. A photo you choose below always wins.' : ' and then Save: it replaces the current picture.')));
     var btn = el('button', 'btn btn-outline btn-small', 'Use this picture');
     btn.type = 'button';
     btn.setAttribute('aria-pressed', 'false');

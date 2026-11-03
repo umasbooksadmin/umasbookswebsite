@@ -13,6 +13,7 @@
   var card = document.querySelector("[data-cover-edit]");
   if (!card) return;
 
+  var noun = card.getAttribute("data-noun") || "cover"; // "cover" on a book, "picture" on an educational item
   var live = card.querySelector("[data-cover-live]");
   var message = card.querySelector("[data-cover-message]");
   // After a rotate, crop, replace or remove the page reloads at the card: read the result out and put the focus on it.
@@ -155,7 +156,7 @@
     panel.hidden = false;
     openBtn.setAttribute("aria-expanded", "true");
     render();
-    say("Crop mode. Drag the box to choose the part of the cover to keep, then press Apply crop.");
+    say("Crop mode. Drag the box to choose the part of the " + noun + " to keep, then press Apply crop.");
     box.focus({ preventScroll: true });
     if (panel.scrollIntoView) panel.scrollIntoView({ block: "nearest" });
   }
@@ -180,6 +181,6 @@
   form.addEventListener("submit", function () {
     var fields = { x: sel.x, y: sel.y, w: sel.w, h: sel.h };
     Object.keys(fields).forEach(function (k) { form.elements[k].value = fields[k].toFixed(6); });
-    say("Cropping the cover.");
+    say("Cropping the " + noun + ".");
   });
 })();
