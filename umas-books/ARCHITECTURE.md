@@ -655,7 +655,7 @@ service container, a dummy `SESSION_SECRET`, etc.): see that file.
   the freshness check also watches the `monthly/` copy; every email goes through the one local
   composite action `.github/actions/send-alert-mail`, which holds the Gmail SMTP settings and the
   pinned mail action):
-  `uptime-check.yml` polls `/healthz` every hour (Actions minutes are metered on a private repo) and emails once on
+  `uptime-check.yml` polls `/healthz`, scheduled hourly (Actions minutes are metered on a private repo; GitHub in practice runs it only every 4-10 hours, so UptimeRobot is the real "down now" monitor) and emails once on
   the second consecutive failure and once on recovery;
   `nightly-db-backup.yml` uploads one complete `pg_dump` (image bytes
   included, login sessions excluded) to the private Backblaze B2 bucket and
