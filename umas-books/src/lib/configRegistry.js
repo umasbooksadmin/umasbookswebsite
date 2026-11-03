@@ -426,6 +426,14 @@ const REGISTRY = [
     example: "",
   },
   {
+    name: "UPCITEMDB_USER_KEY", kind: "string", scope: "app", section: "lookup",
+    secret: true, where: "render",
+    whereText: "Render env var, `sync: false` (optional)",
+    defaultText: "none (the free trial address is used)",
+    doc: "UPCitemdb paid-plan key for the educational-item barcode lookup: with it, the keyed address (prod/v1) is asked instead of the free trial (about 100 a day and 6 a minute per server address). Unset = free trial",
+    example: "",
+  },
+  {
     name: "ISBNDB_API_BASE", kind: "string", scope: "app", section: "lookup",
     default: "", trim: true,
     secret: false, where: "render",

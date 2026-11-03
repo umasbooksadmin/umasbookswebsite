@@ -66,6 +66,17 @@ const lookupLimiter = limit({
   validate: { keyGeneratorIpFallback: false },
 });
 const UNAVAILABLE = "Lookup unavailable right now: type the details in.";
+// What the page says when a barcode database could not answer: the real reason in plain words (no address, no key, no
+// body). The details for the owner are on Admin > Diagnostics > Lookup sources. Saving is never affected.
+const FAILURE_MESSAGES = {
+  limit: "The free barcode database is limiting requests from this site (it allows about 100 a day). Try again later, or type the details in.",
+  refused: "The barcode database refused the request (it may be blocking this site's address). Type the details in; the reason is on Admin > Diagnostics > Lookup sources.",
+  timeout: "The barcode database did not answer in time. Try again, or type the details in.",
+  network: "The barcode database could not be reached from this site just now. Try again, or type the details in.",
+  server: "The barcode database has a problem on its side. Try again later, or type the details in.",
+  unreadable: "The barcode database sent an answer the site could not read. Type the details in.",
+};
+const failureMessage = (failure) => FAILURE_MESSAGES[failure] || UNAVAILABLE;
 const FLASH = "adminEduItems";
 const LIST = "/admin/edu-items";
 const money = (v) => Number(v).toFixed(2);
@@ -190,13 +201,21 @@ router.get(`${LIST}/lookup`, requireAdmin, lookupLimiter, async (req, res) => {
   if (!b.value) return res.status(400).json({ ok: false, state: "invalid", message: "Scan or type a barcode first." });
   const code = b.value;
   const exceptId = Number.isSafeInteger(Number(req.query.itemId)) ? Number(req.query.itemId) : 0;
-  const [other, book] = await Promise.all([itemWithBarcode(pool, code, exceptId), bookWithIsbn(code)]);
+  let other = null;
+  let book = null;
+  let ownRecordsFailed = false;
+  try {
+    [other, book] = await Promise.all([itemWithBarcode(pool, code, exceptId), bookWithIsbn(code)]);
+  } catch (err) { // the shop's own database: say so (a bare server error would look like "lookup unavailable")
+    ownRecordsFailed = true;
+    console.warn("Barcode lookup: could not check the shop's own records:", err.message);
+  }
   const out = {
     ok: true, barcode: code, convertedFrom: b.fromIsbn10 || null, kind: isIsbnBarcode(code) ? "isbn" : "product",
     state: "unavailable", source: null, name: null, details: null, picture: null,
     bookInShop: book ? bookWarning(book) : null,
     usedBy: other ? { id: other.id, name: other.name, href: `${LIST}/${other.id}/edit` } : null,
-    message: UNAVAILABLE,
+    message: ownRecordsFailed ? "The shop's own records could not be checked just now. Try again in a moment, or type the details in." : UNAVAILABLE,
   };
   try {
     if (out.kind === "isbn") {
@@ -216,7 +235,11 @@ router.get(`${LIST}/lookup`, requireAdmin, lookupLimiter, async (req, res) => {
       const r = await lookupProductName(code);
       if (r.state === "found") Object.assign(out, { state: "found", source: r.source, name: r.name });
       else if (r.state === "missing") out.state = "missing";
-      else console.warn(`Barcode lookup unavailable (${r.reason})`);
+      else {
+        out.failure = r.failure || "other";
+        if (!ownRecordsFailed) out.message = failureMessage(out.failure);
+        console.warn(`Barcode lookup unavailable (${r.reason})`);
+      }
     }
   } catch (err) {
     console.warn("Barcode lookup failed:", err.message);

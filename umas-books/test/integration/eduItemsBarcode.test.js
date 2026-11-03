@@ -27,7 +27,8 @@ const { pool } = require("../../src/db");
 const coverStore = require("../../src/lib/coverStore");
 coverStore.setLookupForTests(async () => [{ address: "93.184.216.34", family: 4 }]);
 const { lookupCache } = require("../../src/lib/bookLookup");
-const { resetProductLookup } = require("../../src/lib/productLookup");
+const { resetProductLookup, setProductTimeoutForTests } = require("../../src/lib/productLookup");
+setProductTimeoutForTests(1200);
 const { isbn13From, isbn10From } = require("../helpers/isbn");
 
 // ---------- the outside world ----------
@@ -61,7 +62,7 @@ global.fetch = async (url, init = {}) => {
   }
   if ((m = u.match(/^https:\/\/api\.upcitemdb\.com\/prod\/trial\/lookup\?upc=(\d+)$/))) {
     const a = upc.get(m[1]);
-    if (a === 429) return json({ code: "TOO_FAST", message: "slow down" }, 429);
+    if (typeof a === "number") return json({ code: a === 429 ? "TOO_FAST" : "ERR", message: "x" }, a);
     if (a === "hang") return hang(init);
     return json(a ? { code: "OK", total: 1, items: [{ ...a, images: ["https://images.example/thirdparty.jpg"] }] } : { code: "OK", total: 0, items: [] });
   }
@@ -250,12 +251,61 @@ test("lookup, not found anywhere: one plain sentence", async () => {
   assert.equal(r.body.state, "missing");
 });
 
-test("lookup, UPCitemdb answers 429 (free limit): 'Lookup unavailable right now: type the details in.'", async () => {
+test("lookup, UPCitemdb answers 429 (free limit): says the free database is limiting this site, and the next scan does not call it", async () => {
   upc.set("036000291452", 429);
   const { status, body } = await lookup("036000291452");
   assert.equal(status, 200);
   assert.equal(body.state, "unavailable");
-  assert.equal(body.message, "Lookup unavailable right now: type the details in.");
+  assert.equal(body.failure, "limit");
+  assert.equal(body.message, "The free barcode database is limiting requests from this site (it allows about 100 a day). Try again later, or type the details in.");
+  const before = outside.filter((u) => u.includes("upcitemdb")).length;
+  const again = await lookup("036000291452");
+  assert.equal(again.body.failure, "limit", "during the pause it says the same");
+  assert.equal(outside.filter((u) => u.includes("upcitemdb")).length, before, "paused: no new call");
+});
+
+test("lookup, UPCitemdb refuses (403) or fails (500): a specific sentence each, never the generic one", async () => {
+  upc.set("036000291452", 403);
+  const refused = (await lookup("036000291452")).body;
+  assert.equal(refused.failure, "refused");
+  assert.match(refused.message, /refused the request/);
+  upc.set("036000291452", 500);
+  const down = (await lookup("036000291452")).body;
+  assert.equal(down.failure, "server");
+  assert.match(down.message, /problem on its side/);
+});
+
+test("lookup, a barcode UPCitemdb knows while Open Products Facts answers 404 (the real shape): found", async () => {
+  upc.set("088231920519", { title: "Shapes and Colors Flash Cards", brand: "Teacher Created Resources" });
+  const { body } = await lookup("088231920519");
+  assert.equal(body.state, "found");
+  assert.equal(body.source, "UPCitemdb");
+  assert.equal(body.name, "Teacher Created Resources Shapes and Colors Flash Cards");
+});
+
+test("lookup, the shop's own records cannot be checked: the outside lookup still answers in JSON (no bare server error)", async () => {
+  const realQuery = pool.query.bind(pool);
+  pool.query = async (...a) => { if (/FROM edu_items WHERE barcode IS NOT NULL/.test(String(a[0]))) throw new Error("db down"); return realQuery(...a); };
+  try {
+    const { status, body } = await lookup("96385074");
+    assert.equal(status, 200);
+    assert.equal(body.state, "missing", "the outside lookup still ran");
+  } finally { pool.query = realQuery; }
+});
+
+test("diagnostics: /admin/diagnostics/lookup shows the product sources, the quota, the pause, and no key", async () => {
+  const diag = express.Router();
+  const alone = await listen(buildApp([diag.use(require("../../src/routes/admin/diagnostics"))]));
+  try {
+    const get = () => realFetch(`${alone.base}/admin/diagnostics/lookup`, { headers: header(admin) }).then((r) => r.text());
+    upc.set("036000291452", 429);
+    await lookup("036000291452");
+    const html = await get();
+    assert.match(html, /Barcode lookup for educational items/);
+    assert.match(html, /Last failure: <strong>http 429<\/strong>/);
+    assert.match(html, /Paused until/);
+    assert.doesNotMatch(html, /036000291452/, "no barcode is kept");
+  } finally { await alone.close(); }
 });
 
 test("lookup, a source that times out: unavailable, quickly enough, nothing cached", async () => {
@@ -264,6 +314,8 @@ test("lookup, a source that times out: unavailable, quickly enough, nothing cach
   const { body } = await lookup("4006381333931");
   assert.equal(body.state, "unavailable");
   assert.ok(Date.now() - t0 < 6000);
+  assert.equal(body.failure, "timeout");
+  assert.equal(body.message, "The barcode database did not answer in time. Try again, or type the details in.");
   const isbn = fresh13();
   openLibrary.set(isbn, "hang");
   const r = await lookup(isbn);
@@ -423,7 +475,7 @@ test("in a browser: Enter looks up instead of saving; a typed Name and price are
     await page.goto(`${server.base}/admin/edu-items/new`);
     await page.type("#edu-barcode", "036000291452");
     await page.keyboard.press("Enter");
-    await page.waitForFunction(() => /Lookup unavailable right now: type the details in\./.test(document.querySelector("[data-edu-lookup-result]").textContent));
+    await page.waitForFunction(() => /limiting requests from this site[\s\S]*type the details in\./.test(document.querySelector("[data-edu-lookup-result]").textContent));
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

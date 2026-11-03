@@ -4031,10 +4031,33 @@ public page is **Browse Educational Items** (`/educational-items.html`, French `
   picture** (covers decision: no Google / ISBNdb / product-database pictures); it is saved only after that press, and
   a photo chosen in the form always wins. Any other barcode asks **Open Products Facts**, then **UPCitemdb** (free trial,
   about **100 lookups a day** per server address), for the name only.
-- **"Lookup unavailable right now: type the details in."** means a source was slow, failing or over its free limit
-  (UPCitemdb answers 429 after about 100 a day; the app then leaves it alone for 15 minutes). Nothing to fix: type the
-  name. Answers are remembered in memory (found: a day, not found: 6 hours), so scanning the same item again costs no
-  call. The lookup is limited to 30 a minute per admin.
+- **When the lookup cannot answer, the form says why** (saving is never affected; type the name):
+  - *"The free barcode database is limiting requests from this site (it allows about 100 a day)..."* = UPCitemdb answered
+    429. The free plan allows about **100 lookups a day and 6 a minute per server address**, and Render shares its
+    outgoing addresses, so other sites can use up the allowance. The site then leaves UPCitemdb alone for 15 minutes
+    (or what UPCitemdb's `Retry-After` says, 1 minute to 1 hour).
+  - *"...refused the request (it may be blocking this site's address)"* = 401 / 403.
+  - *"...did not answer in time"* = no answer within **6 seconds** per source (raised from 3.5 s for a server in a data
+    centre; the page shows "Looking up..." and gives up after 16 s).
+  - *"...could not be reached"*, *"...problem on its side"*, *"...answer the site could not read"* = network, 5xx, bad answer.
+  - *"Lookup unavailable right now: type the details in."* = anything else. *"Nothing found for this barcode"* is a
+    clean "no such product" from both sources.
+  Answers are remembered in memory (found: a day, not found: 6 hours), so scanning the same item again costs no call.
+  The lookup is limited to 30 a minute per admin.
+- **Finding the cause after a failed scan:** **Admin > Diagnostics > Lookup sources**, section "Barcode lookup for
+  educational items". For Open Products Facts and UPCitemdb it shows the answers since the site started per kind
+  (`found`, `not found`, `http 429`, `http 403`, `timeout`, `network`, `parse`, `too large`, `paused`), the **last failure**
+  (kind, Paris time, the service's own short word such as `EXCEED_LIMIT`), the last successful find, UPCitemdb's
+  **remaining free allowance** ("N of M left, resets at ...", from its `X-RateLimit-*` headers) and whether the pause is
+  active and until when. Counts live in memory and restart at zero with every deploy or restart. Reading it: last
+  failure `http 429` with the allowance at 0 = the shared daily/minute limit; `http 403` = the address is blocked;
+  `timeout` = slow route; no failure but still "unavailable" on the form = tell the maintainer (the shop's own database).
+- **Optional paid UPCitemdb plan (`UPCITEMDB_USER_KEY`):** if the free limit keeps getting in the way, buy a UPCitemdb
+  plan and set the key. It is a **Render environment variable, not a GitHub variable or secret**: Render dashboard >
+  the web service > **Environment** > **Add Environment Variable** > name `UPCITEMDB_USER_KEY`, value = the key >
+  **Save, rebuild, and deploy**. With it the site asks UPCitemdb's keyed address (`/prod/v1/lookup`, headers `user_key`
+  and `key_type: 3scale`, as UPCitemdb's "Getting Started" page documents) instead of the free trial one; Diagnostics
+  then says "paid plan: the key is set". Remove the variable to go back to the free trial. The key is never shown or logged.
 - **"This ISBN is already a book in the shop":** a warning only. Owner's rule: a workbook with an ISBN stays an
   educational item; make sure its copies are not also in Books & Reservations, so they are not counted twice.
 - **Find by barcode:** an item with that barcode opens its edit page; otherwise "No item with that barcode" and

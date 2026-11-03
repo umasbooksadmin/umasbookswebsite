@@ -49,11 +49,13 @@ router.get("/admin/diagnostics/jobs", requireAdmin, async (req, res) => {
 router.get("/admin/diagnostics/lookup", requireAdmin, async (req, res) => {
   res.set("Cache-Control", "no-store");
   const { isbndbStatus, isbndbDailyUsage, googleStatus } = require("../../lib/bookSources");
+  const { productLookupStatus } = require("../../lib/productLookup");
   res.render("admin/diagnostics_lookup", {
     active: "diagnostics",
     isbndb: isbndbStatus(),
     isbndbToday: await isbndbDailyUsage(pool),
     google: googleStatus(),
+    product: productLookupStatus(),
     googleKey: Boolean(config.get("GOOGLE_BOOKS_API_KEY")),
     sources: String(config.get("SCAN_LOOKUP_SOURCES")),
   });

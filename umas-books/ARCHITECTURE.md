@@ -496,6 +496,7 @@ same thing everywhere.
 | `COVER_BACKFILL` | no | on | Render env var (`"on"` in `render.yaml`); tests set `off` | `off` stops the background job that copies covers to our own server. Only a 404, placeholder or invalid image counts as a failed attempt; 3 in a row stop the batch |
 | `GOOGLE_BOOKS_API_KEY` | yes | none | Render env var, `sync: false` | Higher Google Books quota for the ISBN lookup (covers from Google are not used, see the cover-source decision) |
 | `ISBNDB_API_KEY` | yes | none | Render env var, `sync: false` | ISBNdb key (paid): last-resort book lookup and the price suggestion. Unset = not used |
+| `UPCITEMDB_USER_KEY` | yes | none (the free trial address is used) | Render env var, `sync: false` (optional) | UPCitemdb paid-plan key for the educational-item barcode lookup: with it, the keyed address (prod/v1) is asked instead of the free trial (about 100 a day and 6 a minute per server address). Unset = free trial |
 | `ISBNDB_API_BASE` | no | ISBNdb's production API | optional | Must be an `https://...isbndb.com` address, else ignored with a warning (the key is never sent elsewhere) |
 | `ISBNDB_MIN_INTERVAL_MS` | no | 1000 | optional | Minimum gap between ISBNdb calls (`src/lib/bookSources.js`) |
 | `ISBNDB_PRICE_TIMEOUT_MS` | no | 6000 | optional | Timeout for one ISBNdb price call (`src/lib/isbndbPrice.js`) |
