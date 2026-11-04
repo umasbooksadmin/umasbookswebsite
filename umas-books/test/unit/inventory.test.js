@@ -67,6 +67,36 @@ test("uniqueLocations lists one entry per place, in the most common then most re
   assert.deepEqual(uniqueLocations(undefined), []);
 });
 
+test("normalizeLocation drops a barcode a scanner typed into the Location box", () => {
+  assert.equal(normalizeLocation("9780141024479Storage"), "Storage");
+  assert.equal(normalizeLocation("Storage 9780141024479"), "Storage");
+  assert.equal(normalizeLocation("Storage9780141024479"), "Storage");
+  assert.equal(normalizeLocation("9780141024479 Fiction A1"), "Fiction A1");
+  assert.equal(normalizeLocation("9780141024479 Storage 9780143127550"), "Storage", "both ends");
+  assert.equal(normalizeLocation("12345678Store"), "Store", "8 digits is the shortest barcode-looking run");
+  assert.equal(normalizeLocation("Store 12345678901234"), "Store", "14 digits is the longest");
+  assert.equal(normalizeLocation("  9780141024479   Étagère  3 "), "Étagère 3");
+});
+
+test("normalizeLocation turns a value that is only a barcode into null (the default applies)", () => {
+  assert.equal(normalizeLocation("9780141024479"), null);
+  assert.equal(normalizeLocation(" 12345678 "), null);
+  assert.equal(normalizeLocation(9780141024479), null);
+});
+
+test("normalizeLocation leaves short numbers, long digit runs and non-ASCII digits alone", () => {
+  for (const v of ["Shelf 12", "Box 2024", "A-7", "1234567", "Room 1234567", "123456789012345", "Store 123456789012345", "123456789012345Store", "Box 12-34-56-78", "\u0663\u0663\u0663\u0663\u0663\u0663\u0663\u0663\u0663Store", "978 0141 0244 79 Store"]) {
+    assert.equal(normalizeLocation(v), v, v);
+  }
+});
+
+test("normalizeLocation strips the barcode before the 40-character cap, never after", () => {
+  assert.equal(normalizeLocation("9780141024479" + "x".repeat(40)), "x".repeat(40), "the barcode does not eat into the 40");
+  assert.equal(normalizeLocation("y".repeat(45) + " 9780141024479"), "y".repeat(40));
+  assert.equal(normalizeLocation("9780141024479" + "x".repeat(39) + " tail"), "x".repeat(39));
+  assert.equal(normalizeLocation(normalizeLocation("9780141024479Storage")), "Storage", "idempotent");
+});
+
 test("normalizeLocation returns null for blank input", () => {
   assert.equal(normalizeLocation(""), null);
   assert.equal(normalizeLocation("   "), null);

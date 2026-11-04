@@ -137,6 +137,29 @@ test("the add-book form is pre-filled with the carried location and a typed new 
   assert.match(after, /<option value="brand new shelf">/);
 });
 
+test("a barcode a scanner typed into the Location box is not stored as the location", async () => {
+  const { rows: [{ count: before }] } = await pool.query("SELECT COUNT(*)::int AS count FROM book_copies WHERE location LIKE '9780141024479%'");
+  const title = `Scanner Loc ${uniq()}`;
+  await post("/admin/inventory", { title, description: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5", location: "9780141024479Storage" });
+  const { rows } = await pool.query(
+    "SELECT c.location FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = $1", [title]);
+  assert.deepEqual(rows.map((r) => r.location), ["Storage"]);
+  const { rows: [{ count: afterCount }] } = await pool.query("SELECT COUNT(*)::int AS count FROM book_copies WHERE location LIKE '9780141024479%'");
+  assert.equal(afterCount, before, "no copy got the barcode in its location");
+});
+
+test("move: a barcode typed in the destination box is cut off, and one alone is 'no destination' without losing the scan box", async () => {
+  const isbn = isbn13();
+  const bookId = await seedBook(`Move Guard ${uniq()}`, isbn);
+  const copyId = await seedCopy(bookId, { location: "MG-OLD" });
+  let s = await moveScan({}, isbn, "9780141024479MG-NEW");
+  assert.equal(s.dest, "MG-NEW");
+  assert.equal(await locationOf(copyId), "MG-NEW");
+  s = await moveScan({}, isbn, "9780141024479");
+  assert.ok(logTexts(s).some((t) => /Choose where the books are going first/.test(t)));
+  assert.equal(await locationOf(copyId), "MG-NEW", "nothing moved to a barcode");
+});
+
 test("copy edit form shows and saves the location, and a change is audited", async () => {
   const bookId = await seedBook(`Edit Loc ${uniq()}`, isbn13());
   const copyId = await seedCopy(bookId, { location: "OLD-1" });

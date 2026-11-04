@@ -270,7 +270,8 @@
     function store(key, value) { try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch { /* storage blocked: fine */ } }
     function recall(key) { try { return localStorage.getItem(key) || ""; } catch { return ""; } }
 
-    function normalizeLoc(v) { return String(v || "").replace(/\s+/g, " ").trim().slice(0, 40); }
+    // The same cleaning as the Location box (an ISBN scanned into it is cut off): public/inventory-location.js, loaded first.
+    function normalizeLoc(v) { return window.InventoryLocation ? window.InventoryLocation.clean(v) : String(v || "").replace(/\s+/g, " ").trim().slice(0, 40); }
     // A location typed for the first time joins the dropdown at once (the server lists it from the next page load on).
     function addLocationOption(v) {
       var list = document.getElementById("location-options");
@@ -658,6 +659,7 @@
       if (!form.reportValidity()) return;
       saving = true;
       var keep = choicesToKeep({ location: locationInput.value, condition: conditionSel.value, binding: bindingSel.value, source: sourceSel.value });
+      keep.location = normalizeLoc(keep.location) || normalizeLoc(startLocation); // never an ISBN that a scanner typed here
       var savedIsbnValue = isbn.value;
       var fd = new FormData(form);
       fd.set("fast", "1");
