@@ -140,7 +140,8 @@ test("the edit page shows the Picture card with Replace, Rotate, Crop and Remove
   const html = await editPage(jar, withPic);
   assert.match(html, /<div class="card" id="picture" data-cover-edit data-noun="picture">/);
   for (const needle of ["Replace picture", "Rotate left", "Rotate right", "data-cover-crop-open", "Remove picture", `${B(withPic)}/crop`, `${B(withPic)}/rotate`, `${B(withPic)}/replace`, `${B(withPic)}/remove`]) assert.ok(html.includes(needle), needle);
-  assert.match(html, /name="image" type="file" aria-label="Replace picture" accept="image\/\*" capture="environment"/, "the phone camera is offered");
+  assert.match(html, /name="image" type="file" aria-label="Replace picture" accept="image\/\*" class="file-input-hidden"/, "any picture can be chosen (phone offers Take Photo, Photo Library and Files)");
+  assert.doesNotMatch(html, /<input[^>]*name="image"[^>]*capture=/, "capture would force the camera on a phone and hide the photo library");
   assert.match(html, /cover-edit\.js/);
   assert.ok(!html.includes('id="edu-image"'), "the old plain file field is gone on the edit page (the card replaces it)");
   const none = await makeItem(null);
