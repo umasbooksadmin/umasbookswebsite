@@ -649,7 +649,10 @@ test("the book page has the Cover card: Replace, Rotate, Remove and a script-onl
   assert.match(t, /<form class="cvr-crop-form" method="post" action="\/admin\/inventory\/\d+\/cover\/crop"/);
   assert.match(t, /<link rel="stylesheet" href="\/cover-edit\.css\?v=[^"]+">/);
   assert.match(t, /<script src="\/cover-edit\.js\?v=[^"]+"><\/script>/);
-  assert.match(t, /capture="environment"/);
+  const cardInput = t.match(/<input id="cover-photo"[^>]*>/);
+  assert.ok(cardInput, "the Cover card has its file input");
+  assert.match(cardInput[0], /accept="image\/\*"/, "any picture can be chosen (phone offers Take Photo, Photo Library and Files)");
+  assert.doesNotMatch(cardInput[0], /capture=/, "capture would force the camera on a phone and hide the photo library");
   assert.doesNotMatch(t, /<script>[^<]/, "no inline script");
   const none = await makeBook(null);
   page = await get(jar, `/admin/inventory/${none}`);
