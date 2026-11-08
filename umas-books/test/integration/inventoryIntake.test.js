@@ -330,7 +330,7 @@ test("updateCopy: saves under a lock, refuses a status that changed underneath, 
   e = await editFor(saved, { status: "damaged", renderedStatus: "reserved" });
   out = await copies.updateCopy(pool, saved.bookId, saved.copyId, e.input, e.priced);
   assert.equal(out.status, 409);
-  assert.match(out.error, /changed since you opened the form \(now: In Store\)/);
+  assert.match(out.error, /changed since you opened the form \(now: Available\)/);
 
   await pool.query("UPDATE book_copies SET status = 'sold' WHERE id = $1", [saved.copyId]);
   e = await editFor(saved, { status: "in_stock", renderedStatus: "sold" });

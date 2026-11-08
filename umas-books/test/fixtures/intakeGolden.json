@@ -1669,7 +1669,7 @@
      "follow": {
       "status": 200,
       "page": {
-       "error": "This copy changed since you opened the form (now: In Store). Reload.",
+       "error": "This copy changed since you opened the form (now: Available). Reload.",
        "notice": null,
        "openCopies": 1
       }
@@ -2248,7 +2248,7 @@
      "follow": {
       "status": 200,
       "page": {
-       "error": "This reservation was already gone (the copy is now: In Store). Nothing was changed.",
+       "error": "This reservation was already gone (the copy is now: Available). Nothing was changed.",
        "notice": null,
        "openCopies": 0
       }
@@ -2282,7 +2282,7 @@
      "follow": {
       "status": 200,
       "page": {
-       "error": "This reservation was already gone (the copy is now: In Store). Nothing was changed.",
+       "error": "This reservation was already gone (the copy is now: Available). Nothing was changed.",
        "notice": null,
        "openCopies": 0
       }
