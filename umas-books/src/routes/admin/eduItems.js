@@ -155,18 +155,27 @@ async function genreIds() {
 
 router.get(LIST, requireAdmin, async (req, res) => {
   const flash = takePageFlash(req, res, FLASH) || {};
+  // "Search by name": same matching as the customer page (every word in the name or genre, any case), hidden items included.
+  const q = String(req.query.q ?? "").trim().slice(0, edu.SEARCH_MAX);
+  const params = [];
+  const where = q.split(/\s+/).filter(Boolean).slice(0, 8).map((w) => {
+    params.push(`%${w.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+    return `(i.name ILIKE $${params.length} OR g.name ILIKE $${params.length})`;
+  });
   const { rows: items } = await pool.query(
     `SELECT i.*, g.name AS genre_name, ${edu.HELD_SQL("i")}::int AS held,
             (SELECT COUNT(*) FROM order_items oi WHERE oi.edu_item_id = i.id)::int AS order_lines
      FROM edu_items i LEFT JOIN edu_genres g ON g.id = i.genre_id
-     ORDER BY i.is_hidden, i.sort_order, lower(i.name), i.id`
+     ${where.length ? "WHERE " + where.join(" AND ") : ""}
+     ORDER BY i.is_hidden, i.sort_order, lower(i.name), i.id`,
+    params
   );
   for (const i of items) {
     i.available = Math.max(0, i.stock - i.held);
     i.margin = edu.unitMargin(i.price, i.cost);
   }
   const genres = await edu.loadGenres(pool);
-  res.render("admin/edu_items", { active: "edu-items", items, genres, error: flash.error || null, notice: flash.notice || null, money, notFound: flash.notFound || null, findValue: flash.findValue || "" });
+  res.render("admin/edu_items", { active: "edu-items", items, genres, error: flash.error || null, notice: flash.notice || null, money, notFound: flash.notFound || null, findValue: flash.findValue || "", q });
 });
 
 async function renderForm(req, res, item, { barcode = "" } = {}) {
