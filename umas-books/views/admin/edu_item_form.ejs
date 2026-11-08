@@ -39,11 +39,9 @@
     <input id="edu-stock" name="stock" type="text" inputmode="numeric" value="<%= values.stock %>" required style="max-width:140px" aria-describedby="edu-stock-help">
     <p class="muted small" id="edu-stock-help">A whole number from 0 to <%= maxStock %>: how many you have in the shop, reserved ones included.<% if (item) { %> Open reservations hold <strong><%= held %></strong> right now, so it cannot go below <%= held %>.<% } %> At 0 available, customers see "Sold out".</p>
     <label for="edu-genre">Genre</label>
-    <select id="edu-genre" name="genreId">
-      <option value="">(no genre)</option>
-      <% genres.forEach(g => { %><option value="<%= g.id %>"<%= String(g.id) === String(values.genreId) ? ' selected' : '' %>><%= g.name %></option><% }) %>
-    </select>
-    <p class="muted small"><a href="/admin/edu-items#edu-genres">Add or rename genres</a> on the list page.</p>
+    <input id="edu-genre" name="genre" type="text" list="edu-genre-list" maxlength="60" autocomplete="off" autocapitalize="sentences" value="<%= values.genre %>" aria-describedby="edu-genre-help" style="max-width:320px">
+    <datalist id="edu-genre-list"><% genres.forEach(g => { %><option value="<%= g.name %>"></option><% }) %></datalist>
+    <p class="muted small" id="edu-genre-help">Pick one of the list or type a new one: a new one is added to the genres automatically. Leave empty for no genre. <a href="/admin/edu-items#edu-genres">Rename or delete genres</a> on the list page.</p>
     <% if (!item) { %>
     <label for="edu-image">Picture (optional)</label>
     <input id="edu-image" name="image" type="file" accept="image/jpeg,image/png,image/webp">

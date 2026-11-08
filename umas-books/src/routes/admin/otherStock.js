@@ -3,7 +3,7 @@
 // with NO customer page: these items are seen by admins and by the Till only. English only, admins only (requireAdmin),
 // CSRF-protected (src/app.js), every change audit-logged.
 //
-//   GET  /admin/till/items                    the list: picture, name, price, stock, shown (On the till); Search by name,
+//   GET  /admin/till/items                    the list: picture, name, type, category, price, stock, shown (On the till); Search by name/type/category,
 //                                             Find by barcode; alphabetical by name
 //   GET  /admin/till/items/new                the add form (?barcode=... pre-fills the barcode after a find found nothing)
 //   GET  /admin/till/items/lookup?barcode=... JSON: the name the product catalogues (Open Products Facts, UPCitemdb) suggest for a
@@ -11,7 +11,7 @@
 //   GET  /admin/till/items/find?barcode=...   to the item's edit page, or the list with "No item with that barcode"
 //   POST /admin/till/items                    add (multipart: optional picture "image", src/app.js runs multer)
 //   GET  /admin/till/items/:id/edit           the edit form (with the Picture card)
-//   POST /admin/till/items/:id                save (name, price, category, stock, barcode, On the till, a new picture)
+//   POST /admin/till/items/:id                save (name, price, type (combo box, migration 118), category, stock, barcode, On the till, a new picture)
 //   POST /admin/till/items/:id/generate-code  the shop's own code ITEM-<id> for an item without a barcode
 //   POST /admin/till/items/:id/image/{replace,rotate,crop,remove}   the Picture card (same image work as an educational item)
 //
@@ -34,6 +34,9 @@ const { redirectWithFlash, takePageFlash } = require("../../lib/postRedirect");
 const { setFlash } = require("../../lib/flash");
 const till = require("../../lib/till");
 const { isIsbnBarcode } = require("../../lib/barcode");
+
+// The category's label as the list shows it, for the search ("merchandise" finds Merchandise items). Labels are our own constants.
+const CATEGORY_LABEL_SQL = `(CASE category ${till.OTHER_CATEGORIES.map((c) => `WHEN '${c.value}' THEN '${c.label.replace(/'/g, "''")}'`).join(" ")} ELSE category END)`;
 
 const router = express.Router();
 validateIdParams(router, "id");
@@ -62,6 +65,7 @@ const failureMessage = (failure) => FAILURE_MESSAGES[failure] || UNAVAILABLE;
 const FLASH = "adminOtherStock";
 const LIST = "/admin/till/items";
 const SEARCH_MAX = 100;
+const TYPE_MAX = 60;
 const money = (cents) => (cents == null ? "" : (cents / 100).toFixed(2));
 
 const back = (req, res, to, message, extra = {}) => redirectWithFlash(req, res, to, FLASH, { error: message, ...extra });
@@ -90,14 +94,32 @@ function parseItemForm(body) {
     if (!/^\d{1,6}$/.test(String(body.stock).trim())) return { error: "Stock must be a whole number (or empty for not counted)." };
     stock = Number(String(body.stock).trim());
   }
+  const itemType = till.cleanText(body.itemType, TYPE_MAX + 1);
+  if (itemType.length > TYPE_MAX) return { error: `The type is limited to ${TYPE_MAX} characters.` };
   const bc = till.parseBarcode(body.barcode);
   if (bc.error) return { error: bc.error };
-  return { values: { name, priceCents: p.cents, category, stock, barcode: bc.code } };
+  return { values: { name, priceCents: p.cents, category, itemType, stock, barcode: bc.code } };
+}
+
+// The types already used by any item (the spelling first stored) -> the combo box's list, alphabetical.
+async function existingTypes(db = pool) {
+  const { rows } = await db.query("SELECT DISTINCT ON (lower(item_type)) item_type FROM till_quick_items WHERE item_type IS NOT NULL ORDER BY lower(item_type), id");
+  return rows.map((r) => r.item_type);
+}
+
+// The typed type -> the spelling to store: an existing type matching without regard to case or spacing wins (so "tote bags"
+// reuses "Tote bags"), else the text as typed; '' -> null. (Spaces are already collapsed by cleanText.)
+async function resolveType(db, typedType) {
+  if (!typedType) return null;
+  const { rows } = await db.query(
+    "SELECT item_type FROM till_quick_items WHERE lower(item_type) = lower($1) ORDER BY id LIMIT 1", [typedType]
+  );
+  return rows[0] ? rows[0].item_type : typedType;
 }
 
 // What the form sent, to put back in the form after a refusal.
 const typed = (b) => ({
-  name: String(b.name ?? "").slice(0, 200), price: String(b.price ?? "").slice(0, 20), category: String(b.category ?? "").slice(0, 30),
+  name: String(b.name ?? "").slice(0, 200), price: String(b.price ?? "").slice(0, 20), category: String(b.category ?? "").slice(0, 30), itemType: String(b.itemType ?? "").slice(0, 200),
   stock: String(b.stock ?? "").slice(0, 10), barcode: String(b.barcode ?? "").slice(0, 40), active: b.active === "1" ? "1" : "", generate: b.generate === "1" ? "1" : "",
 });
 
@@ -131,12 +153,12 @@ async function generateShopCode(id) {
 
 router.get(LIST, requireAdmin, async (req, res) => {
   const flash = takePageFlash(req, res, FLASH) || {};
-  // "Search by name": every word in the name, any case, switched-off items included.
+  // "Search by name": every word in the name, the type or the category's label (as the list shows it), any case, switched-off items included.
   const q = String(req.query.q ?? "").trim().slice(0, SEARCH_MAX);
   const params = [];
   const where = q.split(/\s+/).filter(Boolean).slice(0, 8).map((w) => {
     params.push(`%${w.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
-    return `name ILIKE $${params.length}`;
+    return `(name ILIKE $${params.length} OR item_type ILIKE $${params.length} OR ${CATEGORY_LABEL_SQL} ILIKE $${params.length})`;
   });
   const { rows } = await pool.query(
     `SELECT * FROM till_quick_items ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY active DESC, lower(name), id`, params
@@ -153,8 +175,8 @@ router.get(LIST, requireAdmin, async (req, res) => {
 async function renderForm(req, res, item, { barcode = "" } = {}) {
   const flash = takePageFlash(req, res, FLASH) || {};
   const v = flash.values || (item
-    ? { name: item.name, price: money(item.price_cents), category: item.category, stock: item.stock === null ? "" : String(item.stock), barcode: item.barcode || "", active: item.active ? "1" : "", generate: "" }
-    : { name: "", price: "", category: till.OTHER_CATEGORIES[0].value, stock: "", barcode, active: "1", generate: "" });
+    ? { name: item.name, price: money(item.price_cents), category: item.category, itemType: item.item_type || "", stock: item.stock === null ? "" : String(item.stock), barcode: item.barcode || "", active: item.active ? "1" : "", generate: "" }
+    : { name: "", price: "", category: till.OTHER_CATEGORIES[0].value, itemType: "", stock: "", barcode, active: "1", generate: "" });
   // The Picture card (views/partials/picture_card.ejs, public/cover-edit.js): the same one a book's Cover card is.
   const stored = Boolean(item) && isStoredImageUrl(item.image_url);
   const pic = { stored, url: item ? item.image_url : null, preview: stored ? variantUrl(item.image_url, 450) : null, external: Boolean(item && item.image_url) && !stored };
@@ -163,7 +185,7 @@ async function renderForm(req, res, item, { barcode = "" } = {}) {
   if (Object.hasOwn(PICTURE_NOTICES, code)) pictureMessage = { text: PICTURE_NOTICES[code], error: false };
   else if (Object.hasOwn(PICTURE_ERRORS, code)) pictureMessage = { text: PICTURE_ERRORS[code].message, error: true };
   res.render("admin/till/item_form", {
-    active: "till-items", item, pic, pictureMessage, values: v, categories: till.OTHER_CATEGORIES, shopCode: till.SHOP_CODE_PREFIX,
+    active: "till-items", item, pic, pictureMessage, values: v, categories: till.OTHER_CATEGORIES, types: await existingTypes(), shopCode: till.SHOP_CODE_PREFIX,
     error: flash.error || null, notice: flash.notice || null,
     // Arriving from "Add a new item with this barcode": the page looks the barcode up at once.
     autoLookup: !item && !flash.values && Boolean(barcode),
@@ -264,11 +286,12 @@ router.post(LIST, requireAdmin, writeLimiter, async (req, res) => {
   if (chk.error) return back(req, res, NEW, chk.error, { values: typed(req.body) });
   const pic = await pictureFrom(req);
   if (pic.error) return back(req, res, NEW, pic.error, { values: typed(req.body) });
+  const itemType = await resolveType(pool, v.itemType);
   let rows;
   try {
     ({ rows } = await pool.query(
-      "INSERT INTO till_quick_items (name, price_cents, category, stock, barcode, image_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
-      [v.name, v.priceCents, v.category, v.stock, v.barcode, pic.url || null]
+      "INSERT INTO till_quick_items (name, price_cents, category, item_type, stock, barcode, image_url) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+      [v.name, v.priceCents, v.category, itemType, v.stock, v.barcode, pic.url || null]
     ));
   } catch (err) {
     if (err.code === "23505") return back(req, res, NEW, TAKEN, { values: typed(req.body) });
@@ -276,7 +299,7 @@ router.post(LIST, requireAdmin, writeLimiter, async (req, res) => {
   }
   let code = v.barcode;
   if (!code && req.body.generate === "1") code = await generateShopCode(rows[0].id);
-  await audit(req, { action: "till.item_add", targetType: "till_quick_item", targetId: rows[0].id, detail: `${v.name} ${money(v.priceCents)}${code ? ` code ${code}` : ""}${pic.url ? ", with picture" : ""}` });
+  await audit(req, { action: "till.item_add", targetType: "till_quick_item", targetId: rows[0].id, detail: `${v.name} ${money(v.priceCents)}${itemType ? `, type ${itemType}` : ""}${code ? ` code ${code}` : ""}${pic.url ? ", with picture" : ""}` });
   return done(req, res, LIST, `Added "${v.name}".`);
 });
 
@@ -308,19 +331,20 @@ router.post(`${LIST}/:id`, requireAdmin, writeLimiter, async (req, res) => {
   if (chk.error) return back(req, res, edit, chk.error, { values: typed(req.body) });
   const pic = await pictureFrom(req);
   if (pic.error) return back(req, res, edit, pic.error, { values: typed(req.body) });
+  const itemType = await resolveType(pool, v.itemType);
   let rowCount;
   try {
     ({ rowCount } = await pool.query(
       `UPDATE till_quick_items SET name = $2, price_cents = $3, category = $4, stock = $5, active = $6, barcode = $7,
-              image_url = COALESCE($8, image_url), updated_at = now() WHERE id = $1`,
-      [id, v.name, v.priceCents, v.category, v.stock, active, v.barcode, pic.url || null]
+              image_url = COALESCE($8, image_url), item_type = $9, updated_at = now() WHERE id = $1`,
+      [id, v.name, v.priceCents, v.category, v.stock, active, v.barcode, pic.url || null, itemType]
     ));
   } catch (err) {
     if (err.code === "23505") return back(req, res, edit, TAKEN, { values: typed(req.body) });
     throw err;
   }
   if (!rowCount) return res.status(404).render("404");
-  await audit(req, { action: "till.item_edit", targetType: "till_quick_item", targetId: id, detail: `${v.name} ${money(v.priceCents)}${active ? "" : " (disabled)"}${pic.url ? ", new picture" : ""}` });
+  await audit(req, { action: "till.item_edit", targetType: "till_quick_item", targetId: id, detail: `${v.name} ${money(v.priceCents)}${itemType ? `, type ${itemType}` : ""}${active ? "" : " (disabled)"}${pic.url ? ", new picture" : ""}` });
   return done(req, res, LIST, `Saved "${v.name}".`);
 });
 
