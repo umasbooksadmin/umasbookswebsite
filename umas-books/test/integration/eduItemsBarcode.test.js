@@ -462,6 +462,20 @@ test("the list shows the Find by barcode box and each item's barcode", async () 
   assert.match(list.text, /Listed With Code<\/a><br><span class="muted small">Barcode 4006381333900<\/span>/);
 });
 
+test("the list's Search by name box filters by any words of the name (any case) and escapes wildcards", async () => {
+  await item({ name: "Colourful Phonics Cards" });
+  await item({ name: "Maths Worksheet Pack" });
+  const box = await get("/admin/edu-items");
+  assert.match(box.text, /<label for="edu-search-name">Search by name<\/label>/);
+  const hit = await get("/admin/edu-items?q=phonics%20CARDS");
+  assert.match(hit.text, /Colourful Phonics Cards/);
+  assert.doesNotMatch(hit.text, /Maths Worksheet Pack/);
+  const none = await get("/admin/edu-items?q=zzzz");
+  assert.match(none.text, /No item matches &#34;zzzz&#34;\./);
+  const wild = await get("/admin/edu-items?q=%25");
+  assert.doesNotMatch(wild.text, /Colourful Phonics Cards/, "a typed % is not a wildcard");
+});
+
 // ---------- the page's script, in headless Chrome ----------
 
 test("in a browser: Enter looks up instead of saving; a typed Name and price are kept; an empty Name is filled; Use this picture saves it", { timeout: 60000 }, async (t) => {
