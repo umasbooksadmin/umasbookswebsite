@@ -1549,11 +1549,17 @@ lines also say "TVA non applicable" on the receipt; there is no VAT calculation.
 
 **Other stock (not books)** works like **Educational items**, without the book part and
 without a customer page (only admins and the till see these items). The list shows
-Picture, Name, Category, Price, Stock and whether the item is on the till, always
+Picture, Name, Type, Category, Price, Stock and whether the item is on the till, always
 alphabetical by name (the old Order / Position number is gone: the buttons on the
-till are alphabetical too). **Search by name** filters the list; **Find by barcode**
+till are alphabetical too). **Search by name** filters the list by the name, the **Type** or the Category (for example `tote`, `postcards` or `merchandise`); **Find by barcode**
 (scan or type) opens the item, or says "No item with that barcode" with a button to
 add one. **Add an item** and **Edit** are separate pages.
+
+**Type** (migration 118) is a free-text label such as Tote bags, Bookmarks or Postcards. Click in the box: the types already
+used by other items are listed (start typing to narrow the list), or type a new one and it is remembered for the next item
+(`tote bags` reuses `Tote bags`, whatever the capitals or extra spaces). Leave it empty for no type. It is only for finding
+and sorting: it is not shown on the till, and it does not change the accounting. The **Category (accounting)** below it is
+still a fixed list, because it decides the line of the accounting export and the till reports.
 
 An item can have a barcode so the scanner adds it: on the Add or Edit page click in
 **Scan or type barcode** and scan the item (the manufacturer's code, 8 to 14 digits,
@@ -4041,6 +4047,12 @@ Admin > **Educational items** (`/admin/edu-items`, admins only) lists every item
 **Held** (units on open reservations) and **Available** (stock minus held, what customers can still reserve). The
 public page is **Browse Educational Items** (`/educational-items.html`, French `/fr/educational-items.html`).
 
+- **Genre (the "type" of an educational item) is a combo box:** on the Add / Edit page click in **Genre**: the existing genres are
+  listed (start typing to narrow the list), or type a new one. A new genre is created when you press **Add item** / **Save**
+  (the same as **New genre** on the list page: next colour, book icon, last in the order; Admin > Activity shows
+  `edu_genre.add` and the item line). A text matching an existing genre in any case reuses it. Empty = no genre. A mistyped new
+  genre can be renamed or deleted (when it has no items) in the **Genres** card on the list page. **Search by name** on the
+  list also finds by genre.
 - **Receiving new units:** edit the item and raise **Stock** by what arrived. Every change is in Admin > Activity
   (`edu_item.edit`, "stock 5 -> 12").
 - **Stock cannot be set below Held.** The page says how many are held. Collect or cancel those reservations first.

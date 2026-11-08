@@ -114,14 +114,14 @@ test("admin: the list shows stock / held / available; add with stock (audited); 
   assert.equal(list.res.status, 200);
   assert.match(list.text, /Colours Flash Cards/);
   const g = (await h.pool.query("SELECT id FROM edu_genres WHERE slug = 'worksheets'")).rows[0].id;
-  await h.post("/admin/edu-items", { name: "Alphabet Tracing Sheets", price: "3,50", stock: "25", genreId: String(g), sortOrder: "1" });
+  await h.post("/admin/edu-items", { name: "Alphabet Tracing Sheets", price: "3,50", stock: "25", genre: "Worksheets", sortOrder: "1" });
   const made = (await h.pool.query("SELECT * FROM edu_items WHERE name = 'Alphabet Tracing Sheets'")).rows[0];
   assert.equal(Number(made.price), 3.5);
   assert.equal(made.stock, 25);
   assert.match((await h.audit("edu_item.add")).pop().detail, /stock 25/);
   // Bad stock is refused and nothing is made.
-  await h.post("/admin/edu-items", { name: "Bad Stock", price: "2", stock: "-1", genreId: String(g) });
-  await h.post("/admin/edu-items", { name: "Bad Stock", price: "2", stock: "2.5", genreId: String(g) });
+  await h.post("/admin/edu-items", { name: "Bad Stock", price: "2", stock: "-1", genre: "Worksheets" });
+  await h.post("/admin/edu-items", { name: "Bad Stock", price: "2", stock: "2.5", genre: "Worksheets" });
   assert.equal((await h.pool.query("SELECT 1 FROM edu_items WHERE name = 'Bad Stock'")).rows.length, 0);
   // Hide / show.
   await h.post(`/admin/edu-items/${made.id}/visibility`, { hide: "1" });
@@ -138,7 +138,7 @@ test("admin: the list shows stock / held / available; add with stock (audited); 
   const member = await h.makeUser({ member: true, name: "Plain Member" });
   const page = await h.get("/admin/edu-items", member.jar);
   assert.notEqual(page.res.status, 200);
-  await h.post(`/admin/edu-items/${items.phonics.id}`, { name: "Hacked", price: "1", stock: "0", genreId: String(g) }, member.jar);
+  await h.post(`/admin/edu-items/${items.phonics.id}`, { name: "Hacked", price: "1", stock: "0", genre: "Worksheets" }, member.jar);
   assert.equal((await h.pool.query("SELECT name FROM edu_items WHERE id = $1", [items.phonics.id])).rows[0].name, "Phonics Picture Cards");
   assert.notEqual((await visit("/admin/edu-items")).res.status, 200);
 });

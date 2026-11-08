@@ -3,6 +3,7 @@
 // timeout) rather than throwing, so a lookup miss just falls through to
 // manual entry in the UI.
 
+const { cleanLookupBook, cleanLookupTitle, cleanLookupAuthor } = require("./lookupClean");
 const config = require("./config");
 const { readBoundedJson } = require("./boundedBody");
 const { createInflight } = require("./inflight");
@@ -283,6 +284,7 @@ const FIELDS = ["title", "subtitle", "author", "publisher", "publishedYear", "de
 // come in priority order), every field it lacks is filled from the next ones. Nothing is invented:
 // a field nobody gave stays null.
 function mergeBooks(isbn, books) {
+  books = books.map(cleanLookupBook); // seller leftovers ("[Paperback] [Jan 01, 2012] NILL") out of every source first
   // Several answers: the ones with a title lead. A record without any title (it happens) is still passed on as it is, so
   // the caller sees what the catalog really said (the page treats a title-less book as "not found").
   const withTitle = books.filter((b) => b && b.title);
@@ -524,8 +526,8 @@ async function searchByTitleAuthor(title, author) {
     const genre = pickGenres(doc.subject);
     return {
       isbn: Array.isArray(doc.isbn) ? doc.isbn[0] : null,
-      title: doc.title || null,
-      author: Array.isArray(doc.author_name) ? doc.author_name.join(", ") : null,
+      title: cleanLookupTitle(doc.title || null),
+      author: Array.isArray(doc.author_name) ? cleanLookupAuthor(doc.author_name.join(", ")) : null,
       publisher: Array.isArray(doc.publisher) ? doc.publisher[0] : null,
       publishedYear: doc.first_publish_year || null,
       description: null,
