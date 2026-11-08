@@ -3976,6 +3976,43 @@ UNION ALL SELECT 'announcements', count(*) FROM announcements WHERE concat_ws(' 
 UNION ALL SELECT 'events.description', count(*) FROM events WHERE concat_ws(' ', title, description) ~* 'non[- ]fiction';
 ```
 
+## av) "Children's Fiction" with a capital F (migration 118): count before, back up, backup tables, undo
+
+**What the deploy does.** Migration 118 changes the spelling of the genre everywhere it is DATA, so no book loses its genre: the
+managed genre in Admin > Genres (it was spelled "Children's fiction", and because the shop's own spelling wins, every book saved
+since carried it) becomes **Children's Fiction**; its Browse button label too when it is that same name (the usual label "Children's
+Books" is left alone); every book genre that was children's fiction in any capitals or with a curly apostrophe becomes
+**Children's Fiction** (the other genres of the book and their order are kept; only `books.categories` is written, no other column,
+no copy, no price); an exact mapping rule on the old name gets the new name. The slug (`children`) and the search words of the
+button stay. If a second managed genre differs only by a curly apostrophe, the two are merged into one (its rules move to the kept
+genre and its whole row is saved in the backup table). From now on the code spells it Children's Fiction whatever the managed
+name says, and `?genre=children's fiction` (any capitals, curly apostrophe) finds the books. Free text is NOT rewritten.
+
+**Before the deploy: count, then back up (Render dashboard > `umas-books` > Shell, `psql "$DATABASE_URL"`).** The count changes nothing:
+
+```sql
+SELECT 'managed genres' AS what, count(*) AS n FROM managed_genres
+  WHERE btrim(name_en) ~* '^children[''‘’‛ʼ′`´]s\s+fiction$' AND name_en <> 'Children''s Fiction'
+UNION ALL SELECT 'books with the old spelling', count(*) FROM books b
+  WHERE EXISTS (SELECT 1 FROM unnest(string_to_array(b.categories, ',')) g WHERE btrim(g) ~* '^children[''‘’‛ʼ′`´]s\s+fiction$' AND btrim(g) <> 'Children''s Fiction')
+UNION ALL SELECT 'books already right', count(*) FROM books b
+  WHERE EXISTS (SELECT 1 FROM unnest(string_to_array(b.categories, ',')) g WHERE btrim(g) = 'Children''s Fiction')
+UNION ALL SELECT 'exact rules on the old name', count(*) FROM genre_rules
+  WHERE kind = 'exact' AND btrim(pattern) ~* '^children[''‘’‛ʼ′`´]s\s+fiction$' AND pattern <> 'Children''s Fiction';
+```
+
+The migration saves the old values itself (below) inside its own transaction, but it changes real book data: take a database backup
+first (Render dashboard > the Postgres database > **Backups** > **Create backup** if your plan has it, or `pg_dump "$DATABASE_URL" -Fc -f children-before.dump`
+in the Shell, or run the **Backup** workflow in GitHub > Actions and check the new file in Backblaze B2).
+
+**Where to see it.** Old values are in `categories_childrens_fiction_backup` (`book_id`, `categories_before`) and
+`children_fiction_rename_backup` (`on_table`, `row_id`, `on_column`, `value_before`: the genre name, its Browse label, the rule, a
+merged genre row as JSON). **Admin > Admin activity** has one line (action `books.childrens_fiction_spelling`, by "migration 118").
+
+**Restore (only if needed).** The undo recipe is in the header of `migrations/118_childrens_fiction_spelling.sql` (four `UPDATE`
+statements); paste them in one transaction. It would also put back a genre list a person edited after the deploy, so look at the
+backup table first. The code change would have to be rolled back too.
+
 ## at) When GitHub Actions stops running our scheduled jobs
 
 **The gap this closes.** The nightly database backup, the nightly inventory export, the site uptime check and the daily backup freshness check all run on GitHub Actions. Each emails you when it **fails**, but a job that **never starts** (the month's free Actions minutes are used up, the workflows get disabled, GitHub has an outage) sends nothing, and the freshness check is a GitHub schedule too, so it goes quiet at the same moment. The site itself runs on Render, independently of GitHub, so it keeps a watch of its own.

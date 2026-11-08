@@ -123,6 +123,8 @@ async function plant() {
   await db.query("INSERT INTO book_genre_cleanup_backup (book_id, categories_before) VALUES ($1, 'Children''s Fiction§')", [book]);
   await db.query("INSERT INTO categories_nonfiction_backup (book_id, categories_before) VALUES ($1, 'Non-fiction, History')", [book]);
   await db.query("INSERT INTO nonfiction_rename_backup (on_table, row_id, on_column, value_before) VALUES ('managed_genres', $1, 'name_en', 'Non-fiction')", [managedGenre]);
+  await db.query("INSERT INTO categories_childrens_fiction_backup (book_id, categories_before) VALUES ($1, 'Children''s fiction, Poetry')", [book]);
+  await db.query("INSERT INTO children_fiction_rename_backup (on_table, row_id, on_column, value_before) VALUES ('managed_genres', $1, 'name_en', 'Children''s fiction')", [managedGenre]);
   // migration 110's copy of a cleared AI description follows the book
   await db.query("INSERT INTO cleared_book_descriptions (book_id, description, reason) VALUES ($1, 'Old text', 'test')", [book]);
 

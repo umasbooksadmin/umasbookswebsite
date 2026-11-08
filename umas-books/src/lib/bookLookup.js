@@ -79,7 +79,7 @@ function pickGenres(names) {
   const clean = (names || []).filter((n) => typeof n === "string" && !n.includes(":"));
   if (!clean.length) return null;
 
-  const lower = clean.map((n) => n.toLowerCase());
+  const lower = clean.map((n) => cleanGenreName(n).toLowerCase()); // (a curly apostrophe: "Children’s fiction" still matches Children's Fiction)
   // "Nonfiction" also matches the old spellings a source may still use ("Non-fiction", "Non fiction").
   const matches = COMMON_GENRES.filter((genre) => lower.some((n) => n.includes(genre.toLowerCase()) || (genre === NONFICTION && /non[-\s]fiction/.test(n))));
   if (matches.length) return matches.slice(0, MAX_GENRES).join(", ");
