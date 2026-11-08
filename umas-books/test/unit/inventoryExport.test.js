@@ -25,7 +25,7 @@ test("the per-copy header is exactly this list, and has no personal-data column"
 test("the per-book header", () => {
   assert.deepEqual(x.BOOK_COLUMNS.map((c) => c.label), [
     "Book ID", "ISBN-13", "ISBN-10", "Title", "Author(s)", "Publisher", "Year", "Binding", "Genres",
-    "Copies (all)", "In store", "Reserved", "Sold", "Donated or withdrawn",
+    "Copies (all)", "Available", "Reserved", "Sold", "Donated or withdrawn",
   ]);
 });
 
@@ -41,7 +41,7 @@ test("one copy line: pipes, decimal point, no quotes, neutralised formula, label
   const line = x.csvLine(x.COPY_COLUMNS, x.copyRow(dbRow));
   assert.equal(line, [
     "9782070368228", "207036822X", "Le 'Petit' Prince; suite", "A. de Saint-Exupéry", "Gallimard", "1999", "Mass Market",
-    "Like New", "6.50", "Store", "Donation", "In Store", "2026-10-01", "42", "UB-42", "7", "Fiction, Classics", "Yes", "",
+    "Like New", "6.50", "Store", "Donation", "Available", "2026-10-01", "42", "UB-42", "7", "Fiction, Classics", "Yes", "",
     "'=HYPERLINK('http://x')", "",
     "2026-09-15", "0.00", "5.00",
   ].join("|"));
@@ -115,4 +115,10 @@ test("book rows: totals and the donated/withdrawn remainder", async () => {
   let text = "";
   await x.writeBooksCsv(fakeDb([b]), (s) => { text += s; });
   assert.equal(text.split("\r\n")[1], "1|9780306406157|0306406152|T||||||5|2|1|1|1");
+});
+
+test("the stored status in_stock is shown to people as Available (the stored value never changed, so every existing copy shows it)", () => {
+  const { STATUSES } = require("../../src/lib/inventory");
+  assert.equal(STATUSES.find((s) => s.value === "in_stock").label, "Available");
+  assert.ok(!STATUSES.some((s) => /in store/i.test(s.label)));
 });

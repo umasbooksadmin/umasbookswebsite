@@ -207,7 +207,7 @@ jobs:
             ${{ steps.attach.outputs.intro }}
 
             Copies: ${{ steps.export.outputs.copies }}
-              In store: ${{ steps.export.outputs.in_stock }}
+              Available: ${{ steps.export.outputs.in_stock }}
               Reserved: ${{ steps.export.outputs.reserved }}
               Sold: ${{ steps.export.outputs.sold }}
               Other (donated or withdrawn): ${{ steps.export.outputs.other }}
