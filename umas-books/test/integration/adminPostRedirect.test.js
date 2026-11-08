@@ -62,7 +62,7 @@ test("no admin POST/PUT/DELETE handler renders a page itself (every one redirect
 
 // ---------- 2. over HTTP ----------
 
-const h = adminHarness("admin_post_redirect", ["priceSuggestions", "inventory", "pricing", "sessions", "orders", "till", "privacyRequests"], { isolated: true });
+const h = adminHarness("admin_post_redirect", ["priceSuggestions", "inventory", "pricing", "sessions", "orders", "till", "otherStock", "privacyRequests"], { isolated: true });
 before(() => h.start());
 after(() => h.stop());
 
@@ -153,10 +153,11 @@ test("orders: refused collect / extend / refund redirect and show the message on
   assert.match(r.text, /no longer a reservation/);
 });
 
-test("till items: a refused form redirects to the list with the message", async () => {
+test("other stock: a refused form redirects back to the add form with the message", async () => {
   const b = browser();
   const r = await b.submit("/admin/till/items", { name: "", price: "1" });
-  assert.match(r.target, /^\/admin\/till\/items\?error=/);
+  assert.equal(r.target, "/admin/till/items/new");
+  assert.match(r.text, /Name is required/);
   assert.equal(r.status, 200);
 });
 
