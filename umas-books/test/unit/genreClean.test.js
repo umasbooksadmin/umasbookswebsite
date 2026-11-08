@@ -44,9 +44,9 @@ test("typos only where the mapping is certain", () => {
   assert.equal(canonicalGenre("Chidren’s Fiction§", known), "Children's Fiction");
   assert.equal(canonicalGenre("Childrens Fiction", known), "Children's Fiction");
   assert.equal(canonicalGenre("Children's Books", known), "Children's Books", "not a typo of a known genre: left alone");
-  // A managed spelling of the genre wins over the taxonomy's, typo or not.
+  // A managed spelling wins over the taxonomy's, EXCEPT Children's Fiction: the capital F is the one spelling (2026-11-08).
   const k2 = buildKnown({ common: COMMON_GENRES, managed: [{ name_en: "Children's fiction" }] });
-  assert.equal(canonicalGenre("Chidren's Fiction", k2), "Children's fiction");
+  assert.equal(canonicalGenre("Chidren's Fiction", k2), "Children's Fiction");
 });
 
 test("a list: duplicates (any capitals) dropped, empty parts dropped, order kept, tidy ', ' separator", () => {
@@ -111,4 +111,34 @@ test("pickGenres: the subjects of Open Library / BnF / Google that say Non-ficti
   assert.ok(pickGenres(["Nonfiction"]).split(", ").includes("Nonfiction"));
   assert.ok(pickGenres(["Cats", "Non fiction"]).split(", ").includes("Nonfiction"));
   assert.deepEqual(pickGenres(["History", "Non-fiction"]).split(", "), ["Fiction", "Nonfiction", "History"], "as before: the word fiction inside the subject also matches Fiction");
+});
+
+// "Children's Fiction" with a capital F (2026-11-08). The managed genre was spelled "Children's fiction" and won.
+test("every capitals / apostrophe variant of children's fiction becomes Children's Fiction, whatever the managed spelling", () => {
+  const { CHILDRENS_FICTION, isChildrensFictionVariant, searchGenreName } = require("../../src/lib/genreClean");
+  assert.equal(CHILDRENS_FICTION, "Children's Fiction");
+  assert.ok(COMMON_GENRES.includes("Children's Fiction"));
+  const managedLower = buildKnown({ common: COMMON_GENRES, managed: [{ name_en: "Children's fiction" }] });
+  const managedCurly = buildKnown({ common: [], managed: [{ name_en: "Children\u2019s fiction" }] });
+  for (const v of ["Children's fiction", "children's fiction", "CHILDREN'S FICTION", "Children\u2019s fiction", "children\u2019s Fiction", "  Children's  fiction§", "Children\u2018s fiction"]) {
+    assert.ok(isChildrensFictionVariant(v), v);
+    for (const k of [known, managedLower, managedCurly, STATIC_KNOWN_GENRES, undefined]) assert.equal(canonicalGenre(v, k), "Children's Fiction", v);
+    assert.equal(searchGenreName(v), "Children's Fiction", v);
+    assert.equal(normalizeGenres(`Poetry, ${v}`), "Poetry, Children's Fiction", v);
+  }
+  assert.equal(canonicalGenres("Children's fiction, children\u2019s Fiction, Poetry", managedLower), "Children's Fiction, Poetry", "duplicates collapse");
+  assert.equal(managedLower.get("children's fiction"), "Children's Fiction", "the known spelling is the capital F one");
+  for (const other of ["Children's Books", "Juvenile Fiction", "Children's fiction books", "Childrens", "Fiction", "Children's"]) {
+    assert.ok(!isChildrensFictionVariant(other), other);
+    assert.equal(searchGenreName(other), other);
+    assert.equal(canonicalGenre(other, managedLower), other);
+  }
+});
+
+test("pickGenres: a source's Children's fiction subject gives Children's Fiction", () => {
+  for (const s of ["Children's fiction", "CHILDREN'S FICTION", "Children\u2019s fiction"]) {
+    const g = pickGenres([s, "Dogs"]);
+    assert.ok(g.split(", ").includes("Children's Fiction"), `${s} -> ${g}`);
+  }
+  assert.equal(normalizeGenres(pickGenres(["children's fiction"])), "Fiction, Children's Fiction");
 });
