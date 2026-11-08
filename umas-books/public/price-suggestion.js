@@ -41,6 +41,7 @@
     var tags = root.querySelectorAll("[data-suggested-tag]");
 
     var dirty = false;
+    var userTyped = false; // the Custom price box holds a number the admin typed (not one a radio copied in)
     var token = 0;
     var last = null;
     var timer = null;
@@ -76,7 +77,10 @@
     function fill(s, quiet) {
       var key = keyFor(s);
       for (var i = 0; i < radios.length; i++) radios[i].checked = radios[i].value === key;
-      priceInput.value = s.price == null ? "" : s.price;
+      // The Custom price box carries a standard level's price (so the form can post it) but is never pre-filled with a
+      // price the admin must choose herself: "Custom..." starts empty.
+      priceInput.value = s.price == null || (key === "custom" && !isNew()) ? "" : s.price;
+      userTyped = false;
       syncVisibility();
       if (s.price == null && !isNew() && mode === "intake" && !quiet) priceInput.focus();
     }
@@ -154,7 +158,8 @@
       r.addEventListener("change", function () {
         dirty = true;
         var price = r.getAttribute("data-price");
-        if (price !== "" && price !== null) priceInput.value = price;
+        if (price !== "" && price !== null) { priceInput.value = price; userTyped = false; }
+        else if (r.value === "custom" && !userTyped && mode === "intake") priceInput.value = ""; // Custom has no default
         syncVisibility();
         if (r.value === "custom") priceInput.focus();
       });
@@ -162,6 +167,7 @@
 
     priceInput.addEventListener("input", function () {
       dirty = true;
+      userTyped = true;
       for (var i = 0; i < radios.length; i++) radios[i].checked = radios[i].value === "custom";
       syncVisibility();
     });

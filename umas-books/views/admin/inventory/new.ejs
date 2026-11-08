@@ -88,7 +88,7 @@
     <%- include('_price_control', {
       idSuffix: '', mode: 'intake', condition: typeof selectedCondition !== 'undefined' ? selectedCondition : 'very_good', chipPublisherPrice: typeof publisherPriceValue !== 'undefined' ? publisherPriceValue : '', suggestAction: '/admin/inventory/suggest',
       suggestion: (typeof priceSuggestion !== 'undefined' && (book.isbn || book.title)) ? priceSuggestion : null, // no "Manual review" alert on a blank form
-      priceValue: defaultPricing.price,
+      priceValue: (typeof priceLevelSelected === 'undefined' || priceLevelSelected === undefined) && !(typeof priceSuggestion !== 'undefined' && priceSuggestion && priceSuggestion.price != null && priceUi.keyFor(priceSuggestion.price, priceSuggestion.level === 'clearance')) && (typeof selectedCondition === 'undefined' || selectedCondition !== 'new') ? '' : defaultPricing.price, // a fresh form never pre-fills the Custom price with a number that is not one of the standard prices
       selected: typeof priceLevelSelected !== 'undefined' && priceLevelSelected !== undefined ? priceLevelSelected
         : (typeof priceSuggestion !== 'undefined' && priceSuggestion && priceSuggestion.price != null ? priceUi.keyFor(priceSuggestion.price, priceSuggestion.level === 'clearance') : ''),
     }) %>
