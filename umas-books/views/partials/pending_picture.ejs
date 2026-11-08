@@ -1,0 +1,49 @@
+<%# A picture chooser for a form that creates an item, so the item (and its Picture card) does not exist yet. Plain file input
+    that works without JavaScript; public/pending-picture.js (with public/crop-box.js) adds a preview with Rotate left /
+    Rotate right / Crop / Reset / Remove picture done in the browser, and puts the result back in the file input at submit,
+    so the server reads the multipart field as always. Include public/cover-edit.css on the page (the cvr- classes) and, after
+    the markup, the two scripts crop-box.js then pending-picture.js.
+    Locals (all optional): id (input id, default 'pending-picture'), name (field name multer reads, default 'image'),
+    label (default 'Picture (optional)'), help (a fixed sentence written in the calling view, printed as written: never user data),
+    noun (default 'picture'). The file input has NO capture attribute: phones offer the photo library, the camera and files. %>
+<%
+  const _id = typeof id !== 'undefined' && id ? id : 'pending-picture';
+  const _name = typeof name !== 'undefined' && name ? name : 'image';
+  const _label = typeof label !== 'undefined' && label ? label : 'Picture (optional)';
+  const _noun = typeof noun !== 'undefined' && noun ? noun : 'picture';
+  const _help = typeof help !== 'undefined' && help ? help : 'JPEG, PNG or WebP, up to 8 MB.';
+%>
+<div class="cvr-pending" data-pending-picture data-noun="<%= _noun %>" data-max-bytes="8388608">
+  <label for="<%= _id %>"><%= _label %></label>
+  <input id="<%= _id %>" name="<%= _name %>" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="<%= _id %>-help" data-pending-input>
+  <p class="muted small" id="<%= _id %>-help"><%- _help %></p>
+  <p class="visually-hidden" role="status" aria-live="polite" data-pending-live></p>
+  <p class="small cvr-pending-note" data-pending-note role="status" hidden></p>
+  <div class="cvr-pending-editor" data-pending-editor hidden>
+    <div class="cvr-stage" data-pending-stage>
+      <canvas class="cvr-stage-img" data-pending-canvas role="img" aria-label="Preview of the chosen <%= _noun %>"></canvas>
+      <div class="cvr-overlay" data-pending-overlay hidden>
+        <div class="cvr-box" tabindex="0" role="group" aria-label="Crop area" aria-describedby="<%= _id %>-crop-help" data-pending-box>
+          <span class="cvr-handle" data-handle="nw"></span><span class="cvr-handle" data-handle="ne"></span><span class="cvr-handle" data-handle="sw"></span><span class="cvr-handle" data-handle="se"></span>
+        </div>
+      </div>
+    </div>
+    <p class="muted small cvr-note">Changes are made on this page only. The <%= _noun %> is saved when you press the button below.</p>
+    <div class="cvr-actions" data-pending-actions>
+      <button type="button" class="btn btn-outline btn-small" data-pending-rotate="left"><span aria-hidden="true">&#8634;</span> Rotate left</button>
+      <button type="button" class="btn btn-outline btn-small" data-pending-rotate="right"><span aria-hidden="true">&#8635;</span> Rotate right</button>
+      <button type="button" class="btn btn-outline btn-small" data-pending-crop-open aria-expanded="false" aria-controls="<%= _id %>-crop">Crop</button>
+      <button type="button" class="btn btn-outline btn-small" data-pending-reset>Reset</button>
+      <button type="button" class="btn btn-outline btn-small" data-pending-remove>Remove <%= _noun %></button>
+    </div>
+    <div class="cvr-crop" id="<%= _id %>-crop" data-pending-crop hidden>
+      <p class="muted small" id="<%= _id %>-crop-help">Drag the box, or its corners, to choose the part to keep. You can also drag on the picture to draw a new box. With a keyboard, focus the box: arrow keys move it, Shift plus arrow keys change its size, Escape cancels.</p>
+      <p class="small cvr-readout" data-pending-readout></p>
+      <div class="cvr-crop-form">
+        <button type="button" class="btn btn-small" data-pending-crop-apply>Apply crop</button>
+        <button type="button" class="btn btn-outline btn-small" data-pending-crop-reset>Reset box</button>
+        <button type="button" class="btn btn-outline btn-small" data-pending-crop-cancel>Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
