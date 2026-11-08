@@ -1,8 +1,8 @@
 // The till (/admin/till): scan books, take cash or card, record the sale.
-// Plus quick items (/admin/till/items), receipts, voids and the end of the day
+// Plus receipts, voids and the end of the day
 // (/admin/till/day). English only. Admins, plus accounts with "Till access"
 // (requireTillOrAdmin: the till page, scan, check, sale, release, void, receipts and the
-// read-only end of day); quick items, closing/reopening the day and every override
+// read-only end of day); the quick items page (routes/admin/otherStock.js), closing/reopening the day and every override
 // beyond the rules stay admin only. The page keeps the sale in the
 // browser (public/till.js); the server re-checks everything when the sale is
 // confirmed (lib/till.js completeSale).
@@ -24,6 +24,7 @@ const { formatEuro } = require("../../lib/money");
 const { SELLER_LINES } = require("../../lib/orderEmail");
 const { vatNotice } = require("../../lib/legalText");
 const { SITE_TIME_ZONE } = require("../../lib/tz");
+const { variantUrl } = require("../../lib/imageVariants");
 
 const router = express.Router();
 validateIdParams(router, "id");
@@ -74,7 +75,7 @@ const NOTICES = { "sell-retired": "Sales are made at the Till now." };
 router.get("/admin/till", requireTillOrAdmin, async (req, res) => {
   const today = todayParis();
   const [{ rows: quickItems }, recent, summary] = await Promise.all([
-    pool.query("SELECT id, name, price_cents, category, stock FROM till_quick_items WHERE active ORDER BY sort_order, name, id"),
+    pool.query("SELECT id, name, price_cents, category, stock, image_url FROM till_quick_items WHERE active ORDER BY lower(name), id"),
     recentSales(today),
     till.daySummary(pool, today),
   ]);
@@ -82,7 +83,7 @@ router.get("/admin/till", requireTillOrAdmin, async (req, res) => {
     active: "till", mainWide: true, title: "Till", pageTitle: "Till",
     token: crypto.randomBytes(18).toString("base64url"),
     quickItems, recent, today, summary, categories: till.OTHER_CATEGORIES,
-    cardInstruction: getCardProvider().name, formatTime, eur: till.eur, isAdmin: isAdminReq(req),
+    cardInstruction: getCardProvider().name, variantUrl, formatTime, eur: till.eur, isAdmin: isAdminReq(req),
     maxTotalCents: till.MAX_TOTAL_CENTS,
     flash: /^\d{1,9}$/.test(String(req.query.voided || ""))
       ? `Sale ${Number(req.query.voided)} voided: its books are back in stock.${req.query.card === "1" ? " It was a card sale: refund the card on the SumUp reader or app yourself, then tick \"I refunded the card\"." : ""}`
@@ -198,121 +199,6 @@ router.get("/admin/till/sales/:id/receipt", requireTillOrAdmin, async (req, res)
     sale: rows[0], items, eur: (c) => formatEuro(c / 100, "fr"), formatDateTime: forLocale(LOCALES.fr).formatDateTime, receiptNo: till.receiptNumber(rows[0]),
     sellerLines: SELLER_LINES, vat: vatNotice(),
   });
-});
-
-// ---------- quick items ----------
-
-const ITEM_ERR = {
-  name: "Name is required (at most 80 characters).",
-  price: "Price must be above 0.",
-};
-
-function parseItemForm(body) {
-  const name = till.cleanText(body.name, 81);
-  if (!name || name.length > 80) return { error: ITEM_ERR.name };
-  const p = till.parseCents(body.price, { label: "Price" });
-  if (p.error) return { error: p.error };
-  if (p.cents <= 0) return { error: ITEM_ERR.price };
-  const category = till.OTHER_CATEGORIES.some((c) => c.value === body.category) ? body.category : null;
-  if (!category) return { error: "Choose a category." };
-  let stock = null;
-  if (String(body.stock == null ? "" : body.stock).trim() !== "") {
-    if (!/^\d{1,6}$/.test(String(body.stock).trim())) return { error: "Stock must be a whole number (or empty for not counted)." };
-    stock = Number(String(body.stock).trim());
-  }
-  let sort = 0;
-  if (String(body.sortOrder == null ? "" : body.sortOrder).trim() !== "") {
-    if (!/^\d{1,4}$/.test(String(body.sortOrder).trim())) return { error: "Order must be a whole number." };
-    sort = Number(String(body.sortOrder).trim());
-  }
-  const bc = till.parseBarcode(body.barcode);
-  if (bc.error) return { error: bc.error };
-  return { name, priceCents: p.cents, category, stock, sort, barcode: bc.code };
-}
-
-const TAKEN = "That barcode is already used by another active quick item.";
-// Validates the barcode of a parsed form against other active items and ISBNs (a code equal to a book's ISBN is refused).
-async function barcodeChecks(f, excludeId, active = true) {
-  if (!f.barcode || !active) return {};
-  return till.checkBarcodeFree(pool, f.barcode, excludeId);
-}
-
-async function renderItems(res, { status = 200, error = null, notice = null } = {}) {
-  const { rows } = await pool.query("SELECT * FROM till_quick_items ORDER BY active DESC, sort_order, name, id");
-  res.status(status).render("admin/till/items", { active: "till", title: "Other stock (not books)", pageTitle: "Other stock (not books)", pageSub: "Tote bags, bookmarks and anything else you sell that is not a book", items: rows, shopCode: till.SHOP_CODE_PREFIX, categories: till.OTHER_CATEGORIES, error, notice, money });
-}
-
-// A refused form redirects back to the list with the message (Post/Redirect/Get),
-// like the end-of-day form does: Back never offers to resubmit it.
-const itemsRefused = (res, message) => res.redirect(303, `/admin/till/items?error=${encodeURIComponent(String(message).slice(0, 200))}`);
-
-router.get("/admin/till/items", requireAdmin, (req, res) => renderItems(res, {
-  notice: req.query.saved ? "Saved." : null,
-  error: typeof req.query.error === "string" ? req.query.error.slice(0, 200) : null,
-}));
-
-// "ITEM-<id>": the shop's own code for an item without a manufacturer barcode.
-async function generateShopCode(id) {
-  const code = `${till.SHOP_CODE_PREFIX}${id}`;
-  await pool.query("UPDATE till_quick_items SET barcode = $2 WHERE id = $1 AND barcode IS NULL", [id, code]);
-  return code;
-}
-
-router.post("/admin/till/items", requireAdmin, writeLimiter, async (req, res) => {
-  const f = parseItemForm(req.body);
-  if (f.error) return itemsRefused(res, f.error);
-  const chk = await barcodeChecks(f, null);
-  if (chk.error) return itemsRefused(res, chk.error);
-  let rows;
-  try {
-    ({ rows } = await pool.query(
-      "INSERT INTO till_quick_items (name, price_cents, category, stock, sort_order, barcode) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
-      [f.name, f.priceCents, f.category, f.stock, f.sort, f.barcode]
-    ));
-  } catch (err) {
-    if (err.code === "23505") return itemsRefused(res, TAKEN);
-    throw err;
-  }
-  let code = f.barcode;
-  if (!code && req.body.generate === "1") code = await generateShopCode(rows[0].id);
-  await audit(req, { action: "till.item_add", targetType: "till_quick_item", targetId: rows[0].id, detail: `${f.name} ${money(f.priceCents)}${code ? ` code ${code}` : ""}` });
-  res.redirect("/admin/till/items?saved=1");
-});
-
-router.post("/admin/till/items/:id", requireAdmin, writeLimiter, async (req, res) => {
-  const f = parseItemForm(req.body);
-  if (f.error) return itemsRefused(res, f.error);
-  const active = req.body.active === "1";
-  const chk = await barcodeChecks(f, Number(req.params.id), active);
-  if (chk.error) return itemsRefused(res, chk.error);
-  let rowCount;
-  try {
-    ({ rowCount } = await pool.query(
-      "UPDATE till_quick_items SET name = $2, price_cents = $3, category = $4, stock = $5, sort_order = $6, active = $7, barcode = $8 WHERE id = $1",
-      [Number(req.params.id), f.name, f.priceCents, f.category, f.stock, f.sort, active, f.barcode]
-    ));
-  } catch (err) {
-    if (err.code === "23505") return itemsRefused(res, TAKEN);
-    throw err;
-  }
-  if (!rowCount) return res.status(404).render("404");
-  await audit(req, { action: "till.item_edit", targetType: "till_quick_item", targetId: req.params.id, detail: `${f.name} ${money(f.priceCents)}${req.body.active === "1" ? "" : " (disabled)"}` });
-  res.redirect("/admin/till/items?saved=1");
-});
-
-router.post("/admin/till/items/:id/generate-code", requireAdmin, writeLimiter, async (req, res) => {
-  const { rows } = await pool.query("SELECT id, barcode FROM till_quick_items WHERE id = $1", [Number(req.params.id)]);
-  if (!rows.length) return res.status(404).render("404");
-  if (rows[0].barcode) return itemsRefused(res, "That item already has a barcode.");
-  let code;
-  try {
-    code = await generateShopCode(rows[0].id);
-  } catch (err) {
-    if (err.code === "23505") return itemsRefused(res, TAKEN);
-    throw err;
-  }
-  await audit(req, { action: "till.item_code", targetType: "till_quick_item", targetId: rows[0].id, detail: `generated ${code}` });
-  res.redirect("/admin/till/items?saved=1");
 });
 
 // ---------- end of day ----------

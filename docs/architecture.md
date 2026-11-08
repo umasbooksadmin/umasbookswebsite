@@ -809,7 +809,7 @@ in person only: online payment exists only for HelloAsso memberships and orders.
   sale, `sale_token` unique for idempotency, `status` completed/voided),
   `till_sale_items` (kind book/manual/quick, copy or quick item, quantity,
   `unit_price_cents`, category, original price and reason when overridden),
-  `till_quick_items` (name, price, category, active, order, optional stock,
+  `till_quick_items` (name, price, category, active, optional stock, picture `image_url`, `updated_at`; the old `sort_order` is unused since migration 117,
   optional unique-among-active barcode), `till_days` (opening float, counted cash,
   expected, difference, closer, note: the row with `closed_at` locks voids),
   plus `shop_sales.till_sale_id` and `book_copies.sold_at/sold_via`.
