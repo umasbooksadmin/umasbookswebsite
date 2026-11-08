@@ -167,7 +167,7 @@ router.get(LIST, requireAdmin, async (req, res) => {
             (SELECT COUNT(*) FROM order_items oi WHERE oi.edu_item_id = i.id)::int AS order_lines
      FROM edu_items i LEFT JOIN edu_genres g ON g.id = i.genre_id
      ${where.length ? "WHERE " + where.join(" AND ") : ""}
-     ORDER BY i.is_hidden, i.sort_order, lower(i.name), i.id`,
+     ORDER BY i.is_hidden, lower(i.name), i.id`,
     params
   );
   for (const i of items) {
@@ -183,7 +183,7 @@ async function renderForm(req, res, item, { barcode = "" } = {}) {
   const genres = await edu.loadGenres(pool);
   let held = 0;
   if (item) held = (await pool.query(`SELECT ${edu.HELD_SQL("i")}::int AS held FROM edu_items i WHERE i.id = $1`, [item.id])).rows[0].held;
-  const v = flash.values || (item ? { name: item.name, price: money(item.price), cost: item.cost == null ? "" : money(item.cost), stock: String(item.stock), genreId: item.genre_id == null ? "" : String(item.genre_id), sortOrder: String(item.sort_order), isHidden: item.is_hidden ? "on" : "", barcode: item.barcode || "" } : { name: "", price: "", cost: "", stock: "0", genreId: genres[0] ? String(genres[0].id) : "", sortOrder: "0", isHidden: "", barcode });
+  const v = flash.values || (item ? { name: item.name, price: money(item.price), cost: item.cost == null ? "" : money(item.cost), stock: String(item.stock), genreId: item.genre_id == null ? "" : String(item.genre_id), isHidden: item.is_hidden ? "on" : "", barcode: item.barcode || "" } : { name: "", price: "", cost: "", stock: "0", genreId: genres[0] ? String(genres[0].id) : "", isHidden: "", barcode });
   if (v.barcode === undefined) v.barcode = "";
   // The saved barcode is also a book of the shop: the same gentle warning as the lookup gives.
   const book = item && item.barcode ? await bookWithIsbn(item.barcode) : null;
@@ -289,7 +289,7 @@ router.get(`${LIST}/:id/edit`, requireAdmin, async (req, res) => {
 });
 
 // What the form sent, to put back in the form after a refusal.
-const typed = (b) => ({ name: String(b.name ?? "").slice(0, 200), price: String(b.price ?? "").slice(0, 20), cost: String(b.cost ?? "").slice(0, 20), stock: String(b.stock ?? "").slice(0, 10), genreId: String(b.genreId ?? ""), sortOrder: String(b.sortOrder ?? "").slice(0, 10), isHidden: b.isHidden === "on" ? "on" : "", barcode: String(b.barcode ?? "").slice(0, 30) });
+const typed = (b) => ({ name: String(b.name ?? "").slice(0, 200), price: String(b.price ?? "").slice(0, 20), cost: String(b.cost ?? "").slice(0, 20), stock: String(b.stock ?? "").slice(0, 10), genreId: String(b.genreId ?? ""), isHidden: b.isHidden === "on" ? "on" : "", barcode: String(b.barcode ?? "").slice(0, 30) });
 
 // The picture to save: the admin's own photo wins; else, when she pressed "Use this picture", Open Library's cover for
 // the saved ISBN. -> { url } | { error } | { note } (the Open Library picture could not be fetched: saved without it).
@@ -368,7 +368,6 @@ router.post(`${LIST}/:id`, requireAdmin, writeLimiter, async (req, res) => {
   if ((o.cost == null ? null : Math.round(Number(o.cost) * 100)) !== (v.cost == null ? null : Math.round(v.cost * 100))) changes.push(`cost ${costText(o.cost, true)} -> ${costText(v.cost, true)}`);
   if (o.stock !== v.stock) changes.push(`stock ${o.stock} -> ${v.stock}`);
   if ((o.genre_id ?? null) !== v.genreId) changes.push("genre changed");
-  if (o.sort_order !== v.sortOrder) changes.push(`sort ${o.sort_order} -> ${v.sortOrder}`);
   if (o.is_hidden !== v.isHidden) changes.push(v.isHidden ? "hidden" : "shown");
   if ((o.barcode || null) !== v.barcode) changes.push(`barcode ${o.barcode || "none"} -> ${v.barcode || "none"}`);
   if (pic.url) changes.push(pic.fromIsbn ? "new picture (Open Library, exact ISBN)" : "new picture");
