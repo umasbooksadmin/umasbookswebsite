@@ -1,5 +1,5 @@
 // "Children's Fiction" with a capital F everywhere (Sharon, 2026-11-08), through the REAL app and database. Production had the
-// managed genre spelled "Children's fiction" (and so the books): the data is put in that state, migration 118 is run on it, and
+// managed genre spelled "Children's fiction" (and so the books): the data is put in that state, migration 119 is run on it, and
 // then the Browse genre button, a book's genre, the Admin > Genres list and the genre search (including an old link with another
 // capital or a curly apostrophe) are read over HTTP. Port 6498 is reserved for this file.
 
@@ -13,7 +13,7 @@ const { makeCookieJar } = require("../helpers/httpClient");
 const { createAccount, loginOverHttp } = require("../helpers/accounts");
 
 const PORT = 6498;
-const SQL = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "118_childrens_fiction_spelling.sql"), "utf8");
+const SQL = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "119_childrens_fiction_spelling.sql"), "utf8");
 let app;
 let db;
 let jar;
@@ -48,7 +48,7 @@ test("the data starts in production's state (lower-case f), as the old spelling"
   assert.equal((await q("SELECT categories FROM books WHERE id = $1", [bookId]))[0].categories, "Children's fiction, Poetry");
 });
 
-test("after migration 118: the managed genre, the book and the Browse button say Children's Fiction", async () => {
+test("after migration 119: the managed genre, the book and the Browse button say Children's Fiction", async () => {
   await db.query(SQL);
   assert.equal((await q("SELECT name_en, browse_slug FROM managed_genres WHERE browse_slug = 'children'"))[0].name_en, "Children's Fiction");
   assert.equal((await q("SELECT categories FROM books WHERE id = $1", [bookId]))[0].categories, "Children's Fiction, Poetry");

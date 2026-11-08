@@ -71,7 +71,7 @@ function isNonfictionVariant(name) {
 
 // "Children's Fiction" with a capital F is the one spelling (Sharon, 2026-11-08); Open Library / BnF / Google bring "Children's
 // fiction", a phone brings a curly apostrophe. Only the capitals / apostrophe / spacing variants of exactly this genre are
-// meant (not "Juvenile Fiction", not the typos of GENRE_TYPOS). Same spelling as migrations/118_childrens_fiction_spelling.sql.
+// meant (not "Juvenile Fiction", not the typos of GENRE_TYPOS). Same spelling as migrations/119_childrens_fiction_spelling.sql.
 const CHILDRENS_FICTION = "Children's Fiction";
 const CHILDRENS_FICTION_VARIANT_RE = /^children's fiction$/i; // tested on cleanGenreName(): straight apostrophe, single spaces
 

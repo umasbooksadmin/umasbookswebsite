@@ -3976,7 +3976,7 @@ UNION ALL SELECT 'announcements', count(*) FROM announcements WHERE concat_ws(' 
 UNION ALL SELECT 'events.description', count(*) FROM events WHERE concat_ws(' ', title, description) ~* 'non[- ]fiction';
 ```
 
-## av) "Children's Fiction" with a capital F (migration 118): count before, back up, backup tables, undo
+## av) "Children's Fiction" with a capital F (migration 119): count before, back up, backup tables, undo
 
 **What the deploy does.** Migration 118 changes the spelling of the genre everywhere it is DATA, so no book loses its genre: the
 managed genre in Admin > Genres (it was spelled "Children's fiction", and because the shop's own spelling wins, every book saved
@@ -4007,9 +4007,9 @@ in the Shell, or run the **Backup** workflow in GitHub > Actions and check the n
 
 **Where to see it.** Old values are in `categories_childrens_fiction_backup` (`book_id`, `categories_before`) and
 `children_fiction_rename_backup` (`on_table`, `row_id`, `on_column`, `value_before`: the genre name, its Browse label, the rule, a
-merged genre row as JSON). **Admin > Admin activity** has one line (action `books.childrens_fiction_spelling`, by "migration 118").
+merged genre row as JSON). **Admin > Admin activity** has one line (action `books.childrens_fiction_spelling`, by "migration 119").
 
-**Restore (only if needed).** The undo recipe is in the header of `migrations/118_childrens_fiction_spelling.sql` (four `UPDATE`
+**Restore (only if needed).** The undo recipe is in the header of `migrations/119_childrens_fiction_spelling.sql` (four `UPDATE`
 statements); paste them in one transaction. It would also put back a genre list a person edited after the deploy, so look at the
 backup table first. The code change would have to be rolled back too.
 

@@ -77,7 +77,7 @@ const TABLES = {
   book_french_backup: "shop", // migration 107's copy of the old French book descriptions / genres (follows the books)
   book_genre_cleanup_backup: "shop", // migration 109's copy of the genres it tidied (follows the books)
   categories_nonfiction_backup: "shop", // migration 114's copy of the genres it respelled Nonfiction (follows the books)
-  categories_childrens_fiction_backup: "shop", // migration 118's copy of the genres it respelled Children's Fiction (follows the books)
+  categories_childrens_fiction_backup: "shop", // migration 119's copy of the genres it respelled Children's Fiction (follows the books)
   cleared_book_descriptions: "shop", // migration 110's copy of the 26 AI-guessed descriptions it cleared (follows the books)
   // people
   users: "people", // non-admins only
@@ -116,7 +116,7 @@ const TABLES = {
   ai_usage_stats: "kept", // aggregate AI call/token counts per day and feature (no personal data)
   ai_daily_cap: "kept", // per-day counters of the AI daily cap (counts only, no personal data)
   curated_collections: "kept", // the 19 seeded shelves (titles, prompts, published or not) are settings, not test data; only their book lists (curated_collection_books) are shop data
-  children_fiction_rename_backup: "kept", // migration 118's copy of the old genre name / label / rule it respelled: settings, not test data
+  children_fiction_rename_backup: "kept", // migration 119's copy of the old genre name / label / rule it respelled: settings, not test data
   nonfiction_rename_backup: "kept", // migration 114's copy of the old genre name / label / rule it respelled: settings, not test data
   managed_genres: "kept", // the managed genre list (names, Browse buttons): settings, not test data
   edu_genres: "kept", // the Educational items genres (Worksheets, Flash Cards...): settings, not test data

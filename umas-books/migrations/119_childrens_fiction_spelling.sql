@@ -156,7 +156,7 @@ FROM cf_fix_118 f WHERE b.id = f.id;
 
 -- 3. Admin activity
 INSERT INTO admin_audit_log (actor_label, action, target_type, detail)
-SELECT 'migration 118', 'books.childrens_fiction_spelling', 'book',
+SELECT 'migration 119', 'books.childrens_fiction_spelling', 'book',
        'Children''s fiction spelled Children''s Fiction on ' || s.n || ' book' || CASE WHEN s.n = 1 THEN '' ELSE 's' END
        || ' and in the genre list. Old values kept in tables categories_childrens_fiction_backup and children_fiction_rename_backup. No book, copy or price was deleted.'
 FROM (SELECT count(*)::int AS n FROM cf_fix_118) s

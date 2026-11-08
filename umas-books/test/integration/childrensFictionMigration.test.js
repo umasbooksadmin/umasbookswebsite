@@ -1,4 +1,4 @@
-// Migration 118 ("Children's Fiction" with a capital F), on a database migrated only up to 117 and seeded with books in every
+// Migration 118 ("Children's Fiction" with a capital F), on a database migrated only up to 118 and seeded with books in every
 // spelling: the managed genre (spelled "Children's fiction" in production), its Browse label, the genre rules and every
 // book's genre list move to "Children's Fiction"; the other genres and their order stay; the old values are in the backup
 // tables; ONE Admin activity line; a second run changes nothing; the undo recipe in the header restores the old data; a
@@ -11,12 +11,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { prepareDatabase } = require("../helpers/testDatabase");
 
-const db = prepareDatabase("childrens_fiction_migration", { isolated: true, migrateUpTo: 117 });
+const db = prepareDatabase("childrens_fiction_migration", { isolated: true, migrateUpTo: 118 });
 const { pool } = require("../../src/db");
 before(() => db.create());
 after(async () => { await pool.end(); db.drop(); });
 
-const SQL = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "118_childrens_fiction_spelling.sql"), "utf8");
+const SQL = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "119_childrens_fiction_spelling.sql"), "utf8");
 const { isChildrensFictionVariant } = require("../../src/lib/genreClean");
 const q = async (sql, params) => (await pool.query(sql, params)).rows;
 const auditLines = () => q("SELECT actor_label, action, target_type, detail FROM admin_audit_log WHERE action = 'books.childrens_fiction_spelling' ORDER BY id");
@@ -47,8 +47,8 @@ let caseIds = [];
 let untouchedIds = [];
 let ctx;
 
-test("seed the old data, then run migration 118", async () => {
-  assert.equal((await q("SELECT count(*)::int AS n FROM schema_migrations WHERE filename LIKE '118%'"))[0].n, 0);
+test("seed the old data, then run migration 119", async () => {
+  assert.equal((await q("SELECT count(*)::int AS n FROM schema_migrations WHERE filename LIKE '119%'"))[0].n, 0);
   // production has the managed genre spelled with a lower-case f (migration 100 seeded it as Children's Fiction)
   const cf = (await q("UPDATE managed_genres SET name_en = 'Children''s fiction', browse_label_en = 'children’s fiction' WHERE lower(name_en) = 'children''s fiction' RETURNING *"))[0];
   assert.ok(cf, "migration 100 seeds Children's Fiction");
@@ -122,7 +122,7 @@ test("the old value of every changed book is in categories_childrens_fiction_bac
 test("ONE Admin activity line", async () => {
   const lines = await auditLines();
   assert.equal(lines.length, 1);
-  assert.equal(lines[0].actor_label, "migration 118");
+  assert.equal(lines[0].actor_label, "migration 119");
   assert.equal(lines[0].detail, `Children's fiction spelled Children's Fiction on ${CASES.length} books and in the genre list. Old values kept in tables categories_childrens_fiction_backup and children_fiction_rename_backup. No book, copy or price was deleted.`);
 });
 
