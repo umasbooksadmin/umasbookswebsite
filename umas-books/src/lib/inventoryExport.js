@@ -63,7 +63,7 @@ const BOOK_COLUMNS = [
   { key: "binding", label: "Binding", type: "text" },
   { key: "genres", label: "Genres", type: "text" },
   { key: "copies", label: "Copies (all)", type: "int" },
-  { key: "inStock", label: "In store", type: "int" },
+  { key: "inStock", label: "Available", type: "int" },
   { key: "reserved", label: "Reserved", type: "int" },
   { key: "sold", label: "Sold", type: "int" },
   { key: "other", label: "Donated or withdrawn", type: "int" },

@@ -60,7 +60,7 @@ const BINDINGS = [
 const BINDING_ALIASES = { paperback: "trade", hardback: "hardcover" };
 
 const STATUSES = [
-  { value: "in_stock", label: "In Store" },
+  { value: "in_stock", label: "Available" },
   { value: "reserved", label: "Reserved" },
   { value: "sold", label: "Sold" },
   { value: "donated", label: "Donated" },
