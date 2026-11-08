@@ -69,14 +69,26 @@ function isNonfictionVariant(name) {
   return NONFICTION_VARIANT_RE.test(cleanGenreName(name));
 }
 
+// "Children's Fiction" with a capital F is the one spelling (Sharon, 2026-11-08); Open Library / BnF / Google bring "Children's
+// fiction", a phone brings a curly apostrophe. Only the capitals / apostrophe / spacing variants of exactly this genre are
+// meant (not "Juvenile Fiction", not the typos of GENRE_TYPOS). Same spelling as migrations/119_childrens_fiction_spelling.sql.
+const CHILDRENS_FICTION = "Children's Fiction";
+const CHILDRENS_FICTION_VARIANT_RE = /^children's fiction$/i; // tested on cleanGenreName(): straight apostrophe, single spaces
+
+function isChildrensFictionVariant(name) {
+  return CHILDRENS_FICTION_VARIANT_RE.test(cleanGenreName(name));
+}
+
 // A genre typed in a search / filter (?genre=Non-fiction from an old link or bookmark) -> the spelling books carry now.
 function searchGenreName(name) {
-  return isNonfictionVariant(name) ? NONFICTION : name;
+  if (isNonfictionVariant(name)) return NONFICTION;
+  if (isChildrensFictionVariant(name)) return CHILDRENS_FICTION; // ?genre=children’s fiction (curly apostrophe) finds the books too
+  return name;
 }
 
 // The known genres: Map(key -> spelling). The typos first, then the taxonomy, then the managed genres (the names the
 // shop chose in Admin > Genres) win over both. A typo only counts when its key is not itself a known genre; it takes
-// the spelling the known genre has (a managed "Children's fiction" wins over the taxonomy's).
+// the spelling the known genre has. One exception to "managed wins": Children's Fiction is always spelled with the capital F.
 //   common  [name, ...]    managed  [{ name_en }, ...]
 function buildKnown({ common = [], managed = [], typos = GENRE_TYPOS } = {}) {
   const known = new Map();
@@ -86,6 +98,7 @@ function buildKnown({ common = [], managed = [], typos = GENRE_TYPOS } = {}) {
   };
   for (const name of common) put(name);
   for (const g of managed) put(g.name_en);
+  if (known.has(CHILDRENS_FICTION.toLowerCase())) known.set(CHILDRENS_FICTION.toLowerCase(), CHILDRENS_FICTION);
   for (const [wrong, right] of typos) {
     const key = cleanKey(wrong);
     if (key && !known.has(key)) known.set(key, known.get(cleanKey(right)) || cleanGenreName(right));
@@ -96,6 +109,7 @@ function buildKnown({ common = [], managed = [], typos = GENRE_TYPOS } = {}) {
 // One genre: cleaned, and spelled as the known genre when it is one ("children’s fiction§" -> "Children's Fiction").
 function canonicalGenre(name, known) {
   const clean = cleanGenreName(name);
+  if (isChildrensFictionVariant(clean)) return CHILDRENS_FICTION; // whatever the managed spelling is
   const hit = known && known.get(clean.toLowerCase());
   if (hit) return hit;
   // The old spellings of nonfiction (hyphen, space, any capitals) take the managed Nonfiction.
@@ -130,4 +144,4 @@ function planGenreCleanup(categories, known) {
   return raw.length === list.length && raw.every((g, i) => g === list[i]) ? categories : next;
 }
 
-module.exports = { NONFICTION, isNonfictionVariant, searchGenreName, GENRE_TYPOS, APOSTROPHES, SPACES, LETTERS, LEAD_KEEP, TRAIL_KEEP, cleanGenreName, cleanKey, cleanList, buildKnown, canonicalGenre, canonicalGenres, planGenreCleanup };
+module.exports = { NONFICTION, CHILDRENS_FICTION, isChildrensFictionVariant, isNonfictionVariant, searchGenreName, GENRE_TYPOS, APOSTROPHES, SPACES, LETTERS, LEAD_KEEP, TRAIL_KEEP, cleanGenreName, cleanKey, cleanList, buildKnown, canonicalGenre, canonicalGenres, planGenreCleanup };
