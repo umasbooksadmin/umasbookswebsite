@@ -579,8 +579,8 @@ test("add: missing optional fields become NULL / defaults; fromScan returns to t
   assert.equal(status, 302);
   assert.match(location, /^\/admin\/inventory\/new\?saved=\d+&condition=very_good$/);
   const [book] = await bookByTitle(title);
-  assert.deepEqual([book.isbn, book.authors, book.publisher, book.published_year, book.description, book.cover_url, book.categories],
-    [null, null, null, null, null, null, null]);
+  assert.deepEqual([book.isbn, book.authors, book.publisher, book.published_year, book.description, book.cover_url, book.categories], // a blank author is saved as Unknown
+    [null, "Unknown", null, null, null, null, null]);
   const [copy] = await copiesOf(book.id);
   assert.deepEqual([copy.price, copy.acquisition_cost, copy.acquired_at, copy.notes], [null, null, null, null]);
 });
