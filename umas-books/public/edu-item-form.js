@@ -1,4 +1,5 @@
-// Admin > Educational items, the add / edit form (views/admin/edu_item_form.ejs): the "Scan or type barcode" box.
+// Admin > Educational items, the add / edit form (views/admin/edu_item_form.ejs): the "Scan or type barcode" box. Also used by
+// Admin > Other stock (views/admin/till/item_form.ejs), which names its own endpoint in data-lookup-url.
 // A scanner types the digits and Enter: Enter here looks the barcode up (GET /admin/edu-items/lookup, routes/admin/
 // eduItems.js) instead of sending the form. The answer only SUGGESTS: the Name is filled in only when it is empty (or
 // still holds an earlier suggestion), never over what the admin typed; price, stock and genre are never touched; the
@@ -102,7 +103,7 @@
     var timer = setTimeout(function () { ctrl.abort(); }, 16000);
     show([el('p', 'muted small', 'Looking up ' + code + '…')]);
     var q = 'barcode=' + encodeURIComponent(code) + (box.getAttribute('data-item-id') ? '&itemId=' + encodeURIComponent(box.getAttribute('data-item-id')) : '');
-    fetch('/admin/edu-items/lookup?' + q, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: ctrl.signal })
+    fetch((box.getAttribute('data-lookup-url') || '/admin/edu-items/lookup') + '?' + q, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: ctrl.signal })
       .then(function (r) { return r.json().catch(function () { return { ok: false, state: 'unavailable', message: 'The site answered with an error (' + r.status + '). Try again, or type the details in.' }; }); })
       .then(function (body) {
         if (running !== ctrl) return;
