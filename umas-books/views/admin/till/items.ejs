@@ -3,10 +3,10 @@
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 
 <div class="card">
-  <form class="edu-find" method="get" action="/admin/till/items" role="search" aria-label="Search items by name">
+  <form class="edu-find" method="get" action="/admin/till/items" role="search" aria-label="Search items by name, type or category">
     <label for="stock-search-name">Search by name</label>
     <div class="edu-barcode-row">
-      <input id="stock-search-name" name="q" type="search" autocomplete="off" maxlength="100" value="<%= q %>" placeholder="Part of the name" style="max-width:240px">
+      <input id="stock-search-name" name="q" type="search" autocomplete="off" maxlength="100" value="<%= q %>" placeholder="Part of the name, type or category" style="max-width:240px">
       <button class="btn btn-outline btn-small" type="submit">Search</button>
       <% if (q) { %><a class="btn btn-outline btn-small" href="/admin/till/items">Show all</a><% } %>
     </div>
@@ -27,13 +27,14 @@
   <p><a class="btn" href="/admin/till/items/new">Add an item</a> <a class="btn btn-outline" href="/admin/till">Back to the till</a></p>
   <p class="muted small">Things you sell often that are not books (a tote bag, a bookmark): they appear as big buttons on the <a href="/admin/till">till</a>, in alphabetical order. Leave Stock empty if you do not want to count them; when a number is set it goes down with each sale and the till refuses to sell at 0. Scanning an item's barcode at the till adds one of it. Only admins and the till see these items: they are never on the customer site.</p>
   <div class="table-scroll"><table class="ann-table" id="other-stock-table">
-    <thead><tr><th scope="col">Picture</th><th scope="col">Name</th><th scope="col">Category</th><th scope="col">Price</th><th scope="col">Stock</th><th scope="col">On the till</th><th scope="col">Actions</th></tr></thead>
+    <thead><tr><th scope="col">Picture</th><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Category</th><th scope="col">Price</th><th scope="col">Stock</th><th scope="col">On the till</th><th scope="col">Actions</th></tr></thead>
     <tbody>
-    <% if (!items.length) { %><tr><td colspan="7" class="muted"><%= q ? 'No item matches "' + q + '".' : 'No items yet. Press "Add an item".' %></td></tr><% } %>
+    <% if (!items.length) { %><tr><td colspan="8" class="muted"><%= q ? 'No item matches "' + q + '".' : 'No items yet. Press "Add an item".' %></td></tr><% } %>
     <% items.forEach(i => { %>
       <tr<%- i.active ? '' : ' class="muted"' %>>
         <td><% if (i.image_url) { %><img src="<%= thumb(i.image_url) %>" alt="" width="48" height="48" style="object-fit:contain;background:#f5f0e6"><% } else { %><span class="muted small">none</span><% } %></td>
         <td><a href="/admin/till/items/<%= i.id %>/edit"><%= i.name %></a><% if (i.barcode) { %><br><span class="muted small">Barcode <%= i.barcode %></span><% } %></td>
+        <td><%= i.item_type || '' %></td>
         <td><%= categoryLabel(i.category) %></td>
         <td>&euro;<%= money(i.price_cents) %></td>
         <td><%= i.stock === null ? 'not counted' : i.stock %><%= i.stock !== null && i.stock <= 3 ? ' (low)' : '' %></td>
