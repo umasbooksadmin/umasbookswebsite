@@ -48,20 +48,20 @@ async function collectOn(order, day, amountReceived) {
 }
 const sales = (day) => reports.REPORTS.find((r) => r.slug === "sales").run(h.pool, { from: day, to: day, group: "day" });
 const section = (rep, key) => rep.sections.find((s) => s.key === key);
-const editForm = (item, extra) => ({ name: item.name, price: Number(item.price).toFixed(2), stock: String(item.stock), genreId: String(item.genre_id), sortOrder: "0", ...extra });
+const editForm = (item, extra) => ({ name: item.name, price: Number(item.price).toFixed(2), stock: String(item.stock), genre: "Worksheets", sortOrder: "0", ...extra });
 const costOf = async (id) => { const c = (await h.pool.query("SELECT cost FROM edu_items WHERE id = $1", [id])).rows[0].cost; return c == null ? null : Number(c); };
 
 test("admin: the cost is optional, validated like the price, shown with the margin per unit, and every change is audited", async () => {
   const name = `Cost Admin ${h.uniq()}`;
-  let res = await h.post("/admin/edu-items", { name, price: "4,50", cost: "-1", stock: "5", genreId: String(await genreId()), sortOrder: "0" });
+  let res = await h.post("/admin/edu-items", { name, price: "4,50", cost: "-1", stock: "5", genre: "Worksheets", sortOrder: "0" });
   assert.match(await res.text(), /The cost cannot be negative\. Leave it empty if you do not know it\. Nothing was saved\./);
   assert.equal((await h.pool.query("SELECT 1 FROM edu_items WHERE name = $1", [name])).rows.length, 0, "nothing saved");
-  res = await h.post("/admin/edu-items", { name, price: "4,50", cost: "abc", stock: "5", genreId: String(await genreId()), sortOrder: "0" });
+  res = await h.post("/admin/edu-items", { name, price: "4,50", cost: "abc", stock: "5", genre: "Worksheets", sortOrder: "0" });
   const refused = await res.text();
   assert.match(refused, /Enter the cost per unit in euros, like 1\.85 or 1,85/);
   assert.match(refused, /id="edu-cost"[^>]*value="abc"/, "the form keeps what was typed");
 
-  await h.post("/admin/edu-items", { name, price: "4,50", cost: "1,20", stock: "5", genreId: String(await genreId()), sortOrder: "0" });
+  await h.post("/admin/edu-items", { name, price: "4,50", cost: "1,20", stock: "5", genre: "Worksheets", sortOrder: "0" });
   const item = (await h.pool.query("SELECT * FROM edu_items WHERE name = $1", [name])).rows[0];
   assert.equal(Number(item.cost), 1.2);
   assert.match((await h.audit("edu_item.add")).pop().detail, /€4\.50, cost €1\.20, stock 5/);

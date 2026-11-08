@@ -126,63 +126,63 @@ test("migration 116: the column, its digits-only check and the unique index on t
 });
 
 test("add: the barcode is saved (digits only), audited; a wrong check digit or a bad ISBN-10 is refused with a sentence", async () => {
-  const bad = await post("/admin/edu-items", { name: "Bad Code", price: "3", stock: "1", genreId: "", barcode: "5901234123458" });
+  const bad = await post("/admin/edu-items", { name: "Bad Code", price: "3", stock: "1", genre: "", barcode: "5901234123458" });
   assert.match(decode(bad.text), /The last digit of the barcode 5901234123458 should be 7 .* Nothing was saved\./);
   assert.match(bad.text, /value="5901234123458"/, "what was typed is put back in the box");
-  const bad10 = await post("/admin/edu-items", { name: "Bad Code", price: "3", stock: "1", genreId: "", barcode: "0306406153" });
+  const bad10 = await post("/admin/edu-items", { name: "Bad Code", price: "3", stock: "1", genre: "", barcode: "0306406153" });
   assert.match(bad10.text, /10-digit ISBN/);
   assert.equal((await pool.query("SELECT 1 FROM edu_items WHERE name = 'Bad Code'")).rows.length, 0);
 
-  await post("/admin/edu-items", { name: "Scanned Puzzle", price: "3", stock: "2", genreId: "", barcode: " 590-1234-123457 " });
+  await post("/admin/edu-items", { name: "Scanned Puzzle", price: "3", stock: "2", genre: "", barcode: " 590-1234-123457 " });
   assert.equal((await pool.query("SELECT barcode FROM edu_items WHERE name = 'Scanned Puzzle'")).rows[0].barcode, "5901234123457");
   assert.match((await auditOf("edu_item.add")).pop().detail, /barcode 5901234123457/);
 });
 
 test("an ISBN-10 is saved as its ISBN-13, like the book intake", async () => {
   const ten = isbn10From(`03${String(++seq).padStart(7, "0")}`);
-  await post("/admin/edu-items", { name: "Old Isbn Workbook", price: "5", stock: "1", genreId: "", barcode: ten });
+  await post("/admin/edu-items", { name: "Old Isbn Workbook", price: "5", stock: "1", genre: "", barcode: ten });
   const { isbn10to13 } = require("../../src/lib/bookSources");
   assert.equal((await pool.query("SELECT barcode FROM edu_items WHERE name = 'Old Isbn Workbook'")).rows[0].barcode, isbn10to13(ten));
 });
 
 test("unique among items: the refusal names the other item (also a UPC-A typed as its EAN-13), on add and on edit", async () => {
   const first = await item({ name: "Owner Of Code", barcode: "882319024812" });
-  const dup = await post("/admin/edu-items", { name: "Second One", price: "2", stock: "1", genreId: "", barcode: "0882319024812" });
+  const dup = await post("/admin/edu-items", { name: "Second One", price: "2", stock: "1", genre: "", barcode: "0882319024812" });
   assert.match(decode(dup.text), /The barcode is already on the item "Owner Of Code"\..*Nothing was saved\./);
   assert.equal((await pool.query("SELECT 1 FROM edu_items WHERE name = 'Second One'")).rows.length, 0);
   const other = await item({ name: "Other Item" });
-  const edit = await post(`/admin/edu-items/${other.id}`, { name: "Other Item", price: "4", stock: "1", genreId: "", sortOrder: "0", barcode: "882319024812" });
+  const edit = await post(`/admin/edu-items/${other.id}`, { name: "Other Item", price: "4", stock: "1", genre: "", sortOrder: "0", barcode: "882319024812" });
   assert.match(decode(edit.text), /already on the item "Owner Of Code"/);
   assert.equal((await pool.query("SELECT barcode FROM edu_items WHERE id = $1", [other.id])).rows[0].barcode, null);
   // Saving the owner itself with its own code is fine.
-  await post(`/admin/edu-items/${first.id}`, { name: "Owner Of Code", price: "4", stock: "1", genreId: "", sortOrder: "0", barcode: "882319024812" });
+  await post(`/admin/edu-items/${first.id}`, { name: "Owner Of Code", price: "4", stock: "1", genre: "", sortOrder: "0", barcode: "882319024812" });
   assert.match((await auditOf("edu_item.edit")).pop().detail, /no change/);
 });
 
 test("edit: barcode changes are audited like other fields (none -> X, X -> none)", async () => {
   const it = await item({ name: "Audit Me" });
-  await post(`/admin/edu-items/${it.id}`, { name: "Audit Me", price: "4", stock: "1", genreId: "", sortOrder: "0", barcode: "96385074" });
+  await post(`/admin/edu-items/${it.id}`, { name: "Audit Me", price: "4", stock: "1", genre: "", sortOrder: "0", barcode: "96385074" });
   assert.match((await auditOf("edu_item.edit")).pop().detail, /barcode none -> 96385074/);
   const form = await get(`/admin/edu-items/${it.id}/edit`);
   assert.match(form.text, /id="edu-barcode" name="barcode"[^>]*value="96385074"/);
-  await post(`/admin/edu-items/${it.id}`, { name: "Audit Me", price: "4", stock: "1", genreId: "", sortOrder: "0", barcode: "" });
+  await post(`/admin/edu-items/${it.id}`, { name: "Audit Me", price: "4", stock: "1", genre: "", sortOrder: "0", barcode: "" });
   assert.match((await auditOf("edu_item.edit")).pop().detail, /barcode 96385074 -> none/);
   assert.equal((await pool.query("SELECT barcode FROM edu_items WHERE id = $1", [it.id])).rows[0].barcode, null);
 });
 
 test("cost (migration 115) and barcode together: both saved on add and edit, both audited, both put back after a refusal", async () => {
-  await post("/admin/edu-items", { name: "Cost And Code", price: "4,50", cost: "1,35", stock: "2", genreId: "", barcode: "4006381333948" });
+  await post("/admin/edu-items", { name: "Cost And Code", price: "4,50", cost: "1,35", stock: "2", genre: "", barcode: "4006381333948" });
   const row = (await pool.query("SELECT id, cost, barcode FROM edu_items WHERE name = 'Cost And Code'")).rows[0];
   assert.equal(Number(row.cost), 1.35);
   assert.equal(row.barcode, "4006381333948");
   assert.match((await auditOf("edu_item.add")).pop().detail, /cost €1\.35, stock 2, barcode 4006381333948/);
-  await post(`/admin/edu-items/${row.id}`, { name: "Cost And Code", price: "4.50", cost: "2", stock: "2", genreId: "", sortOrder: "0", barcode: "73513537" });
+  await post(`/admin/edu-items/${row.id}`, { name: "Cost And Code", price: "4.50", cost: "2", stock: "2", genre: "", sortOrder: "0", barcode: "73513537" });
   const d = (await auditOf("edu_item.edit")).pop().detail;
   assert.match(d, /cost €1\.35 -> €2\.00/);
   assert.match(d, /barcode 4006381333948 -> 73513537/);
   const after = (await pool.query("SELECT cost, barcode FROM edu_items WHERE id = $1", [row.id])).rows[0];
   assert.deepEqual([Number(after.cost), after.barcode], [2, "73513537"]);
-  const bad = await post(`/admin/edu-items/${row.id}`, { name: "Cost And Code", price: "4.50", cost: "3", stock: "2", genreId: "", sortOrder: "0", barcode: "73513538" });
+  const bad = await post(`/admin/edu-items/${row.id}`, { name: "Cost And Code", price: "4.50", cost: "3", stock: "2", genre: "", sortOrder: "0", barcode: "73513538" });
   assert.match(bad.text, /should be 7/);
   assert.match(bad.text, /id="edu-cost" name="cost"[^>]*value="3"/);
   assert.match(bad.text, /id="edu-barcode" name="barcode"[^>]*value="73513538"/);
@@ -347,7 +347,7 @@ test("duplicate with a BOOK of the shop (either ISBN form): a gentle warning, an
   openLibrary.set(isbn, { title: "Workbook In Both" });
   const { body } = await lookup(isbn);
   assert.equal(body.bookInShop, 'This ISBN is already a book in the shop ("Shop Copy Of Workbook"). You can still save it here: a workbook with an ISBN stays an educational item, so make sure the same copies are not also counted as books.');
-  const saved = await post("/admin/edu-items", { name: "Workbook In Both", price: "6", stock: "3", genreId: "", barcode: isbn });
+  const saved = await post("/admin/edu-items", { name: "Workbook In Both", price: "6", stock: "3", genre: "", barcode: isbn });
   assert.match(decode(saved.text), /Added "Workbook In Both"\. This ISBN is already a book in the shop/);
   const row = (await pool.query("SELECT id, barcode FROM edu_items WHERE name = 'Workbook In Both'")).rows[0];
   assert.equal(row.barcode, isbn);
@@ -374,16 +374,16 @@ test("lookup is rate limited per admin (30 a minute) with a JSON sentence; anoth
 test("'Use this picture': the save fetches Open Library's exact-ISBN cover for the SAVED barcode; without the press, no picture", async () => {
   const isbn = fresh13();
   covers.add(isbn);
-  await post("/admin/edu-items", { name: "No Press", price: "2", stock: "1", genreId: "", barcode: isbn });
+  await post("/admin/edu-items", { name: "No Press", price: "2", stock: "1", genre: "", barcode: isbn });
   assert.equal((await pool.query("SELECT image_url FROM edu_items WHERE name = 'No Press'")).rows[0].image_url, null);
   const isbn2 = fresh13();
   covers.add(isbn2);
-  await post("/admin/edu-items", { name: "With Press", price: "2", stock: "1", genreId: "", barcode: isbn2, useIsbnCover: "1" });
+  await post("/admin/edu-items", { name: "With Press", price: "2", stock: "1", genre: "", barcode: isbn2, useIsbnCover: "1" });
   const row = (await pool.query("SELECT id, image_url FROM edu_items WHERE name = 'With Press'")).rows[0];
   assert.match(row.image_url, /^\/img\/[0-9a-f]{64}\.jpg$/);
   assert.match((await auditOf("edu_item.add")).pop().detail, /with the Open Library picture/);
   // Pressed, but the code is not an ISBN: nothing is fetched, the item is saved with a note.
-  const res = await post("/admin/edu-items", { name: "Not Isbn Press", price: "2", stock: "1", genreId: "", barcode: "96385074", useIsbnCover: "1" });
+  const res = await post("/admin/edu-items", { name: "Not Isbn Press", price: "2", stock: "1", genre: "", barcode: "96385074", useIsbnCover: "1" });
   assert.match(res.text, /The Open Library picture could not be fetched: add your own photo\./);
   assert.equal((await pool.query("SELECT image_url FROM edu_items WHERE name = 'Not Isbn Press'")).rows[0].image_url, null);
   assert.ok(!outside.some((u) => u.includes("96385074")));
@@ -407,7 +407,7 @@ test("Picture card + 'Use this picture': an admin's own (edited) photo is never 
   await post(`/admin/edu-items/${it.id}/image/rotate`, { direction: "right" });
   const edited = (await pool.query("SELECT image_url FROM edu_items WHERE id = $1", [it.id])).rows[0].image_url;
   assert.match(edited, /^\/img\/[0-9a-f]{64}\.jpg$/);
-  const fields = { name: "Workbook With Own Photo", price: "4", stock: "1", genreId: "", barcode: isbn };
+  const fields = { name: "Workbook With Own Photo", price: "4", stock: "1", genre: "", barcode: isbn };
   await post(`/admin/edu-items/${it.id}`, fields);
   assert.equal((await pool.query("SELECT image_url FROM edu_items WHERE id = $1", [it.id])).rows[0].image_url, edited, "a plain Save keeps the edited photo");
   assert.ok(!outside.some((u) => u.includes("covers.openlibrary.org")), "nothing fetched without the press");
