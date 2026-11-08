@@ -27,9 +27,9 @@
   <p><a class="btn" href="/admin/edu-items/new">Add an item</a> <a class="btn btn-outline" href="/educational-items.html" target="_blank" rel="noopener">See the customer page</a></p>
   <p class="muted small"><strong>Stock</strong> is how many you have in the shop, reserved ones included. <strong>Held</strong> is how many open reservations are keeping for customers; <strong>available</strong> (stock minus held) is what customers can still reserve. At 0 available the item shows "Sold out". <strong>Cost per unit</strong> is what the shop paid for one (only admins ever see it); <strong>margin per unit</strong> is the price minus that cost, with the share of the price in brackets. The Sales report shows the margin on what was really sold. Collecting a reservation (the till or "Mark collected and paid") takes the collected units off the stock; a cancelled or expired reservation gives its units back by itself.</p>
   <div class="table-scroll"><table class="ann-table" id="edu-items-table">
-    <thead><tr><th scope="col">Picture</th><th scope="col">Name</th><th scope="col">Genre</th><th scope="col">Price</th><th scope="col">Cost per unit</th><th scope="col">Margin per unit</th><th scope="col">Stock</th><th scope="col">Held</th><th scope="col">Available</th><th scope="col">Shown</th><th scope="col">Position</th><th scope="col">Actions</th></tr></thead>
+    <thead><tr><th scope="col">Picture</th><th scope="col">Name</th><th scope="col">Genre</th><th scope="col">Price</th><th scope="col">Cost per unit</th><th scope="col">Margin per unit</th><th scope="col">Stock</th><th scope="col">Held</th><th scope="col">Available</th><th scope="col">Shown</th><th scope="col">Actions</th></tr></thead>
     <tbody>
-    <% if (!items.length) { %><tr><td colspan="12" class="muted"><%= q ? 'No item matches "' + q + '".' : 'No educational items yet. Press "Add an item".' %></td></tr><% } %>
+    <% if (!items.length) { %><tr><td colspan="11" class="muted"><%= q ? 'No item matches "' + q + '".' : 'No educational items yet. Press "Add an item".' %></td></tr><% } %>
     <% items.forEach(i => { %>
       <tr<%- i.is_hidden ? ' class="muted"' : '' %>>
         <td><% if (i.image_url) { %><img src="<%= i.image_url %>" alt="" width="48" height="48" style="object-fit:contain;background:#f5f0e6"><% } else { %><span class="muted small">none</span><% } %></td>
@@ -42,7 +42,6 @@
         <td><%= i.held %></td>
         <td><strong><%= i.available %></strong><%= i.available === 0 ? ' (sold out)' : '' %></td>
         <td><%= i.is_hidden ? 'Hidden' : 'Shown' %></td>
-        <td><%= i.sort_order %></td>
         <td style="white-space:nowrap">
           <a class="btn btn-outline btn-small" href="/admin/edu-items/<%= i.id %>/edit">Edit</a>
           <form method="post" action="/admin/edu-items/<%= i.id %>/visibility" style="display:inline">

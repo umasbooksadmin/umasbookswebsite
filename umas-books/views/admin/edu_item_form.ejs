@@ -44,8 +44,6 @@
       <% genres.forEach(g => { %><option value="<%= g.id %>"<%= String(g.id) === String(values.genreId) ? ' selected' : '' %>><%= g.name %></option><% }) %>
     </select>
     <p class="muted small"><a href="/admin/edu-items#edu-genres">Add or rename genres</a> on the list page.</p>
-    <label for="edu-sort">Position on the page (smaller first)</label>
-    <input id="edu-sort" name="sortOrder" type="text" inputmode="numeric" value="<%= values.sortOrder %>" style="max-width:100px">
     <% if (!item) { %>
     <label for="edu-image">Picture (optional)</label>
     <input id="edu-image" name="image" type="file" accept="image/jpeg,image/png,image/webp">

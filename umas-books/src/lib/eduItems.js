@@ -85,7 +85,7 @@ async function loadPublicItems(db, { genre = "", q = "" } = {}) {
             GREATEST(i.stock - ${HELD_SQL("i")}, 0)::int AS available
      FROM edu_items i LEFT JOIN edu_genres g ON g.id = i.genre_id
      WHERE ${where.join(" AND ")}
-     ORDER BY i.sort_order, lower(i.name), i.id`,
+     ORDER BY lower(i.name), i.id`,
     params
   );
   return rows;
@@ -120,14 +120,11 @@ function parseItemForm(body, genreIds) {
     genreId = Number(rawGenre);
     if (!Number.isSafeInteger(genreId) || !genreIds.includes(genreId)) return { error: "Choose one of the genres. Nothing was saved." };
   }
-  const rawSort = String(body.sortOrder ?? "").trim();
-  const sortOrder = rawSort === "" ? 0 : Number(rawSort);
-  if (!Number.isSafeInteger(sortOrder) || Math.abs(sortOrder) > 9999) return { error: "The sort number must be a whole number between -9999 and 9999. Nothing was saved." };
   const rawStock = String(body.stock ?? "").trim();
   if (!/^\d{1,6}$/.test(rawStock) || Number(rawStock) > STOCK_MAX) return { error: `Enter the number in stock as a whole number from 0 to ${STOCK_MAX}. Nothing was saved.` };
   const cost = parseCost(body.cost);
   if (cost.error) return { error: cost.error };
-  return { values: { name, price: price.value, cost: cost.value, stock: Number(rawStock), genreId, sortOrder, isHidden: body.isHidden === "on" } };
+  return { values: { name, price: price.value, cost: cost.value, stock: Number(rawStock), genreId, sortOrder: 0, isHidden: body.isHidden === "on" } };
 }
 
 // "Cost per unit (what we paid)": optional, admin-only (migration 115). Blank = not known (null); otherwise euros with
