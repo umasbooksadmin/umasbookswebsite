@@ -46,6 +46,17 @@ test("edit: a managed genre typed with the wrong capitals takes the managed spel
   assert.equal(await edit(await newBook("managed"), "art & Design§"), "Art & Design");
 });
 
+test("edit: Children's Fiction is spelled with the capital F even when the managed genre is spelled with a lower-case f", async () => {
+  await h.pool.query("UPDATE managed_genres SET name_en = 'Children''s fiction' WHERE name_en = 'Children''s Fiction'");
+  clearAll(h.pool);
+  try {
+    for (const typed of ["children's fiction", "Children’s fiction", "CHILDREN'S FICTION§"]) assert.equal(await edit(await newBook(`lower ${typed}`), typed), "Children's Fiction", typed);
+  } finally {
+    await h.pool.query("UPDATE managed_genres SET name_en = 'Children''s Fiction' WHERE name_en = 'Children''s fiction'");
+    clearAll(h.pool);
+  }
+});
+
 test("edit while genre rules exist: the cleaned genre still goes through the rules, then the spelling", async () => {
   const { rows: [g] } = await h.pool.query("SELECT id FROM managed_genres WHERE name_en = 'Children''s Fiction'");
   await h.pool.query("INSERT INTO genre_rules (kind, pattern, pattern_key, action, target_managed_genre_id) VALUES ('exact', 'Kids', 'kids', 'map', $1)", [g.id]);
