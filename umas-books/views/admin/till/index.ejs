@@ -64,6 +64,7 @@
         <div class="till-quick">
           <% quickItems.forEach(q => { %>
             <button type="button" class="btn btn-outline till-quick-btn" data-quick="<%= q.id %>" data-name="<%= q.name %>" data-price="<%= q.price_cents %>" data-category="<%= q.category %>" data-stock="<%= q.stock === null ? '' : q.stock %>">
+              <% if (q.image_url) { %><img class="till-quick-img" src="<%= variantUrl(q.image_url, 300) %>" alt="" width="40" height="40" loading="lazy"><% } %>
               <span><%= q.name %></span><strong><%= eur(q.price_cents) %></strong>
               <% if (q.stock !== null) { %><small class="<%= q.stock <= 3 ? 'till-low' : '' %>"><%= q.stock %> left<%= q.stock <= 3 ? ' (low)' : '' %></small><% } %>
             </button>

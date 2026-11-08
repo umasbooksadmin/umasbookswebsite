@@ -18,8 +18,12 @@ test("the Other stock page is reachable from Inventory and the till, with its ti
   const page = (await h.get("/admin/till/items")).text;
   assert.match(page, /<h1>Other stock \(not books\)<\/h1>/);
   assert.match(page, /Tote bags, bookmarks and anything else you sell that is not a book/);
-  assert.match(page, /name="barcode"/);
-  assert.match(page, /scan it now/i);
+  assert.match(page, /Search by name/);
+  assert.match(page, /Find by barcode/);
+  assert.match(page, /href="\/admin\/till\/items\/new"/);
+  const form = (await h.get("/admin/till/items/new")).text;
+  assert.match(form, /name="barcode"/);
+  assert.match(form, /Scan or type barcode/);
 });
 
 test("scanning an item's barcode adds one unit; it is case-insensitive; blank-barcode items cannot be scanned", async () => {
@@ -32,7 +36,8 @@ test("scanning an item's barcode adds one unit; it is case-insensitive; blank-ba
     assert.deepEqual([r.body.item.id, r.body.item.name, r.body.item.priceCents, r.body.item.category, r.body.item.stock], [it.id, "Tote Green", 1200, "merchandise", 3]);
   }
   assert.equal((await h.scan("TOTE-GREY")).body.type, "error");
-  assert.match((await h.get("/admin/till/items")).text, /value="TOTE-GREEN"/);
+  assert.match((await h.get("/admin/till/items")).text, /Barcode TOTE-GREEN/);
+  assert.match((await h.get(`/admin/till/items/${it.id}/edit`)).text, /value="TOTE-GREEN"/);
 });
 
 test("manufacturer codes: 8-14 digits; shop codes: letters, digits, - . _ up to 32", async () => {
@@ -110,7 +115,7 @@ test("generated shop codes ITEM-<id>: by the checkbox and by the button", async 
   assert.equal((await addItem({ name: "Gen Later", price: "2" })).status, 302);
   const b = await itemBy("Gen Later");
   assert.equal(b.barcode, null);
-  assert.match((await h.get("/admin/till/items")).text, new RegExp(`formaction="/admin/till/items/${b.id}/generate-code"`));
+  assert.match((await h.get(`/admin/till/items/${b.id}/edit`)).text, new RegExp(`formaction="/admin/till/items/${b.id}/generate-code"`));
   assert.equal((await h.post(`/admin/till/items/${b.id}/generate-code`, {})).status, 302);
   assert.equal((await itemBy("Gen Later")).barcode, `ITEM-${b.id}`);
   assert.equal((await h.post(`/admin/till/items/${b.id}/generate-code`, {})).status, 200, "already has one");

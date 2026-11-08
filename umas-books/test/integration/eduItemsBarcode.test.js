@@ -462,6 +462,18 @@ test("the list shows the Find by barcode box and each item's barcode", async () 
   assert.match(list.text, /Listed With Code<\/a><br><span class="muted small">Barcode 4006381333900<\/span>/);
 });
 
+test("items have no Position: the admin list and the customer page are alphabetical", async () => {
+  await item({ name: "Zebra Flash Cards" });
+  await item({ name: "alpha Worksheets" });
+  await item({ name: "Mango Puzzle" });
+  const form = await get("/admin/edu-items/new");
+  assert.doesNotMatch(form.text, /name="sortOrder"|Position on the page/);
+  const admin1 = await get("/admin/edu-items");
+  assert.doesNotMatch(admin1.text, /<th scope="col">Position<\/th>/);
+  const at = (t, n) => t.indexOf(n);
+  assert.ok(at(admin1.text, "alpha Worksheets") < at(admin1.text, "Mango Puzzle") && at(admin1.text, "Mango Puzzle") < at(admin1.text, "Zebra Flash Cards"));
+});
+
 test("the list's Search by name box filters by any words of the name (any case) and escapes wildcards", async () => {
   await item({ name: "Colourful Phonics Cards" });
   await item({ name: "Maths Worksheet Pack" });

@@ -54,6 +54,13 @@ test("the English page: nav tab, genres, the 'new' line, items with Add or Sold 
   assert.match(text, /a selection/);
 });
 
+test("the items are listed alphabetically by name", async () => {
+  const { text } = await visit("/educational-items.html");
+  const names = [...text.matchAll(/<div class="t"[^>]*>([^<]+)<\/div>/g)].map((m) => m[1].trim());
+  assert.ok(names.length > 1);
+  assert.deepEqual(names, [...names].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())));
+});
+
 test("the French twin: Épuisé, the French 'new' line, names marked lang=en", async () => {
   const { res, text } = await visit("/fr/educational-items.html");
   assert.equal(res.status, 200);
