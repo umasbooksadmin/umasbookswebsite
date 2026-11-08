@@ -1,5 +1,5 @@
 <% const _title = item ? 'Edit item' : 'Add an item'; %>
-<%- include('../../partials/admin_header', { title: _title + ' (other stock)', active: active, pageTitle: _title, pageSub: 'Other stock (not books): a picture, a name, a price, a category, how many are in stock and (optional) the barcode. It appears as a button on the till.', extraCss: ['/till.css', '/edu-item-form.css', '/cover-edit.css'] }) %>
+<%- include('../../partials/admin_header', { title: _title + ' (other stock)', active: active, pageTitle: _title, pageSub: 'Other stock (not books): a picture, a name, a price, a type, an accounting category, how many are in stock and (optional) the barcode. It appears as a button on the till.', extraCss: ['/till.css', '/edu-item-form.css', '/cover-edit.css'] }) %>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 
@@ -30,7 +30,11 @@
     <input id="stock-name" name="name" type="text" maxlength="80" value="<%= values.name %>" required>
     <label for="stock-price">Price (euros)</label>
     <input id="stock-price" name="price" type="text" inputmode="decimal" value="<%= values.price %>" required style="max-width:140px">
-    <label for="stock-cat">Category</label>
+    <label for="stock-type">Type (optional)</label>
+    <input id="stock-type" name="itemType" type="text" list="stock-type-list" maxlength="60" autocomplete="off" autocapitalize="sentences" value="<%= values.itemType %>" aria-describedby="stock-type-help" style="max-width:320px">
+    <datalist id="stock-type-list"><% types.forEach(t => { %><option value="<%= t %>"></option><% }) %></datalist>
+    <p class="muted small" id="stock-type-help">What kind of thing it is, like Tote bags, Bookmarks or Postcards. Pick one of the list or type a new one: it is remembered for the next item. This is only for finding and sorting items; it does not change the accounting.</p>
+    <label for="stock-cat">Category (accounting)</label>
     <select id="stock-cat" name="category"><% categories.forEach(c => { %><option value="<%= c.value %>"<%= c.value === values.category ? ' selected' : '' %>><%= c.label %></option><% }) %></select>
     <label for="stock-stock">Stock (optional)</label>
     <input id="stock-stock" name="stock" type="text" inputmode="numeric" value="<%= values.stock %>" style="max-width:140px" aria-describedby="stock-stock-help">
