@@ -1547,16 +1547,34 @@ lines also say "TVA non applicable" on the receipt; there is no VAT calculation.
 
 ### Barcodes on items
 
-An item can have a barcode so the scanner adds it: on its row of **Other stock
-(not books)** click in the **Barcode** box and scan the item (the manufacturer's
-code, 8 to 14 digits, is typed for you), then **Save**. Scanning it at the till
-adds one; scan again for another one (or use + and - on the line). Items with
-no barcode: press **Generate a shop code** (it becomes `ITEM-<number>`) and write the code on the item. Rules: each active
+**Other stock (not books)** works like **Educational items**, without the book part and
+without a customer page (only admins and the till see these items). The list shows
+Picture, Name, Category, Price, Stock and whether the item is on the till, always
+alphabetical by name (the old Order / Position number is gone: the buttons on the
+till are alphabetical too). **Search by name** filters the list; **Find by barcode**
+(scan or type) opens the item, or says "No item with that barcode" with a button to
+add one. **Add an item** and **Edit** are separate pages.
+
+An item can have a barcode so the scanner adds it: on the Add or Edit page click in
+**Scan or type barcode** and scan the item (the manufacturer's code, 8 to 14 digits,
+is typed for you; Enter or **Look up** asks Open Products Facts and UPCitemdb, free,
+about 100 UPCitemdb lookups a day, and fills the **Name** if it is empty. It only
+suggests a name, never a picture, and never looks up an ISBN or a shop code), then
+**Save**. Scanning it at the till adds one; scan again for another one (or use + and -
+on the line). Items with no barcode: press **Generate a shop code** (it becomes
+`ITEM-<number>`) and write the code on the item. Rules: each active
 item needs its own code; a code cannot start with `UB-` (that is for books) or
 look like `ORDER-<number>`; **a code that is also a book's ISBN is refused**
 when you save the item (it would hide that book at the till: scanning would add
 the item instead of the book). Use a shop code (`ITEM-<number>` or your own,
 like `TOTE-GREEN`) for such an item.
+
+**Picture:** open an item's **Edit** page: the **Picture** card adds, replaces
+(library, files or camera on a phone), rotates, crops or removes the picture at once.
+It shows in the list and on the item's button on the till. A replaced or removed picture
+is cleaned up automatically after about a week (Admin > Diagnostics). There is no
+Delete button: untick **On the till** to take an item off the till (past sales keep
+their own copy of the name).
 
 ### Voiding a sale
 

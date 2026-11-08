@@ -22,6 +22,7 @@ router.use(require("./charity"));
 router.use(require("./priceSuggestions")); // before inventory: "price-suggestion" is not a book id
 router.use(require("./inventoryLookup")); // before inventory: "lookup" is not a book id
 router.use(require("./till"));
+router.use(require("./otherStock")); // Other stock (not books): the till's quick items, with barcode look-up and a picture
 router.use(require("./eduItems")); // Educational items (worksheets, flash cards) and their genres
 router.use(require("./inventory"));
 router.use(require("./inventoryCover")); // the Cover card: replace, rotate, crop, remove

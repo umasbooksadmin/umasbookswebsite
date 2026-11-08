@@ -346,6 +346,30 @@ function createApp() {
     });
   });
 
+  // Same again, for an Other stock item's picture (routes/admin/otherStock.js). 8 MB, like a book cover photo; a refusal
+  // returns to the list with a sentence. Only the item pages: the Till's own pages are not multipart.
+  const stockUpload = multer({ storage: multer.memoryStorage(), limits: { ...MULTIPART_LIMITS, fileSize: 8 * 1024 * 1024 } });
+  const stockUploadFields = stockUpload.fields([{ name: "image", maxCount: 1 }]);
+  app.use("/admin/till/items", requireAdmin, (req, res, next) => {
+    stockUploadFields(req, res, (err) => {
+      if (!err) { collapseRepeatedFields(req.body); return next(); }
+      console.warn(`Other stock upload refused: ${err.code || err.name}: ${err.message}`);
+      const m = req.method === "POST" && /^\/(\d{1,9})\/image\/replace$/.exec(req.path);
+      if (m) {
+        const code = err.code === "LIMIT_FILE_SIZE" ? "too-big" : "not-image";
+        if (req.accepts(["html", "json"]) === "json") {
+          const { PICTURE_ERRORS } = require("./lib/coverEdit");
+          return res.status(PICTURE_ERRORS[code].status).json({ ok: false, code, message: PICTURE_ERRORS[code].message });
+        }
+        return res.redirect(303, `/admin/till/items/${m[1]}/edit?picture=${code}#picture`);
+      }
+      const message = err.code === "LIMIT_FILE_SIZE"
+        ? "That picture is larger than 8 MB. Please choose a smaller one. Nothing was saved."
+        : "The upload could not be read. Please try again. Nothing was saved.";
+      redirectWithFlash(req, res, "/admin/till/items", "adminOtherStock", { error: message }).catch(next);
+    });
+  });
+
   // Same again, for a charity's photo (see /admin/charities in routes/admin/charity.js).
   const charityUpload = multer({ storage: multer.memoryStorage(), limits: { ...MULTIPART_LIMITS, fileSize: 5 * 1024 * 1024 } });
   const charityUploadFields = charityUpload.fields([{ name: "image", maxCount: 1 }]);

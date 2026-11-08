@@ -34,6 +34,7 @@ const IMAGE_REFERENCES = [
   { table: "curated_collections", column: "icon_path" },
   { table: "curated_collections", column: "banner_path" },
   { table: "edu_items", column: "image_url" }, // an Educational item's picture (routes/admin/eduItems.js)
+  { table: "till_quick_items", column: "image_url" }, // an Other stock item's picture (routes/admin/otherStock.js)
 ];
 
 const { cachedFor } = require("./runLimited");
