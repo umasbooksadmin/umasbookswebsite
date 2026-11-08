@@ -221,6 +221,15 @@ test("the no-JavaScript 'Suggest price' button re-shows the form with everything
   assert.equal((await copiesOf(isbn)).length, 0, "nothing is saved");
 });
 
+test("Custom price has no default: choosing Custom... empties the box unless the admin typed the number herself", async () => {
+  const script = require("node:fs").readFileSync(require("node:path").join(__dirname, "../../public/price-suggestion.js"), "utf8");
+  assert.match(script, /var userTyped = false;/);
+  assert.match(script, /r\.value === "custom" && !userTyped && mode === "intake"\) priceInput\.value = ""/, "choosing Custom... starts empty on the add form");
+  assert.match(script, /key === "custom" && !isNew\(\)\) \? "" : s\.price/, "a suggestion that is not a standard price is not copied into the box");
+  const page = await h.get("/admin/inventory/new");
+  assert.match(page.text, /name="price"[^>]*value="(5)?"/);
+});
+
 test("the Binding select feeds the pricing: the form exposes it, the no-JS button and the endpoint use it (mass market EUR 5, hardcover EUR 10 floor)", async () => {
   setMarket([2, 3, 4]); // Rule A would give EUR 5 for a paperback
   const page = await h.get("/admin/inventory/new");
