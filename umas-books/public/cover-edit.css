@@ -51,3 +51,9 @@
 .cvr-find-item form { margin: 0; margin-top: auto; }
 .cvr-find-item .btn { min-height: 44px; }
 .cvr-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 0; }
+
+/* The picture chooser of an item that is not saved yet (views/partials/pending_picture.ejs, public/pending-picture.js). */
+.cvr-pending-editor { margin-top: 10px; }
+.cvr-pending-editor[hidden], .cvr-pending-note[hidden], .cvr-overlay[hidden] { display: none; }
+.cvr-pending-editor .cvr-stage { margin-bottom: 8px; }
+.cvr-pending-note { margin: 6px 0; }

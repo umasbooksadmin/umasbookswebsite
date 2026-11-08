@@ -20,6 +20,10 @@
   var running = null;
 
   if (button) button.hidden = false;
+  // On the Add page (no data-item-id) the cursor starts in the barcode box, so a scanner can be used at once: also after the
+  // page is shown again with an error, and when ?barcode= filled the box. The HTML autofocus attribute does the same without
+  // this script. Never on the Edit page, where the admin usually comes for another field.
+  if (!box.getAttribute('data-item-id') && document.activeElement !== input) input.focus();
   if (nameInput) nameInput.addEventListener('input', function () { filledName = null; });
 
   function el(tag, cls, text) {

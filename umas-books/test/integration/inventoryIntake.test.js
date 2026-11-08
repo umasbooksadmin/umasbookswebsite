@@ -47,7 +47,7 @@ test("parseIntakeInput: a plain form is read and normalised", () => {
   assert.equal(r.ok, true);
   const v = r.value;
   assert.equal(v.title, "The Title");
-  assert.equal(v.author, null);
+  assert.equal(v.author, "Unknown", "a blank author is saved as Unknown");
   assert.equal(v.isbn, "9780143127550");
   assert.equal(v.location, "Back room");
   assert.equal(v.source, null);
@@ -330,7 +330,7 @@ test("updateCopy: saves under a lock, refuses a status that changed underneath, 
   e = await editFor(saved, { status: "damaged", renderedStatus: "reserved" });
   out = await copies.updateCopy(pool, saved.bookId, saved.copyId, e.input, e.priced);
   assert.equal(out.status, 409);
-  assert.match(out.error, /changed since you opened the form \(now: In Store\)/);
+  assert.match(out.error, /changed since you opened the form \(now: Available\)/);
 
   await pool.query("UPDATE book_copies SET status = 'sold' WHERE id = $1", [saved.copyId]);
   e = await editFor(saved, { status: "in_stock", renderedStatus: "sold" });

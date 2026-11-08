@@ -366,7 +366,7 @@ router.get("/admin/inventory/lookup", requireAdmin, async (req, res) => {
   if (!f.book) {
     return res.render("admin/inventory/scan", { active: "inventory", visionEnabled, location, source, sources: SOURCES, locations: await getLocations(), error: f.error || null });
   }
-  const book = f.book;
+  const book = f.book.title && !f.book.author ? { ...f.book, author: "Unknown" } : f.book; // the catalogue found the book but no author
   const defaultPricing = await getDefaultCopyPricing(book.isbn);
   // The price starts at the suggestion for the form's default condition.
   const { rows: stocked } = book.isbn ? await pool.query("SELECT b.binding FROM books b WHERE b.isbn = ANY($1) LIMIT 1", [isbnVariants(normalizeIsbn(book.isbn))]) : { rows: [] };
