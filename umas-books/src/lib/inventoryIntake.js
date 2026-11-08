@@ -54,9 +54,11 @@ const passthroughTime = (label, fn) => fn();
 // title is refused here; the numbers (published year, acquisition cost, date acquired) are checked
 // and kept in value.yearCheck / costCheck / acquiredCheck, and the price rules need the database:
 // prepareIntake() gives the first refusal in the order the form always did.
+const UNKNOWN_AUTHOR = "Unknown";
+
 function parseIntakeInput(body, files) {
   const title = (body.title || "").trim();
-  const author = (body.author || "").trim() || null;
+  const author = (body.author || "").trim() || UNKNOWN_AUTHOR; // no author found or typed: "Unknown", never an empty author
   // ISBN: blank is allowed (a book with none). Anything typed must be a real ISBN-10 or ISBN-13; an ISBN-10 is
   // stored as its ISBN-13 so the same book never exists twice (the existing-book lookup also accepts both forms).
   const typedIsbn = String(body.isbn || "").trim() ? normalizeIsbn(body.isbn) : null;
@@ -347,7 +349,7 @@ async function afterSaveFollowUps(pool, saved, input, ctx) {
   if (saved.fillAfterSave) {
     const { isbn, title, author, publisher, publishedYear, description } = input;
     // The AI writes a description only for a book new to the shop (its first intake), never for a later copy.
-    const hints = { isbn, title, author, publisher, publishedYear, description, coverUrl: saved.coverUrl, aiDescription: saved.isNewBook, ...(saved.chosenCoverId ? { coverOrigin: "chosen" } : {}) };
+    const hints = { isbn, title, author: author === UNKNOWN_AUTHOR ? null : author, publisher, publishedYear, description, coverUrl: saved.coverUrl, aiDescription: saved.isNewBook, ...(saved.chosenCoverId ? { coverOrigin: "chosen" } : {}) };
     runAfterResponse(`fill book ${saved.bookId}`, () => fillBookGaps(pool, saved.bookId, hints));
   }
 
