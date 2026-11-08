@@ -10,7 +10,7 @@
 //                                            that barcode" and a button to add one
 //   POST /admin/edu-items                    add (multipart: optional picture "image", src/app.js runs multer)
 //   GET  /admin/edu-items/:id/edit           the edit form
-//   POST /admin/edu-items/:id                save (name, price, cost, stock, genre, sort, hidden, barcode, a new picture)
+//   POST /admin/edu-items/:id                save (name, price, cost, stock, genre (combo box: an existing genre or a new one, created with the item), sort, hidden, barcode, a new picture)
 //   POST /admin/edu-items/:id/visibility     hide / show
 //   POST /admin/edu-items/:id/image/replace  the Picture card: add or replace the picture (multipart, field "image"; 8 MB)
 //   POST /admin/edu-items/:id/image/rotate   direction=left|right
@@ -141,16 +141,11 @@ async function isbnPicture(code, { waitMs } = {}) {
 
 // The item form (lib/eduItems.js parseItemForm) plus its barcode (lib/barcode.js) -> { values } | { error }.
 async function parseForm(body) {
-  const f = edu.parseItemForm(body, await genreIds());
+  const f = edu.parseItemForm(body);
   if (f.error) return f;
   const b = parseBarcode(body.barcode);
   if (b.error) return { error: `${b.error} Nothing was saved.` };
   return { values: { ...f.values, barcode: b.value } };
-}
-
-async function genreIds() {
-  const { rows } = await pool.query("SELECT id FROM edu_genres");
-  return rows.map((r) => r.id);
 }
 
 router.get(LIST, requireAdmin, async (req, res) => {
@@ -181,9 +176,10 @@ router.get(LIST, requireAdmin, async (req, res) => {
 async function renderForm(req, res, item, { barcode = "" } = {}) {
   const flash = takePageFlash(req, res, FLASH) || {};
   const genres = await edu.loadGenres(pool);
+  if (item) item.genre_name = (genres.find((g) => g.id === item.genre_id) || {}).name || "";
   let held = 0;
   if (item) held = (await pool.query(`SELECT ${edu.HELD_SQL("i")}::int AS held FROM edu_items i WHERE i.id = $1`, [item.id])).rows[0].held;
-  const v = flash.values || (item ? { name: item.name, price: money(item.price), cost: item.cost == null ? "" : money(item.cost), stock: String(item.stock), genreId: item.genre_id == null ? "" : String(item.genre_id), isHidden: item.is_hidden ? "on" : "", barcode: item.barcode || "" } : { name: "", price: "", cost: "", stock: "0", genreId: genres[0] ? String(genres[0].id) : "", isHidden: "", barcode });
+  const v = flash.values || (item ? { name: item.name, price: money(item.price), cost: item.cost == null ? "" : money(item.cost), stock: String(item.stock), genre: item.genre_name || "", isHidden: item.is_hidden ? "on" : "", barcode: item.barcode || "" } : { name: "", price: "", cost: "", stock: "0", genre: "", isHidden: "", barcode });
   if (v.barcode === undefined) v.barcode = "";
   // The saved barcode is also a book of the shop: the same gentle warning as the lookup gives.
   const book = item && item.barcode ? await bookWithIsbn(item.barcode) : null;
@@ -289,7 +285,7 @@ router.get(`${LIST}/:id/edit`, requireAdmin, async (req, res) => {
 });
 
 // What the form sent, to put back in the form after a refusal.
-const typed = (b) => ({ name: String(b.name ?? "").slice(0, 200), price: String(b.price ?? "").slice(0, 20), cost: String(b.cost ?? "").slice(0, 20), stock: String(b.stock ?? "").slice(0, 10), genreId: String(b.genreId ?? ""), isHidden: b.isHidden === "on" ? "on" : "", barcode: String(b.barcode ?? "").slice(0, 30) });
+const typed = (b) => ({ name: String(b.name ?? "").slice(0, 200), price: String(b.price ?? "").slice(0, 20), cost: String(b.cost ?? "").slice(0, 20), stock: String(b.stock ?? "").slice(0, 10), genre: String(b.genre ?? "").slice(0, 200), isHidden: b.isHidden === "on" ? "on" : "", barcode: String(b.barcode ?? "").slice(0, 30) });
 
 // The picture to save: the admin's own photo wins; else, when she pressed "Use this picture", Open Library's cover for
 // the saved ISBN. -> { url } | { error } | { note } (the Open Library picture could not be fetched: saved without it).
@@ -312,20 +308,29 @@ router.post(LIST, requireAdmin, writeLimiter, async (req, res) => {
   if (other) return back(req, res, `${LIST}/new`, usedBy(other), { values: typed(req.body) });
   const pic = await chosenPicture(req, v.barcode);
   if (pic.error) return back(req, res, `${LIST}/new`, pic.error, { values: typed(req.body) });
-  let rows;
+  let r;
   try {
-    ({ rows } = await pool.query(
-      `INSERT INTO edu_items (name, price, cost, stock, genre_id, sort_order, is_hidden, image_url, barcode) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [v.name, v.price, v.cost, v.stock, v.genreId, v.sortOrder, v.isHidden, pic.url || null, v.barcode]
-    ));
+    // The genre (found or created) and the item are saved together: all or nothing.
+    r = await withTransaction(pool, async (client) => {
+      const genre = await edu.resolveGenre(client, v.genreName);
+      if (genre.error) return { genreError: genre.error };
+      const { rows } = await client.query(
+        `INSERT INTO edu_items (name, price, cost, stock, genre_id, sort_order, is_hidden, image_url, barcode) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        [v.name, v.price, v.cost, v.stock, genre.id, v.sortOrder, v.isHidden, pic.url || null, v.barcode]
+      );
+      return { genre, itemId: rows[0].id };
+    });
   } catch (err) {
     if (isBarcodeClash(err)) return back(req, res, `${LIST}/new`, usedBy((await itemWithBarcode(pool, v.barcode)) || { name: "another item" }), { values: typed(req.body) });
     throw err;
   }
+  if (r.genreError) return back(req, res, `${LIST}/new`, r.genreError, { values: typed(req.body) });
+  // Audit right after the commit, like every other save here (audit() never throws): the genre first, then the item.
+  if (r.genre.created) await audit(req, { action: "edu_genre.add", targetType: "edu_genre", targetId: r.genre.id, detail: `${r.genre.name} (from the item form)` });
   const picNote = pic.url ? (pic.fromIsbn ? ", with the Open Library picture" : ", with picture") : "";
-  await audit(req, { action: "edu_item.add", targetType: "edu_item", targetId: rows[0].id, detail: `${v.name}, €${money(v.price)}, ${costText(v.cost)}, stock ${v.stock}${v.isHidden ? ", hidden" : ""}${v.barcode ? `, barcode ${v.barcode}` : ""}${picNote}` });
+  await audit(req, { action: "edu_item.add", targetType: "edu_item", targetId: r.itemId, detail: `${v.name}, €${money(v.price)}, ${costText(v.cost)}, stock ${v.stock}${r.genre.name ? `, genre ${r.genre.name}` : ""}${v.isHidden ? ", hidden" : ""}${v.barcode ? `, barcode ${v.barcode}` : ""}${picNote}` });
   const book = await bookWithIsbn(v.barcode);
-  return done(req, res, LIST, `Added "${v.name}".${pic.note || ""}${book ? ` ${bookWarning(book)}` : ""}`);
+  return done(req, res, LIST, `Added "${v.name}".${r.genre.created ? ` The new genre "${r.genre.name}" was added too.` : ""}${pic.note || ""}${book ? ` ${bookWarning(book)}` : ""}`);
 });
 
 router.post(`${LIST}/:id`, requireAdmin, writeLimiter, async (req, res) => {
@@ -346,34 +351,38 @@ router.post(`${LIST}/:id`, requireAdmin, writeLimiter, async (req, res) => {
     const { rows: h } = await client.query(`SELECT ${edu.HELD_SQL("i")}::int AS held FROM edu_items i WHERE i.id = $1`, [id]);
     const held = h[0].held;
     if (v.stock < held) return { outcome: "below_held", held };
+    const genre = await edu.resolveGenre(client, v.genreName);
+    if (genre.error) return { outcome: "genre_error", error: genre.error };
     await client.query(
       `UPDATE edu_items SET name = $2, price = $3, stock = $4, genre_id = $5, sort_order = $6, is_hidden = $7,
               image_url = COALESCE($8, image_url), cost = $9, barcode = $10, updated_at = now() WHERE id = $1`,
-      [id, v.name, v.price, v.stock, v.genreId, v.sortOrder, v.isHidden, pic.url || null, v.cost, v.barcode]
+      [id, v.name, v.price, v.stock, genre.id, v.sortOrder, v.isHidden, pic.url || null, v.cost, v.barcode]
     );
-    return { outcome: "saved", old };
+    return { outcome: "saved", old, genre };
   }).catch(async (err) => {
     if (isBarcodeClash(err)) return { outcome: "barcode_used", other: (await itemWithBarcode(pool, v.barcode, id)) || { name: "another item" } };
     throw err;
   });
   if (r.outcome === "not_found") return res.status(404).render("404");
   if (r.outcome === "barcode_used") return back(req, res, edit, usedBy(r.other), { values: typed(req.body) });
+  if (r.outcome === "genre_error") return back(req, res, edit, r.error, { values: typed(req.body) });
   if (r.outcome === "below_held") {
     return back(req, res, edit, `The stock cannot be lower than ${r.held}: open reservations hold ${r.held} of this item. Collect or cancel them first. Nothing was saved.`, { values: typed(req.body) });
   }
+  if (r.genre.created) await audit(req, { action: "edu_genre.add", targetType: "edu_genre", targetId: r.genre.id, detail: `${r.genre.name} (from the item form)` });
   const o = r.old;
   const changes = [];
   if (o.name !== v.name) changes.push(`name "${o.name}" -> "${v.name}"`);
   if (Math.round(Number(o.price) * 100) !== Math.round(v.price * 100)) changes.push(`price €${money(o.price)} -> €${money(v.price)}`);
   if ((o.cost == null ? null : Math.round(Number(o.cost) * 100)) !== (v.cost == null ? null : Math.round(v.cost * 100))) changes.push(`cost ${costText(o.cost, true)} -> ${costText(v.cost, true)}`);
   if (o.stock !== v.stock) changes.push(`stock ${o.stock} -> ${v.stock}`);
-  if ((o.genre_id ?? null) !== v.genreId) changes.push("genre changed");
+  if ((o.genre_id ?? null) !== r.genre.id) changes.push(r.genre.name ? `genre -> ${r.genre.name}` : "genre removed");
   if (o.is_hidden !== v.isHidden) changes.push(v.isHidden ? "hidden" : "shown");
   if ((o.barcode || null) !== v.barcode) changes.push(`barcode ${o.barcode || "none"} -> ${v.barcode || "none"}`);
   if (pic.url) changes.push(pic.fromIsbn ? "new picture (Open Library, exact ISBN)" : "new picture");
   await audit(req, { action: "edu_item.edit", targetType: "edu_item", targetId: id, detail: changes.join("; ") || "no change" });
   const book = v.barcode && (o.barcode || null) !== v.barcode ? await bookWithIsbn(v.barcode) : null;
-  return done(req, res, LIST, `Saved "${v.name}".${pic.note || ""}${book ? ` ${bookWarning(book)}` : ""}`);
+  return done(req, res, LIST, `Saved "${v.name}".${r.genre.created ? ` The new genre "${r.genre.name}" was added too.` : ""}${pic.note || ""}${book ? ` ${bookWarning(book)}` : ""}`);
 });
 
 router.post(`${LIST}/:id/visibility`, requireAdmin, writeLimiter, async (req, res) => {

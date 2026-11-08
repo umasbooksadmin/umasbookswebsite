@@ -105,8 +105,10 @@ async function loadCartEduItems(db, ids) {
 
 // ---------- admin validation (Admin > Educational items) ----------
 
-// The item form -> { values } or { error } (one sentence, nothing saved). genreIds: the existing genre ids.
-function parseItemForm(body, genreIds) {
+// The item form -> { values } or { error } (one sentence, nothing saved). The Genre box is a combo box (2026-11-08): the typed
+// text comes back as values.genreName ("" = no genre, as before); the route matches it to an existing genre or creates it
+// (resolveGenre), in the same transaction as the item.
+function parseItemForm(body) {
   const name = String(body.name ?? "").replace(/\s+/g, " ").trim();
   if (!name) return { error: "Give the item a name. Nothing was saved." };
   if (name.length > NAME_MAX) return { error: `The name is limited to ${NAME_MAX} characters. Nothing was saved.` };
@@ -114,17 +116,13 @@ function parseItemForm(body, genreIds) {
   if (price.error || price.value == null) return { error: "Enter a price in euros, like 4.50 or 4,50. Nothing was saved." };
   if (!(price.value > 0)) return { error: "The price must be above 0. Nothing was saved." };
   if (price.value > PRICE_MAX) return { error: `The price can be at most €${PRICE_MAX}. Nothing was saved.` };
-  const rawGenre = String(body.genreId ?? "").trim();
-  let genreId = null;
-  if (rawGenre !== "") {
-    genreId = Number(rawGenre);
-    if (!Number.isSafeInteger(genreId) || !genreIds.includes(genreId)) return { error: "Choose one of the genres. Nothing was saved." };
-  }
+  const genreName = cleanGenreText(body.genre);
+  if (genreName.length > GENRE_NAME_MAX) return { error: `A genre name is limited to ${GENRE_NAME_MAX} characters. Nothing was saved.` };
   const rawStock = String(body.stock ?? "").trim();
   if (!/^\d{1,6}$/.test(rawStock) || Number(rawStock) > STOCK_MAX) return { error: `Enter the number in stock as a whole number from 0 to ${STOCK_MAX}. Nothing was saved.` };
   const cost = parseCost(body.cost);
   if (cost.error) return { error: cost.error };
-  return { values: { name, price: price.value, cost: cost.value, stock: Number(rawStock), genreId, sortOrder: 0, isHidden: body.isHidden === "on" } };
+  return { values: { name, price: price.value, cost: cost.value, stock: Number(rawStock), genreName, sortOrder: 0, isHidden: body.isHidden === "on" } };
 }
 
 // "Cost per unit (what we paid)": optional, admin-only (migration 115). Blank = not known (null); otherwise euros with
@@ -143,6 +141,28 @@ function parseCost(raw) {
 // Margin per unit (price minus cost), in euros, or null when the cost is not known.
 const unitMargin = (price, cost) => (cost == null ? null : Math.round(Number(price) * 100 - Number(cost) * 100) / 100);
 
+// The typed genre text: spaces collapsed, trimmed.
+const cleanGenreText = (raw) => String(raw ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim(); // eslint-disable-line no-control-regex
+
+// A genre name typed in the item form -> the genre id ('' = null), reusing the existing genre whose name matches without regard to
+// case or spacing, else CREATING it (same rules as Admin > Educational items > "New genre": parseGenreName, the next colour, icon
+// 'book', appended at the end). db = a transaction client. -> { id, created, name } | { error }.
+async function resolveGenre(db, rawName) {
+  const typed = cleanGenreText(rawName);
+  if (!typed) return { id: null, created: false, name: null };
+  // Serialise genre creation so two saves of the same new name cannot both create it.
+  await db.query("SELECT pg_advisory_xact_lock(hashtext('edu_genres_create'))");
+  const { rows } = await db.query("SELECT id, name, slug, colour, sort_order FROM edu_genres ORDER BY sort_order DESC, id DESC");
+  const hit = rows.find((r) => r.name.replace(/\s+/g, " ").trim().toLowerCase() === typed.toLowerCase());
+  if (hit) return { id: hit.id, created: false, name: hit.name };
+  const g = parseGenreName(typed, rows.map((r) => r.slug));
+  if (g.error) return { error: g.error };
+  const colour = nextColour(rows[0] ? rows[0].colour : PALETTE_KEYS[PALETTE_KEYS.length - 1]);
+  const sort = rows[0] ? rows[0].sort_order + 1 : 1;
+  const ins = await db.query("INSERT INTO edu_genres (name, slug, sort_order, colour, icon) VALUES ($1, $2, $3, $4, 'book') RETURNING id", [g.name, g.slug, sort, colour]);
+  return { id: ins.rows[0].id, created: true, name: g.name };
+}
+
 // A new genre's name -> { name, slug } or { error }.
 function parseGenreName(raw, existingSlugs) {
   const name = String(raw ?? "").replace(/\s+/g, " ").trim();
@@ -155,5 +175,5 @@ function parseGenreName(raw, existingSlugs) {
 
 module.exports = {
   MAX_EDU_QTY, NAME_MAX, GENRE_NAME_MAX, PRICE_MAX, SEARCH_MAX, STOCK_MAX, HELD_SQL,
-  parseQty, genreTile, loadGenres, loadPublicItems, loadCartEduItems, parseItemForm, parseCost, unitMargin, parseGenreName, nextColour,
+  parseQty, genreTile, loadGenres, loadPublicItems, loadCartEduItems, parseItemForm, parseCost, unitMargin, parseGenreName, nextColour, resolveGenre, cleanGenreText,
 };
