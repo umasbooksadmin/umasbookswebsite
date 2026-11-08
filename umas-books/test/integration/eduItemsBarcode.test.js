@@ -1,4 +1,4 @@
-/* global document */
+/* global document, createImageBitmap */
 // Educational items: the barcode (migration 116, lib/barcode.js) and its lookup in Admin > Educational items
 // (src/routes/admin/eduItems.js, public/edu-item-form.js). The real router and views on an in-process app with a
 // throwaway database; EVERY outside call is stubbed at global.fetch (Open Library, its covers, Open Products Facts,
@@ -534,5 +534,179 @@ test("in a browser: Enter looks up instead of saving; a typed Name and price are
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();
+  }
+});
+
+// ---------- the Add page: cursor in the barcode box, and the picture managed before saving ----------
+
+test("the Add page puts the cursor in the barcode box (autofocus, not on Edit) and offers the picture component, not the old sentence", async () => {
+  const add = await get("/admin/edu-items/new");
+  assert.match(add.text, /<input id="edu-barcode" name="barcode" autofocus /);
+  assert.match(add.text, /data-pending-picture/);
+  assert.match(add.text, /data-pending-rotate="left"/);
+  assert.match(add.text, /data-pending-rotate="right"/);
+  assert.match(add.text, /data-pending-crop-open/);
+  assert.match(add.text, /data-pending-remove/);
+  assert.match(add.text, /\/pending-picture\.js/);
+  assert.match(add.text, /\/crop-box\.js/);
+  assert.doesNotMatch(add.text, /After you add the item, you can turn, crop or remove the picture on its edit page/);
+  assert.match(add.text, /you can turn it or crop it here, before you add the item/);
+  assert.doesNotMatch(add.text, /capture=/, "no capture attribute: phones offer the library and the camera");
+  assert.match(add.text, /<input id="edu-image" name="image" type="file" accept="image\/jpeg,image\/png,image\/webp"/);
+  const prefilled = await get("/admin/edu-items/new?barcode=9780306406157");
+  assert.match(prefilled.text, /autofocus/);
+  const it = await item({ name: "Focus Edit Item" });
+  const edit = await get(`/admin/edu-items/${it.id}/edit`);
+  assert.doesNotMatch(edit.text, /autofocus/, "the Edit page does not steal the focus");
+  assert.doesNotMatch(edit.text, /pending-picture/);
+  assert.match(edit.text, /data-cover-edit/);
+});
+
+test("in a browser: the cursor starts in the barcode box on Add, also after an error, and not on Edit; the picture is turned, cropped and removed before saving", { timeout: 90000 }, async (t) => {
+  let browser;
+  try {
+    browser = await require("puppeteer").launch({ headless: true, args: ["--no-sandbox"] });
+  } catch (err) {
+    t.skip(`no headless Chrome available: ${String(err.message).split("\n")[0]}`);
+    return;
+  }
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "edupending-"));
+  try {
+    const sharp = require("sharp");
+    // 300 x 200: red left half, blue right half.
+    const base = sharp({ create: { width: 300, height: 200, channels: 3, background: "#dc1e1e" } }).composite([{ input: { create: { width: 150, height: 200, channels: 3, background: "#1e1edc" } }, left: 150, top: 0 }]);
+    const png = path.join(dir, "halves.png");
+    fs.writeFileSync(png, await base.clone().png().toBuffer());
+    const exif = path.join(dir, "phone.jpg"); // stored 300 x 200 with "rotate 90 clockwise" in EXIF: upright it is 200 x 300
+    fs.writeFileSync(exif, await base.clone().jpeg().withMetadata({ orientation: 6 }).toBuffer());
+    const heic = path.join(dir, "IMG_1.heic");
+    fs.writeFileSync(heic, Buffer.from("not really a heic file"));
+
+    const page = await browser.newPage();
+    await page.setExtraHTTPHeaders(header(admin));
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    const active = () => page.evaluate(() => document.activeElement && document.activeElement.id);
+    const fileSize = () => page.$eval("#edu-image", async (i) => {
+      if (!i.files.length) return null;
+      const b = await createImageBitmap(i.files[0], { imageOrientation: "none" });
+      return { w: b.width, h: b.height, type: i.files[0].type, bytes: i.files[0].size };
+    });
+    const editorShown = () => page.$eval("[data-pending-editor]", (e) => !e.hidden);
+
+    // 1. focus
+    await page.goto(`${server.base}/admin/edu-items/new`);
+    assert.equal(await active(), "edu-barcode", "Add: the cursor is in the barcode box");
+    await page.goto(`${server.base}/admin/edu-items/new?barcode=9780306406157`);
+    assert.equal(await active(), "edu-barcode", "Add with ?barcode=: still the barcode box");
+    // After a refusal the page is shown again (a name is missing server-side: the browser's required check is skipped by novalidate).
+    await page.goto(`${server.base}/admin/edu-items/new`);
+    await page.$eval("#edu-item-form", (f) => { f.noValidate = true; });
+    await page.type("#edu-price", "3");
+    await Promise.all([page.waitForNavigation(), page.click("#edu-item-form button[type=submit]")]);
+    assert.match(await page.$eval("body", (b) => b.textContent), /Nothing was saved/);
+    assert.equal(await active(), "edu-barcode", "Add shown again with an error: the barcode box");
+    const it = await item({ name: "Focus Edit Browser" });
+    await page.goto(`${server.base}/admin/edu-items/${it.id}/edit`);
+    assert.notEqual(await active(), "edu-barcode", "Edit: the focus is not taken");
+
+    // 2. choose, rotate right: width and height swap, red is now on top
+    await page.goto(`${server.base}/admin/edu-items/new`);
+    assert.equal(await editorShown(), false, "nothing chosen: no editor");
+    await (await page.$("#edu-image")).uploadFile(png);
+    await page.waitForFunction(() => !document.querySelector("[data-pending-editor]").hidden);
+    await page.waitForFunction(() => document.querySelector("#edu-image").files.length === 1 && /jpeg/.test(document.querySelector("#edu-image").files[0].type));
+    assert.deepEqual((({ w, h, type }) => ({ w, h, type }))(await fileSize()), { w: 300, h: 200, type: "image/jpeg" });
+    await page.click("[data-pending-rotate=right]");
+    await page.waitForFunction(() => document.querySelector("#edu-image").files[0] && document.querySelector("[data-pending-canvas]").width === 200);
+    await page.waitForFunction(async () => { const b = await createImageBitmap(document.querySelector("#edu-image").files[0], { imageOrientation: "none" }); return b.width === 200 && b.height === 300; });
+    // 3. rotate left twice -> 300 x 200 upside down (blue left), then Reset -> as chosen
+    await page.click("[data-pending-rotate=left]");
+    await page.click("[data-pending-rotate=left]");
+    await page.waitForFunction(async () => { const b = await createImageBitmap(document.querySelector("#edu-image").files[0], { imageOrientation: "none" }); return b.width === 300 && b.height === 200; });
+    await page.click("[data-pending-reset]");
+    await page.waitForFunction(() => { const c = document.querySelector("[data-pending-canvas]"); const d = c.getContext("2d").getImageData(5, 5, 1, 1).data; return c.width === 300 && d[0] > 150 && d[2] < 100; });
+    // 4. rotate right then crop with the keyboard-reachable default box (80%): smaller
+    await page.click("[data-pending-rotate=right]");
+    await page.click("[data-pending-crop-open]");
+    assert.equal(await page.$eval("[data-pending-crop]", (e) => !e.hidden), true);
+    assert.equal(await page.evaluate(() => document.activeElement.hasAttribute("data-pending-box")), true, "the crop box has the focus");
+    await page.keyboard.down("Shift");
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.up("Shift");
+    assert.match(await page.$eval("[data-pending-readout]", (e) => e.textContent), /Keeping 79% of the width and 80% of the height/);
+    await page.click("[data-pending-crop-apply]");
+    await page.waitForFunction(async () => { const b = await createImageBitmap(document.querySelector("#edu-image").files[0], { imageOrientation: "none" }); return b.width === 158 && b.height === 240; });
+    // 5. fill the form and save: the stored image is the processed one
+    await page.type("#edu-name", "Pending Picture Item");
+    await page.type("#edu-price", "5");
+    await Promise.all([page.waitForNavigation(), page.click("#edu-item-form button[type=submit]")]);
+    const row = (await pool.query("SELECT image_url FROM edu_items WHERE name = 'Pending Picture Item'")).rows[0];
+    assert.match(row.image_url, /^\/img\//);
+    const stored = await pool.query("SELECT data FROM images WHERE id = $1", [row.image_url.replace(/^\/img\//, "").replace(/\.[a-z]+$/, "")]);
+    const meta = await sharp(stored.rows[0].data).metadata();
+    assert.deepEqual([meta.width, meta.height], [158, 240], "the saved picture is the turned and cropped one");
+    const topLeft = await sharp(stored.rows[0].data).raw().extractChannel(0).toBuffer();
+    assert.ok(topLeft[0] > 150, "after rotating right the red half is on top");
+
+    // 6. remove: the input is empty and the editor gone; saving adds no picture
+    await page.goto(`${server.base}/admin/edu-items/new`);
+    await (await page.$("#edu-image")).uploadFile(png);
+    await page.waitForFunction(() => !document.querySelector("[data-pending-editor]").hidden && document.querySelector("#edu-image").files.length === 1);
+    await page.click("[data-pending-remove]");
+    assert.equal(await fileSize(), null, "remove: the file input is empty");
+    assert.equal(await editorShown(), false);
+    assert.equal(await active(), "edu-image");
+    await page.type("#edu-name", "Pending No Picture");
+    await page.type("#edu-price", "5");
+    await Promise.all([page.waitForNavigation(), page.click("#edu-item-form button[type=submit]")]);
+    assert.equal((await pool.query("SELECT image_url FROM edu_items WHERE name = 'Pending No Picture'")).rows[0].image_url, null);
+
+    // 7. a phone photo with EXIF orientation is shown and saved upright
+    await page.goto(`${server.base}/admin/edu-items/new`);
+    await (await page.$("#edu-image")).uploadFile(exif);
+    await page.waitForFunction(() => document.querySelector("[data-pending-canvas]").width === 200 && document.querySelector("[data-pending-canvas]").height === 300);
+    await page.waitForFunction(async () => { const f = document.querySelector("#edu-image").files[0]; if (!f || !/jpeg/.test(f.type)) return false; const b = await createImageBitmap(f, { imageOrientation: "none" }); return b.width === 200; });
+
+    // 8. a file the browser cannot read (HEIC): plain file input, one clear sentence, the file is kept for the server
+    await page.goto(`${server.base}/admin/edu-items/new`);
+    await (await page.$("#edu-image")).uploadFile(heic);
+    await page.waitForFunction(() => !document.querySelector("[data-pending-note]").hidden);
+    assert.match(await page.$eval("[data-pending-note]", (e) => e.textContent), /cannot be edited here .*HEIC/);
+    assert.equal(await editorShown(), false);
+    assert.equal(await page.$eval("#edu-image", (i) => i.files.length), 1);
+
+    // 9. "Use this picture" coexists: the chosen photo wins over the Open Library one
+    const isbn = fresh13();
+    openLibrary.set(isbn, { title: "Both Pictures Book" });
+    covers.add(isbn);
+    await page.goto(`${server.base}/admin/edu-items/new`);
+    await page.type("#edu-barcode", isbn);
+    await page.click("[data-edu-lookup]");
+    await page.waitForSelector(".edu-lookup-picture button");
+    await page.click(".edu-lookup-picture button");
+    await (await page.$("#edu-image")).uploadFile(png);
+    await page.waitForFunction(() => document.querySelector("#edu-image").files.length === 1 && /jpeg/.test(document.querySelector("#edu-image").files[0].type));
+    await page.type("#edu-price", "4");
+    await Promise.all([page.waitForNavigation(), page.click("#edu-item-form button[type=submit]")]);
+    const both = (await pool.query("SELECT image_url FROM edu_items WHERE name = 'Both Pictures Book'")).rows[0];
+    const bothMeta = await sharp((await pool.query("SELECT data FROM images WHERE id = $1", [both.image_url.replace(/^\/img\//, "").replace(/\.[a-z]+$/, "")])).rows[0].data).metadata();
+    assert.deepEqual([bothMeta.width, bothMeta.height], [300, 200], "the admin's own photo, not the 120 x 160 Open Library one");
+
+    // 10. the saved item's Picture card still has its crop box (the box code is shared with the Add page)
+    await page.goto(`${server.base}/admin/edu-items/${(await pool.query("SELECT id FROM edu_items WHERE name = 'Both Pictures Book'")).rows[0].id}/edit`);
+    await page.click("[data-cover-crop-open]");
+    await page.keyboard.down("Shift");
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.up("Shift");
+    assert.match(await page.$eval("[data-cover-readout]", (e) => e.textContent), /Keeping 79% of the width and 80% of the height/);
+    await page.keyboard.press("Escape");
+    assert.equal(await page.$eval("[data-cover-crop]", (e) => e.hidden), true);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

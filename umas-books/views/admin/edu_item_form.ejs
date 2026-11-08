@@ -20,7 +20,7 @@
     <div class="edu-barcode-box" data-edu-barcode<%- item ? ` data-item-id="${item.id}"` : '' %><%- autoLookup ? ' data-auto-lookup' : '' %>>
       <label for="edu-barcode">Scan or type barcode (optional)</label>
       <div class="edu-barcode-row">
-        <input id="edu-barcode" name="barcode" type="text" inputmode="numeric" autocomplete="off" maxlength="30" value="<%= values.barcode %>" aria-describedby="edu-barcode-help" style="max-width:220px">
+        <input id="edu-barcode" name="barcode"<%= item ? '' : ' autofocus' %> type="text" inputmode="numeric" autocomplete="off" maxlength="30" value="<%= values.barcode %>" aria-describedby="edu-barcode-help" style="max-width:220px">
         <button class="btn btn-outline btn-small" type="button" data-edu-lookup hidden>Look up</button>
       </div>
       <p class="muted small" id="edu-barcode-help">The number under the barcode: 8, 12, 13 or 14 digits, or an ISBN (an old 10-digit ISBN is saved as its 13-digit form). With a scanner, scan it here: the name is looked up and filled in if the Name box is empty. Nothing is saved until you press <%= item ? 'Save' : 'Add item' %>. Only admins see the barcode.</p>
@@ -47,14 +47,15 @@
     <label for="edu-sort">Position on the page (smaller first)</label>
     <input id="edu-sort" name="sortOrder" type="text" inputmode="numeric" value="<%= values.sortOrder %>" style="max-width:100px">
     <% if (!item) { %>
-    <label for="edu-image">Picture (optional)</label>
-    <input id="edu-image" name="image" type="file" accept="image/jpeg,image/png,image/webp">
-    <p class="muted small">JPEG, PNG or WebP, up to 8 MB. It is turned upright and made smaller, like a book cover photo. After you add the item, you can turn, crop or remove the picture on its edit page.</p>
+    <%- include('../partials/pending_picture', { id: 'edu-image', name: 'image', label: 'Picture (optional)', noun: 'picture',
+      help: 'JPEG, PNG or WebP, up to 8 MB. On a phone you can take a photo or choose one from your library. Once you choose a picture you can turn it or crop it here, before you add the item; it is made smaller and saved when you press Add item. You can also change it later on the item\'s edit page.' }) %>
     <% } %>
     <label class="ann-check"><input type="checkbox" name="isHidden"<%= values.isHidden === 'on' ? ' checked' : '' %>> <span>Hidden (customers do not see it)</span></label>
     <p><button class="btn" type="submit"><%= item ? 'Save' : 'Add item' %></button> <a href="/admin/edu-items">Cancel</a></p>
   </form>
 </div>
 <script src="<%= assetUrl('/edu-item-form.js') %>"></script>
-<% if (item) { %><script src="<%= assetUrl('/cover-edit.js') %>"></script><% } %>
+<% if (item) { %><script src="<%= assetUrl('/crop-box.js') %>"></script>
+<script src="<%= assetUrl('/cover-edit.js') %>"></script><% } else { %><script src="<%= assetUrl('/crop-box.js') %>"></script>
+<script src="<%= assetUrl('/pending-picture.js') %>"></script><% } %>
 <%- include('../partials/admin_footer') %>
