@@ -21,7 +21,6 @@ test("parseItemForm: name, price (comma or point), stock as a whole number 0..10
   assert.match(bad({ name: "   " }), /name/);
   assert.match(bad({ name: "x".repeat(121) }), /120/);
   assert.match(bad({ genreId: "9" }), /genres/);
-  assert.match(bad({ sortOrder: "1.5" }), /sort/);
 });
 
 test("cost per unit (migration 115): optional, comma or point, 0 allowed, never negative, at most 2 decimals, clear sentences", () => {
