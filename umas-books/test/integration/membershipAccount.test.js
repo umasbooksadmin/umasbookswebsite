@@ -219,7 +219,7 @@ test("a logged-in account holder sees ONLY the payment form with their email, ne
 test("a current member sees their status (until <date> or no end date), not the form; in the last 30 days the form returns", async () => {
   const day = 86400000;
   const cases = [
-    { name: "far", expires: new Date(Date.now() + 200 * day), state: "member" },
+    { name: "far", expires: new Date(Math.floor((Date.now() + 200 * day) / day) * day + day / 2), state: "member" }, // midday UTC: the same calendar day in Paris whatever time the test runs
     { name: "noend", expires: null, state: "member" },
     { name: "soon", expires: new Date(Date.now() + 10 * day), state: "form" },
     { name: "lapsed", expires: new Date(Date.now() - 5 * day), state: "form", isMember: false },
