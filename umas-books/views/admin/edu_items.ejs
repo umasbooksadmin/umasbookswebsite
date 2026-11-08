@@ -6,7 +6,7 @@
   <form class="edu-find" method="get" action="/admin/edu-items" role="search" aria-label="Search items by name">
     <label for="edu-search-name">Search by name</label>
     <div class="edu-barcode-row">
-      <input id="edu-search-name" name="q" type="search" autocomplete="off" maxlength="100" value="<%= q %>" placeholder="Part of the name or genre" style="max-width:240px">
+      <input id="edu-search-name" name="q" type="search" autocomplete="off" maxlength="100" value="<%= q %>" placeholder="Part of the name or type (genre)" style="max-width:240px">
       <button class="btn btn-outline btn-small" type="submit">Search</button>
       <% if (q) { %><a class="btn btn-outline btn-small" href="/admin/edu-items">Show all</a><% } %>
     </div>

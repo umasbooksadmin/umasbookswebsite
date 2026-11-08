@@ -213,7 +213,7 @@ test("the till collects ORDER-<n>: 'educational' lines, Educational items in the
 test("admin: stock cannot go below what is held; an item on orders cannot be deleted; changes are audited", async () => {
   const item = await makeItem({ price: 4, stock: 5 });
   await reserve([eduLine(item, 3)]);
-  const form = { name: item.name, price: "4.00", stock: "2", genreId: String(item.genre_id), sortOrder: "0" };
+  const form = { name: item.name, price: "4.00", stock: "2", genre: "Worksheets", sortOrder: "0" };
   let res = await h.post(`/admin/edu-items/${item.id}`, form);
   assert.equal(res.status, 200);
   assert.match(await res.text(), /cannot be lower than 3/);

@@ -11,20 +11,21 @@ test("parseQty: a whole number from 1 to 10, anything else is null", () => {
   for (const raw of ["0", "11", "-1", "2.5", "1e1", "", null, undefined, "abc", "999"]) assert.equal(edu.parseQty(raw), null, String(raw));
 });
 
-test("parseItemForm: name, price (comma or point), stock as a whole number 0..100000, genre among the known ones", () => {
-  const ok = edu.parseItemForm({ name: "  Phonics   Cards ", price: "4,50", stock: "0", genreId: "2", sortOrder: "" }, [1, 2]);
-  assert.deepEqual(ok.values, { name: "Phonics Cards", price: 4.5, cost: null, stock: 0, genreId: 2, sortOrder: 0, isHidden: false });
-  assert.equal(edu.parseItemForm({ name: "A", price: "1", stock: "100000" }, []).values.stock, 100000);
-  const bad = (body) => edu.parseItemForm({ name: "A", price: "4", stock: "3", ...body }, [1]).error;
+test("parseItemForm: name, price (comma or point), stock as a whole number 0..100000, genre is free text (combo box)", () => {
+  const ok = edu.parseItemForm({ name: "  Phonics   Cards ", price: "4,50", stock: "0", genre: "  Work   sheets ", sortOrder: "" });
+  assert.deepEqual(ok.values, { name: "Phonics Cards", price: 4.5, cost: null, stock: 0, genreName: "Work sheets", sortOrder: 0, isHidden: false });
+  assert.equal(edu.parseItemForm({ name: "A", price: "1", stock: "100000" }).values.stock, 100000);
+  assert.equal(edu.parseItemForm({ name: "A", price: "1", stock: "1" }).values.genreName, "", "empty = no genre");
+  const bad = (body) => edu.parseItemForm({ name: "A", price: "4", stock: "3", ...body }).error;
   for (const stock of ["-1", "2.5", "", "100001", "1e3", "abc", " "]) assert.match(bad({ stock }), /number in stock/, `stock ${JSON.stringify(stock)}`);
   for (const price of ["0", "-2", "", "abc", "10000.01"]) assert.ok(bad({ price }), `price ${price}`);
   assert.match(bad({ name: "   " }), /name/);
   assert.match(bad({ name: "x".repeat(121) }), /120/);
-  assert.match(bad({ genreId: "9" }), /genres/);
+  assert.match(bad({ genre: "x".repeat(61) }), /limited to 60/);
 });
 
 test("cost per unit (migration 115): optional, comma or point, 0 allowed, never negative, at most 2 decimals, clear sentences", () => {
-  const form = (cost) => edu.parseItemForm({ name: "A", price: "4", stock: "3", cost }, []);
+  const form = (cost) => edu.parseItemForm({ name: "A", price: "4", stock: "3", cost });
   for (const blank of [undefined, "", "   "]) assert.equal(form(blank).values.cost, null, `blank ${JSON.stringify(blank)} = not known`);
   assert.equal(form("1,85").values.cost, 1.85);
   assert.equal(form(" 1.85 ").values.cost, 1.85);
