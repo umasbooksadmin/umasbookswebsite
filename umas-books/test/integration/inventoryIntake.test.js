@@ -47,7 +47,7 @@ test("parseIntakeInput: a plain form is read and normalised", () => {
   assert.equal(r.ok, true);
   const v = r.value;
   assert.equal(v.title, "The Title");
-  assert.equal(v.author, null);
+  assert.equal(v.author, "Unknown", "a blank author is saved as Unknown");
   assert.equal(v.isbn, "9780143127550");
   assert.equal(v.location, "Back room");
   assert.equal(v.source, null);
