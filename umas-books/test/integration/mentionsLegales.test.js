@@ -29,7 +29,7 @@ test("the legal notice page shows the publisher, director of publication and hos
   for (const fact of [
     "Uma’s Books",
     "association",
-    "5, rue Hippolyte Savary, 81000 Albi",
+    "9, rue de l'Hôtel de Ville, 81000 Albi",
     "109 441 147 00013", // SIRET
     "109 441 147", // SIREN
     "+33 6 07 41 70 60", // phone (LCEN art. 6: legal entities must give one)

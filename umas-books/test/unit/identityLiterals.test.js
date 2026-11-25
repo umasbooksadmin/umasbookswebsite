@@ -21,7 +21,7 @@ const FACTS = [
   ["the contact email", /admin@umasbooks\.org/],
   ["the SIREN / SIRET", /109 441 147/],
   ["the RNA number", /W811011706/],
-  ["the registered office street", /Hippolyte Savary/],
+  ["the registered office street", /Hôtel de Ville/],
 ];
 // file (relative to umas-books/) -> reason. Everything else under src/ and views/ must be free of the literals.
 const ALLOWED = {
@@ -56,8 +56,8 @@ test("the facts have their documented values, in legal.js, legalText and the fil
   assert.equal(legal.SIREN, "109 441 147");
   assert.equal(legal.SIRET, "109 441 147 00013");
   assert.equal(legal.RNA, "W811011706");
-  assert.equal(legal.REGISTERED_OFFICE, "5 rue Hippolyte Savary, 81000 Albi");
-  assert.equal(legal.REGISTERED_OFFICE_FORMAL, "5, rue Hippolyte Savary, 81000 Albi, France");
+  assert.equal(legal.REGISTERED_OFFICE, "9 rue de l'Hôtel de Ville, 81000 Albi");
+  assert.equal(legal.REGISTERED_OFFICE_FORMAL, "9, rue de l'Hôtel de Ville, 81000 Albi, France");
   assert.ok(legal.SIRET.startsWith(legal.SIREN), "a SIRET is the SIREN plus a 5-digit establishment number");
   for (const lang of ["en", "fr"]) {
     const lt = legalFor(lang);

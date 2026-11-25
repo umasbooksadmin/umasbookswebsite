@@ -37,12 +37,12 @@ window.UMAS_POSTS = [
       en: [
         "Uma’s Books & Adventures is a non-profit bookshop built entirely on books that already had one home before finding their way to our shelves.",
         "Run by volunteers, the shop exists for one simple reason: to keep good English-language books affordable, in circulation, and easy to find — however far from home you happen to be.",
-        "As much as a bookshop, it is a meeting point, where anglophones and francophones cross paths over a shared shelf and swap more than books: languages, recommendations, and a little bit of home. Come and say hello on Rue Peyrolière."
+        "As much as a bookshop, it is a meeting point, where anglophones and francophones cross paths over a shared shelf and swap more than books: languages, recommendations, and a little bit of home. Come and say hello at 9 rue de l’Hôtel de Ville."
       ],
       fr: [
         "Uma’s Books & Adventures est une librairie à but non lucratif entièrement constituée de livres qui ont déjà connu un premier foyer avant d’arriver sur nos étagères.",
         "Tenue par des bénévoles, la boutique existe pour une raison simple : garder les bons livres en anglais abordables, en circulation et faciles à trouver, aussi loin de chez soi que l’on soit.",
-        "Autant qu’une librairie, c’est un lieu de rencontre où anglophones et francophones se croisent autour d’une étagère commune et échangent bien plus que des livres : des langues, des conseils de lecture et un peu de chez-soi. Venez nous dire bonjour rue Peyrolière."
+        "Autant qu’une librairie, c’est un lieu de rencontre où anglophones et francophones se croisent autour d’une étagère commune et échangent bien plus que des livres : des langues, des conseils de lecture et un peu de chez-soi. Venez nous dire bonjour au 9 rue de l’Hôtel de Ville."
       ]
     }
   },

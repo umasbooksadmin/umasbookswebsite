@@ -182,7 +182,7 @@ function legalFor(lang) {
 }
 
 // Fills the placeholders in a page dictionary: {vat} (VAT_NOTICE_ARTICLE),
-// {shopStreet} ("Rue Peyrolière" or "12 rue Peyrolière"), {shopStreetInline}
+// {shopStreet} (the shop street, with its number), {shopStreetInline}
 // (the same, "rue" lowercase in the middle of a French sentence), {shopHours}
 // (SHOP_HOURS_EN / SHOP_HOURS_FR), {shopDays} / {shopDaysShort} (SHOP_DAYS_*), {shopHoursShort} / {shopHoursFirm} (the two "extra openings" texts) and {membershipPrice} (MEMBERSHIP_PRICE_EUR,
 // "" when not set), the identity facts {contactEmail}, {siren}, {siret}, {rna}, {registeredOffice} (plain) and

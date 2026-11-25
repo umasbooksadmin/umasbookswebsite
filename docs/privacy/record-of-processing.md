@@ -4,7 +4,7 @@
 
 **Controller / Responsable de traitement:** Uma's Books, association loi 1901
 - RNA W811011706, SIRET 109 441 147 00013
-- Siège: 5 rue Hippolyte Savary, 81000 Albi
+- Siège: 9 rue de l'Hôtel de Ville, 81000 Albi
 - Contact: admin@umasbooks.org
 - Represented by: the President
 - Data protection officer (DPO): **no DPO required.** GDPR art. 37 only requires one for public bodies, large-scale regular monitoring of people, or large-scale processing of sensitive data; none of these applies (a small association; no tracking; no health data is collected, and the forms tell people not to send any).

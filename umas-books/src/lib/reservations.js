@@ -1,5 +1,5 @@
 // Reservations: books and drop-in seats are RESERVED online and PAID IN PERSON
-// at the shop (Rue Peyrolière) or at the class session. Nothing is paid online.
+// at the shop (the shop) or at the class session. Nothing is paid online.
 //
 // Two kinds of reservation share book_copies.status = 'reserved':
 //
@@ -131,8 +131,8 @@ async function sendPickupReminders(pool) {
         to: copy.reserved_by_email,
         subject: tr(`Reminder: your copy of "${copy.title}" is waiting for pickup`, `Rappel : votre exemplaire de « ${copy.title} » vous attend`),
         text: tr(
-          `${greeting}\n\nJust a reminder that we're holding your reserved copy of "${copy.title}" at Uma's Books. Reservations are held for ${RESERVATION_DAYS / 7} weeks from when you reserved — please come by within the next 3 days to pick it up and pay in the shop, or it will go back on the shelf.\n\n${noReturnsShortPlain("en", configuredBaseUrl())}\n\nUma's Books\nRue Peyrolière, 81000 Albi`,
-          `${greeting}\n\nPetit rappel : nous gardons votre exemplaire réservé de « ${copy.title} » à Uma's Books. Les réservations sont conservées ${RESERVATION_DAYS / 7} semaines à partir de la réservation. Merci de passer d’ici 3 jours pour le récupérer et le régler en boutique, faute de quoi il retournera en rayon.\n\n${noReturnsShortPlain("fr", configuredBaseUrl())}\n\nUma's Books\nRue Peyrolière, 81000 Albi`
+          `${greeting}\n\nJust a reminder that we're holding your reserved copy of "${copy.title}" at Uma's Books. Reservations are held for ${RESERVATION_DAYS / 7} weeks from when you reserved — please come by within the next 3 days to pick it up and pay in the shop, or it will go back on the shelf.\n\n${noReturnsShortPlain("en", configuredBaseUrl())}\n\nUma's Books\n${legal.shopStreet("en")}, 81000 Albi`,
+          `${greeting}\n\nPetit rappel : nous gardons votre exemplaire réservé de « ${copy.title} » à Uma's Books. Les réservations sont conservées ${RESERVATION_DAYS / 7} semaines à partir de la réservation. Merci de passer d’ici 3 jours pour le récupérer et le régler en boutique, faute de quoi il retournera en rayon.\n\n${noReturnsShortPlain("fr", configuredBaseUrl())}\n\nUma's Books\n${legal.shopStreet("en")}, 81000 Albi`
         ),
       });
     } catch (err) {

@@ -161,7 +161,7 @@ test("the home page carries Bookstore JSON-LD built from facts on the site; othe
   assert.equal(data.url, `${SITE}/`);
   assert.equal(data.address.addressLocality, "Albi");
   assert.equal(data.address.postalCode, "81000");
-  assert.equal(data.address.streetAddress, "Rue Peyrolière");
+  assert.equal(data.address.streetAddress, "9 rue de l'Hôtel de Ville");
   assert.doesNotMatch(await (await get("/about.html")).text(), /application\/ld\+json/);
 });
 
