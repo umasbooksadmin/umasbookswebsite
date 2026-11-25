@@ -94,7 +94,7 @@ async function snapshot(dir, { base: givenBase, wide = false } = {}) {
 }
 
 // The identity facts, as a pattern. Written out here on purpose: this file is the reference the facts are checked against.
-const FACTS = /admin@umasbooks\.org|109 441 147(?: 00013)?|W811011706|5,? rue Hippolyte Savary[^<"\\]{0,30}/g;
+const FACTS = /admin@umasbooks\.org|109 441 147(?: 00013)?|W811011706|[59],? rue (?:Hippolyte Savary|de l(?:'|&#39;|’)Hôtel de Ville)[^<"\\]{0,30}/g;
 
 // For every snapshot file, each fact with 60 characters of context either side (pages are big; the facts are what
 // the refactor could have broken). { file: [snippet, ...] }, files without a fact left out.

@@ -90,8 +90,8 @@ const ALLOWLIST = [
   /^(Le |La |Les |Toute |Si |Lorsque ).*(consommat|garantie|bien\b)/,
   /^https?:\/\/$/, // a URL field placeholder
   "Language / Langue", // the toggle's label is bilingual on purpose
-  /Rue Peyroli[eè]re/i, // the shop address
-  /Hippolyte Savary/i, // the association's registered office
+  /Rue de l.H[ôo]tel de Ville/i, // the shop address
+  /Hôtel de Ville/i, // the association's registered office
 ];
 
 function isAllowed(text, allowlist) {

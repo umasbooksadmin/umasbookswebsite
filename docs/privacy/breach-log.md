@@ -52,7 +52,7 @@ Example row, for illustration (not a real incident):
 ### 5. Notify the CNIL (within 72 hours)
 
 - Go to **cnil.fr** and search for "notifier une violation de données personnelles" (the online form, "Notifier une violation de données personnelles"). Fill in what you know now. The form lets you send complementary information later, so do not wait for a full picture.
-- Have ready: the association's details (name, RNA W811011706, SIRET 109 441 147 00013, 5 rue Hippolyte Savary, 81000 Albi, admin@umasbooks.org), the date and nature of the breach, the kinds of data, the approximate number of people, the likely consequences, and what you have done.
+- Have ready: the association's details (name, RNA W811011706, SIRET 109 441 147 00013, 9 rue de l'Hôtel de Ville, 81000 Albi, admin@umasbooks.org), the date and nature of the breach, the kinds of data, the approximate number of people, the likely consequences, and what you have done.
 - Keep the confirmation the CNIL sends (reference number) and write it in the register.
 
 ### 6. Inform people if required

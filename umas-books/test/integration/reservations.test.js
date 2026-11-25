@@ -118,7 +118,7 @@ test("the confirmation e-mail goes through the outbox, in English and in French"
     const body = mail[0].text;
     assert.match(body, new RegExp(`${order.id}`), "order number");
     assert.match(body, /Mail Book/, "the item");
-    assert.match(body, /[Rr]ue Peyrolière/);
+    assert.match(body, /9 rue de l'H[ôo]tel de Ville/);
     assert.match(body, /CM2C/, "mediator");
     assert.match(body, /TVA non applicable/);
     assert.match(body, /\/account/, "how to cancel: the account page link");
@@ -138,7 +138,7 @@ test("the confirmation e-mail goes through the outbox, in English and in French"
       assert.match(body, /Rien n’a été payé en ligne/);
       assert.match(body, /7,25\s€/);
       assert.match(body, /À RÉGLER À LA BOUTIQUE/);
-      assert.match(body, /jusqu’à la fin de la journée du \d{1,2} \w+ 20\d\d \(heure de Paris\)/);
+      assert.match(body, /jusqu’à la fin de la journée du \d{1,2} [\wéûô]+ 20\d\d \(heure de Paris\)/);
       assert.match(body, /Réserver est gratuit et ne vous engage à rien/);
       assert.doesNotMatch(body, /rétractation/i, "no withdrawal notice or form");
       assert.match(body, /garantie légale de conformité/);

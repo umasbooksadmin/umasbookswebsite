@@ -83,7 +83,7 @@ The allow-list (`test/i18n-allowlist.js`), with reasons:
 | Text | Reason |
 |------|--------|
 | Uma's Books and Adventures (all spellings), "and Adventures" on the dashboard | the brand name, kept exactly |
-| UMAS BOOKS, RNA, SIRET, SIREN, Hippolyte Savary, Rue Peyrolière, Albi | legal entity, identifiers and addresses |
+| UMAS BOOKS, RNA, SIRET, SIREN, rue de l'Hôtel de Ville, Albi | legal entity, identifiers and addresses |
 | HelloAsso, Instagram, Facebook, Google, Render, Cloudflare, Backblaze, GitHub, Anthropic, CM2C | company and service names in the privacy policy and legal notice |
 | Little Explorers, Éveil English, Young Adventurers, Young Readers, Teen Literature, English Café, Éveil | program names, English (or French) on purpose |
 | `umasbooks_lang` | the literal name of the language cookie in the legal notice |
