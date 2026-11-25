@@ -169,6 +169,9 @@ function legalFor(lang) {
     registeredOffice: legal.REGISTERED_OFFICE,
     registeredOfficeFormal: legal.REGISTERED_OFFICE_FORMAL,
     shopHours: legal.shopHours(l),
+    shopHoursWeek: legal.shopHoursWeek(l),
+    shopHoursSat: legal.shopHoursSat(l),
+    shopSatShort: legal.shopSatShort(l),
     shopDays: legal.shopDays(l),
     shopDaysShort: legal.shopDaysShort(l),
     shopHoursShort: legal.shopHoursShort(l, true),
@@ -176,6 +179,7 @@ function legalFor(lang) {
     shopOpenDays: legal.SHOP_OPEN_DAYS,
     shopOpens: legal.SHOP_OPENS,
     shopCloses: legal.SHOP_CLOSES,
+    shopSatPeriods: legal.SHOP_SAT_PERIODS,
     membershipPrice: legal.membershipPrice(l),
     forItems: (kind) => forItems(l, kind), // views: legalText.forItems(kind).nothingPaidOnline ... (kind from itemsKind)
   };
@@ -198,7 +202,7 @@ function fillVat(dict, lang = "en") {
     "{contactEmail}": legal.CONTACT_EMAIL, "{siren}": legal.SIREN, "{siret}": legal.SIRET, "{rna}": legal.RNA,
     "{registeredOfficeFormal}": legal.REGISTERED_OFFICE_FORMAL, "{registeredOffice}": legal.REGISTERED_OFFICE,
     "{shopStreetInline}": legal.shopStreet(l, false), "{shopStreet}": legal.shopStreet(l),
-    "{shopHours}": legal.shopHours(l), "{shopDaysShort}": legal.shopDaysShort(l), "{shopDays}": legal.shopDays(l),
+    "{shopHours}": legal.shopHours(l), "{shopHoursWeek}": legal.shopHoursWeek(l), "{shopHoursSat}": legal.shopHoursSat(l), "{shopSatShort}": legal.shopSatShort(l), "{shopDaysShort}": legal.shopDaysShort(l), "{shopDays}": legal.shopDays(l),
     "{shopHoursShort}": legal.shopHoursShort(l, true), "{shopHoursFirm}": legal.shopHoursFirm(l), "{membershipPrice}": legal.membershipPrice(l),
   };
   const out = {};

@@ -1073,7 +1073,7 @@ a day. Only the book's ISBN is sent out; no member or customer data.
 
 **How it works.** A customer reserves books (and drop-in seats) on the website,
 with an account or as a **guest** (no account: name, email, optional phone). **Nothing is paid online.** The customer comes to the shop
-(9 rue de l'Hôtel de Ville, Wednesday to Saturday, 14:00 to 19:00), and you take the payment
+(9 rue de l'Hôtel de Ville, Wednesday to Friday 14:00 to 19:00 and Saturday 9:00 to 12:00 and 14:00 to 19:00), and you take the payment
 yourself (cash, card machine or cheque). Then you record it on the website, so
 the books count as sold and the sale appears in the reports. For a drop-in seat
 the customer pays at the session. **Only the membership is still paid online
@@ -1443,7 +1443,7 @@ Once the accountant answers:
 shows `SOCIAL_LINKS.facebook` (the share link, without the `?mibextid=...` tracking
 part; an empty value hides the icon). Use the clean address, without the `?...` tracking part.
 
-**The shop opening hours.** Wednesday to Saturday, 14:00 to 19:00, set in ONE
+**The shop opening hours.** Wednesday to Friday 14:00 to 19:00 and Saturday 9:00 to 12:00 and 14:00 to 19:00, set in ONE
 place: the `SHOP_*` constants in `umas-books/src/lib/legal.js`. Every page,
 email, reminder, the terms of sale and the structured data for search engines
 read them. The shop may also open at other times when volunteers are available,

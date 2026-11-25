@@ -183,7 +183,7 @@ sale, the reservation email and `NO_RETURNS` to be changed together, and bump
 
 ## Opening hours (decided 2026-10-07)
 
-- [x] The shop is open **Wednesday to Saturday, 14:00 to 19:00**, set only in
+- [x] The shop is open **Wednesday to Friday 14:00 to 19:00, and Saturday 9:00 to 12:00 and 14:00 to 19:00**, set only in
   `umas-books/src/lib/legal.js` (`SHOP_*`); `TERMS_OF_SALE_VERSION` was bumped
   to 2026-10-09.
 - Extra openings are not promised. The shop may open at other times when

@@ -659,7 +659,7 @@ s.test("G39 (must) each legal page opens with full text and the seller identity"
   has(tos, /Nothing is paid online, and reserving does not oblige you to buy\./);
   has(tos, /Only membership is: it is paid online through HelloAsso/);
   hasNot(tos, /obligation to pay|pay online by card|one hour/i);
-  has(tos, /Wednesday to Saturday, 14:00–19:00/);
+  has(tos, /Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19:00/);
   hasNot(tos, /waive|renounce/i);
   await ctx.goto("/mentions-legales.html");
   const ml = await ctx.text();

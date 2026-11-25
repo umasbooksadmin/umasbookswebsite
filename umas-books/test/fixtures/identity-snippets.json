@@ -7,16 +7,16 @@
   "ff.</p> <a class=\"btn btn-outline\" href=\"mailto:admin@umasbooks.org?subject=Book%20Donation\" data-i18n=\"about.donate.cta\">Get i"
  ],
  "page-en-visit-html.txt": [
-  "ription\" content=\"Visit Uma&#39;s Books &amp; Adventures at 9 rue de l&#39;Hôtel de Ville, 81000 Albi. Open Wednesday to Saturday, 14:00–19:00.\" data-i18n-attr=\"content:meta.descr",
-  "ription\" content=\"Visit Uma&#39;s Books &amp; Adventures at 9 rue de l&#39;Hôtel de Ville, 81000 Albi. Open Wednesday to Saturday, 14:00–19:00.\" data-i18n-attr=\"content:meta.descr",
-  "ription\" content=\"Visit Uma&#39;s Books &amp; Adventures at 9 rue de l&#39;Hôtel de Ville, 81000 Albi. Open Wednesday to Saturday, 14:00–19:00.\" data-i18n-attr=\"content:meta.descr",
+  "ription\" content=\"Visit Uma&#39;s Books &amp; Adventures at 9 rue de l&#39;Hôtel de Ville, 81000 Albi. Open Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19",
+  "ription\" content=\"Visit Uma&#39;s Books &amp; Adventures at 9 rue de l&#39;Hôtel de Ville, 81000 Albi. Open Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19",
+  "ription\" content=\"Visit Uma&#39;s Books &amp; Adventures at 9 rue de l&#39;Hôtel de Ville, 81000 Albi. Open Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19",
   "an> <span class=\"value\" data-i18n=\"visit.where.v\">9 rue de l&#39;Hôtel de Ville, 81000 Albi</span> </div> <div class=\"visit-item\"> ",
   "e\"> <span style=\"display:block\"><a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a></span> <span style=\"di",
   " style=\"display:block\"><a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a></span> <span style=\"display:block\"><a href=",
-  "ures\",\"meta.description\":\"Visit Uma's Books & Adventures at 9 rue de l'Hôtel de Ville, 81000 Albi. Open Wednesday to Saturday, 14:00–19:00.\",\"visit.kicker\":\"Chapter Four\",\"vis",
-  ".title\":\"Visit Us\",\"visit.where.l\":\"Where\",\"visit.where.v\":\"9 rue de l'Hôtel de Ville, 81000 Albi\",\"visit.hours.l\":\"Hours\",\"visit.hours.days\":\"Wed – Sat\",\"vi",
-  "ta.description\":\"Rendez-vous chez Uma’s Books & Adventures, 9 rue de l'Hôtel de Ville, 81000 Albi. Ouvert du mercredi au samedi, 14 h–19 h.\",\"visit.kicker\":\"Chapitre quatre\",\"",
-  ":\"Nous rendre visite\",\"visit.where.l\":\"Où\",\"visit.where.v\":\"9 rue de l'Hôtel de Ville, 81000 Albi\",\"visit.hours.l\":\"Horaires\",\"visit.hours.days\":\"Mer – Sam\","
+  "ures\",\"meta.description\":\"Visit Uma's Books & Adventures at 9 rue de l'Hôtel de Ville, 81000 Albi. Open Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19",
+  ".title\":\"Visit Us\",\"visit.where.l\":\"Where\",\"visit.where.v\":\"9 rue de l'Hôtel de Ville, 81000 Albi\",\"visit.hours.l\":\"Hours\",\"visit.hours.days\":\"Wed – Fri\",\"vi",
+  "ta.description\":\"Rendez-vous chez Uma’s Books & Adventures, 9 rue de l'Hôtel de Ville, 81000 Albi. Ouvert du mercredi au vendredi, 14 h–19 h, et le samedi, 9 h–12 h et 14 h–19",
+  ":\"Nous rendre visite\",\"visit.where.l\":\"Où\",\"visit.where.v\":\"9 rue de l'Hôtel de Ville, 81000 Albi\",\"visit.hours.l\":\"Horaires\",\"visit.hours.days\":\"Mer – Ven\","
  ],
  "page-en-events-html.txt": [
   " to hear your idea.</p> <a class=\"h-btn\" href=\"mailto:admin@umasbooks.org?subject=Event%20idea\"><span data-i18n=\"ev.about.cta\">Sugges"
@@ -152,16 +152,16 @@
   "ôt.</p> <a class=\"btn btn-outline\" href=\"mailto:admin@umasbooks.org?subject=Book%20Donation\" data-i18n=\"about.donate.cta\">Nous "
  ],
  "page-fr-visit-html.txt": [
-  "on\" content=\"Rendez-vous chez Uma’s Books &amp; Adventures, 9 rue de l'Hôtel de Ville, 81000 Albi. Ouvert du mercredi au samedi, 14 h–19 h.\" data-i18n-attr=\"content:meta.descr",
-  "on\" content=\"Rendez-vous chez Uma’s Books &amp; Adventures, 9 rue de l'Hôtel de Ville, 81000 Albi. Ouvert du mercredi au samedi, 14 h–19 h.\" data-i18n-attr=\"content:meta.descr",
-  "on\" content=\"Rendez-vous chez Uma’s Books &amp; Adventures, 9 rue de l'Hôtel de Ville, 81000 Albi. Ouvert du mercredi au samedi, 14 h–19 h.\" data-i18n-attr=\"content:meta.descr",
+  "on\" content=\"Rendez-vous chez Uma’s Books &amp; Adventures, 9 rue de l'Hôtel de Ville, 81000 Albi. Ouvert du mercredi au vendredi, 14 h–19 h, et le samedi, 9 h–12 h et 14 h–19",
+  "on\" content=\"Rendez-vous chez Uma’s Books &amp; Adventures, 9 rue de l'Hôtel de Ville, 81000 Albi. Ouvert du mercredi au vendredi, 14 h–19 h, et le samedi, 9 h–12 h et 14 h–19",
+  "on\" content=\"Rendez-vous chez Uma’s Books &amp; Adventures, 9 rue de l'Hôtel de Ville, 81000 Albi. Ouvert du mercredi au vendredi, 14 h–19 h, et le samedi, 9 h–12 h et 14 h–19",
   "an> <span class=\"value\" data-i18n=\"visit.where.v\">9 rue de l’Hôtel de Ville, 81000 Albi</span> </div> <div class=\"visit-item\"> ",
   "e\"> <span style=\"display:block\"><a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a></span> <span style=\"di",
   " style=\"display:block\"><a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a></span> <span style=\"display:block\"><a href=",
-  "ures\",\"meta.description\":\"Visit Uma's Books & Adventures at 9 rue de l'Hôtel de Ville, 81000 Albi. Open Wednesday to Saturday, 14:00–19:00.\",\"visit.kicker\":\"Chapter Four\",\"vis",
-  ".title\":\"Visit Us\",\"visit.where.l\":\"Where\",\"visit.where.v\":\"9 rue de l'Hôtel de Ville, 81000 Albi\",\"visit.hours.l\":\"Hours\",\"visit.hours.days\":\"Wed – Sat\",\"vi",
-  "ta.description\":\"Rendez-vous chez Uma’s Books & Adventures, 9 rue de l'Hôtel de Ville, 81000 Albi. Ouvert du mercredi au samedi, 14 h–19 h.\",\"visit.kicker\":\"Chapitre quatre\",\"",
-  ":\"Nous rendre visite\",\"visit.where.l\":\"Où\",\"visit.where.v\":\"9 rue de l'Hôtel de Ville, 81000 Albi\",\"visit.hours.l\":\"Horaires\",\"visit.hours.days\":\"Mer – Sam\","
+  "ures\",\"meta.description\":\"Visit Uma's Books & Adventures at 9 rue de l'Hôtel de Ville, 81000 Albi. Open Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19",
+  ".title\":\"Visit Us\",\"visit.where.l\":\"Where\",\"visit.where.v\":\"9 rue de l'Hôtel de Ville, 81000 Albi\",\"visit.hours.l\":\"Hours\",\"visit.hours.days\":\"Wed – Fri\",\"vi",
+  "ta.description\":\"Rendez-vous chez Uma’s Books & Adventures, 9 rue de l'Hôtel de Ville, 81000 Albi. Ouvert du mercredi au vendredi, 14 h–19 h, et le samedi, 9 h–12 h et 14 h–19",
+  ":\"Nous rendre visite\",\"visit.where.l\":\"Où\",\"visit.where.v\":\"9 rue de l'Hôtel de Ville, 81000 Albi\",\"visit.hours.l\":\"Horaires\",\"visit.hours.days\":\"Mer – Ven\","
  ],
  "page-fr-events-html.txt": [
   "nnaître votre idée.</p> <a class=\"h-btn\" href=\"mailto:admin@umasbooks.org?subject=Event%20idea\"><span data-i18n=\"ev.about.cta\">Propos"
@@ -310,7 +310,7 @@
   "lbi — admin@umasbooks.org. Réglez et retirez à la boutique (9 rue de l&#39;Hôtel de Ville) en indiquant ce numéro de réservation. Venez retirer vos livres pendant nos horaires hab"
  ],
  "email-en-confirmation.txt": [
-  "(Paris time). After that they go back on sale. Uma's Books, 9 rue de l'Hôtel de Ville, 81000 Albi. Collect your books during our regular hours, Wednesday to Saturday, 14:00–19",
+  "(Paris time). After that they go back on sale. Uma's Books, 9 rue de l'Hôtel de Ville, 81000 Albi. Collect your books during our regular hours, Wednesday to Friday, 14:00–19:0",
   "no commercial guarantee beyond these. Complaints: write to admin@umasbooks.org. If we cannot settle it, you may use our free consumer medi",
   "commerciale en plus de celles-ci. Réclamations : écrivez à admin@umasbooks.org. À défaut de règlement amiable, vous pouvez recourir gratui",
   "arer-un-litige.php Uma's Books — association loi 1901, RNA W811011706, SIRET 109 441 147 00013, 9 rue de l'Hôtel de Ville, 81000 ",
@@ -319,15 +319,15 @@
   "tel de Ville, 81000 Albi Tél. / Phone : +33 6 07 41 70 60 — admin@umasbooks.org TVA non applicable"
  ],
  "email-en-reminder.txt": [
-  "2026 (Paris time). Come by to pay and collect: Uma's Books, 9 rue de l'Hôtel de Ville, 81000 Albi. Collect your books during our regular hours, Wednesday to Saturday, 14:00–19",
+  "2026 (Paris time). Come by to pay and collect: Uma's Books, 9 rue de l'Hôtel de Ville, 81000 Albi. Collect your books during our regular hours, Wednesday to Friday, 14:00–19:0",
   "om your account page. If you need more time, write to us at admin@umasbooks.org. Second-hand books are not taken back or refunded for a ch"
  ],
  "email-en-pickup.txt": [
-  "4 days of payment, that is by 20 March 2026. The shop is at 9 rue de l'Hôtel de Ville, 81000 Albi. Collect your books during our regular hours, Wednesday to Saturday, 14:00–19",
+  "4 days of payment, that is by 20 March 2026. The shop is at 9 rue de l'Hôtel de Ville, 81000 Albi. Collect your books during our regular hours, Wednesday to Friday, 14:00–19:0",
   "irmation email. If you need more time, just write to us at admin@umasbooks.org. Uma's Books"
  ],
  "email-fr-confirmation.txt": [
-  "ris). Passé ce délai, ils sont remis en vente. Uma's Books, 9 rue de l'Hôtel de Ville, 81000 Albi. Venez retirer vos livres pendant nos horaires habituels, du mercredi au same",
+  "ris). Passé ce délai, ils sont remis en vente. Uma's Books, 9 rue de l'Hôtel de Ville, 81000 Albi. Venez retirer vos livres pendant nos horaires habituels, du mercredi au vend",
   "commerciale en plus de celles-ci. Réclamations : écrivez à admin@umasbooks.org. À défaut de règlement amiable, vous pouvez recourir gratui",
   "arer-un-litige.php Uma's Books — association loi 1901, RNA W811011706, SIRET 109 441 147 00013, 9 rue de l'Hôtel de Ville, 81000 ",
   " Uma's Books — association loi 1901, RNA W811011706, SIRET 109 441 147 00013, 9 rue de l'Hôtel de Ville, 81000 Albi Tél. : +33 6 07 41 7",
@@ -335,11 +335,11 @@
   " de l'Hôtel de Ville, 81000 Albi Tél. : +33 6 07 41 70 60 — admin@umasbooks.org TVA non applicable"
  ],
  "email-fr-reminder.txt": [
-  "re de Paris). Passez la régler et la retirer : Uma's Books, 9 rue de l'Hôtel de Ville, 81000 Albi. Venez retirer vos livres pendant nos horaires habituels, du mercredi au same",
+  "re de Paris). Passez la régler et la retirer : Uma's Books, 9 rue de l'Hôtel de Ville, 81000 Albi. Venez retirer vos livres pendant nos horaires habituels, du mercredi au vend",
   "ompte. Si vous avez besoin de plus de temps, écrivez-nous à admin@umasbooks.org. Les livres d’occasion ne sont ni repris ni remboursés pou"
  ],
  "email-fr-pickup.txt": [
-  "aiement, soit avant le 20 mars 2026. La boutique est située 9 rue de l'Hôtel de Ville, 81000 Albi. Venez retirer vos livres pendant nos horaires habituels, du mercredi au same",
+  "aiement, soit avant le 20 mars 2026. La boutique est située 9 rue de l'Hôtel de Ville, 81000 Albi. Venez retirer vos livres pendant nos horaires habituels, du mercredi au vend",
   "ous avez besoin de plus de temps, écrivez-nous simplement à admin@umasbooks.org. Uma's Books"
  ],
  "email-sellerLines.txt": [

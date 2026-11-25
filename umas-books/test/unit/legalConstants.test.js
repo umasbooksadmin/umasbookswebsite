@@ -38,22 +38,29 @@ test("the street: '9 rue de l'Hôtel de Ville' everywhere, and without a number 
   withConstants({ SHOP_STREET_NUMBER: "  " }, () => assert.equal(legal.shopStreet("en"), "Rue de l'Hôtel de Ville", "blank counts as empty"));
 });
 
-test("the opening hours come from ONE constant: Wednesday to Saturday, 14:00–19:00 (14 h–19 h, no-break spaces, in French)", () => {
+test("the opening hours come from ONE constant: Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19:00 (14 h–19 h, no-break spaces, in French)", () => {
   assert.equal(legal.SHOP_HOURS_EN, "14:00–19:00");
   assert.equal(legal.SHOP_HOURS_FR, `14${NB}h–19${NB}h`);
-  assert.equal(legal.shopHours("en"), legal.SHOP_HOURS_EN);
-  assert.equal(legal.shopHours("fr"), legal.SHOP_HOURS_FR);
-  assert.equal(legal.shopDays("en"), "Wednesday to Saturday");
-  assert.equal(legal.shopDays("fr"), "du mercredi au samedi");
-  assert.equal(legal.shopDaysShort("en"), "Wed – Sat");
-  assert.equal(legal.shopDaysShort("fr"), "Mer – Sam");
-  assert.equal(legalText.fillVat({ h: "{shopHours}" }, "fr").h, `14${NB}h–19${NB}h`);
-  assert.equal(legalText.fillVat({ h: "{shopHours}" }).h, "14:00–19:00");
-  assert.equal(legalText.fillVat({ h: "{shopDays}" }, "fr").h, "du mercredi au samedi");
+  assert.equal(legal.shopHoursWeek("en"), legal.SHOP_HOURS_EN);
+  assert.equal(legal.shopHoursWeek("fr"), legal.SHOP_HOURS_FR);
+  assert.equal(legal.shopHoursSat("en"), "9:00–12:00 and 14:00–19:00");
+  assert.equal(legal.shopHoursSat("fr"), `9${NB}h–12${NB}h et 14${NB}h–19${NB}h`);
+  assert.equal(legal.shopHours("en"), "14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19:00");
+  assert.equal(legal.shopHours("fr"), `14${NB}h–19${NB}h, et le samedi, 9${NB}h–12${NB}h et 14${NB}h–19${NB}h`);
+  assert.equal(legal.shopDays("en"), "Wednesday to Friday");
+  assert.equal(legal.shopDays("fr"), "du mercredi au vendredi");
+  assert.equal(legal.shopDaysShort("en"), "Wed – Fri");
+  assert.equal(legal.shopDaysShort("fr"), "Mer – Ven");
+  assert.equal(legalText.fillVat({ h: "{shopHoursWeek}" }, "fr").h, `14${NB}h–19${NB}h`);
+  assert.equal(legalText.fillVat({ h: "{shopHoursWeek}" }).h, "14:00–19:00");
+  assert.equal(legalText.fillVat({ h: "{shopHoursSat}" }).h, "9:00–12:00 and 14:00–19:00");
+  assert.equal(legalText.fillVat({ h: "{shopSatShort}" }, "fr").h, "Sam");
+  assert.equal(legalText.fillVat({ h: "{shopDays}" }, "fr").h, "du mercredi au vendredi");
   assert.match(legalText.PICKUP.fr, new RegExp(`de 14${NB}h à 19${NB}h`));
   assert.match(legalText.PICKUP.en, /14:00–19:00/);
   // Machine format for structured data.
-  assert.deepEqual(legal.SHOP_OPEN_DAYS, ["Wednesday", "Thursday", "Friday", "Saturday"]);
+  assert.deepEqual(legal.SHOP_OPEN_DAYS, ["Wednesday", "Thursday", "Friday"]);
+  assert.deepEqual(legal.SHOP_SAT_PERIODS, [["09:00", "12:00"], ["14:00", "19:00"]]);
   assert.equal(legal.SHOP_OPENS, "14:00");
   assert.equal(legal.SHOP_CLOSES, "19:00");
 });
@@ -63,15 +70,15 @@ test("the two opening-hours texts (SHORT and FIRM), in English and French", () =
   assert.equal(legal.SHOP_EXTRA_HOURS_NOTE_URL, IG);
   assert.equal(legal.SOCIAL_LINKS.instagram, IG, "the same clean address, no tracking query string");
   assert.equal(legal.SOCIAL_LINKS.facebook, "https://www.facebook.com/share/1CgAM7gwey/", "the clean share link, no ?mibextid tracking part");
-  assert.equal(legal.shopHoursShort("en"), "Open Wednesday to Saturday, 14:00–19:00. Extra opening hours when volunteers are available: see our Instagram.");
-  assert.equal(legal.shopHoursShort("fr"), `Ouvert du mercredi au samedi, de 14${NB}h à 19${NB}h. Ouvertures supplémentaires selon la disponibilité des bénévoles${NB}: voir notre Instagram.`);
-  assert.equal(legal.shopHoursShort("en", true), `Open Wednesday to Saturday, 14:00–19:00. Extra opening hours when volunteers are available: see our <a href="${IG}" target="_blank" rel="noopener noreferrer">Instagram</a>.`);
+  assert.equal(legal.shopHoursShort("en"), "Open Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19:00. Extra opening hours when volunteers are available: see our Instagram.");
+  assert.equal(legal.shopHoursShort("fr"), `Ouvert du mercredi au vendredi, de 14${NB}h à 19${NB}h, et le samedi, de 9${NB}h à 12${NB}h et de 14${NB}h à 19${NB}h. Ouvertures supplémentaires selon la disponibilité des bénévoles${NB}: voir notre Instagram.`);
+  assert.equal(legal.shopHoursShort("en", true), `Open Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19:00. Extra opening hours when volunteers are available: see our <a href="${IG}" target="_blank" rel="noopener noreferrer">Instagram</a>.`);
   assert.match(legal.shopHoursShort("fr", true), new RegExp(`${NB}: voir notre <a href="${IG}" target="_blank" rel="noopener noreferrer">Instagram</a>\\.$`));
-  assert.equal(legal.shopHoursFirm("en"), "Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed.");
-  assert.equal(legal.shopHoursFirm("fr"), `Venez retirer vos livres pendant nos horaires habituels, du mercredi au samedi, de 14${NB}h à 19${NB}h. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis.`);
+  assert.equal(legal.shopHoursFirm("en"), "Collect your books during our regular hours, Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19:00. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed.");
+  assert.equal(legal.shopHoursFirm("fr"), `Venez retirer vos livres pendant nos horaires habituels, du mercredi au vendredi, de 14${NB}h à 19${NB}h, et le samedi, de 9${NB}h à 12${NB}h et de 14${NB}h à 19${NB}h. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis.`);
   // Clearing the address drops the Instagram mention; the FIRM text never has a link.
   withConstants({ SHOP_EXTRA_HOURS_NOTE_URL: "" }, () => {
-    assert.equal(legal.shopHoursShort("en", true), "Open Wednesday to Saturday, 14:00–19:00. Extra opening hours when volunteers are available.");
+    assert.equal(legal.shopHoursShort("en", true), "Open Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19:00. Extra opening hours when volunteers are available.");
   });
   assert.doesNotMatch(legal.shopHoursFirm("en") + legal.shopHoursFirm("fr"), /Instagram|<a /);
   assert.equal(legalText.fillVat({ h: "{shopHoursShort}|{shopHoursFirm}" }, "en").h, `${legal.shopHoursShort("en", true)}|${legal.shopHoursFirm("en")}`);
@@ -90,13 +97,15 @@ test("where each text is used: SHORT on the visit and volunteer pages, FIRM in t
   assert.match(legalText.PICKUP.fr, /seuls les horaires habituels sont garantis\.$/);
 });
 
-test("structured data lists the REGULAR hours only: Wednesday to Saturday, opens 14:00, closes 19:00", () => {
+test("structured data lists the REGULAR hours only: Wednesday to Friday 14:00-19:00 and Saturday 09:00-12:00 and 14:00-19:00", () => {
   const home = view("marketing/index.ejs");
   assert.match(home, /dayOfWeek: legalText\.shopOpenDays/);
   assert.match(home, /opens: legalText\.shopOpens/);
   assert.match(home, /closes: legalText\.shopCloses/);
   const spec = { dayOfWeek: legalText.legalFor("en").shopOpenDays, opens: legalText.legalFor("en").shopOpens, closes: legalText.legalFor("en").shopCloses };
-  assert.deepEqual(spec, { dayOfWeek: ["Wednesday", "Thursday", "Friday", "Saturday"], opens: "14:00", closes: "19:00" });
+  assert.deepEqual(spec, { dayOfWeek: ["Wednesday", "Thursday", "Friday"], opens: "14:00", closes: "19:00" });
+  assert.match(home, /legalText\.shopSatPeriods/);
+  assert.deepEqual(legalText.legalFor("en").shopSatPeriods, [["09:00", "12:00"], ["14:00", "19:00"]]);
 });
 
 // Guard: the old hours (Tuesday to Saturday, 10:00–19:00) must not come back as a typed copy in any view, email or text we own.

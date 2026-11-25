@@ -96,7 +96,7 @@ test("terms of sale (English and French): free non-binding reservation, price ho
       "81-766 of 10 August 1981",
       "a discount of at most 5 %",
       "We give no commercial guarantee beyond the legal guarantees",
-      "Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed.",
+      "Collect your books during our regular hours, Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19:00. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed.",
       "Prices are in euros and include all taxes",
     ]],
     ["fr", [
@@ -114,7 +114,7 @@ test("terms of sale (English and French): free non-binding reservation, price ho
       "loi n°\u00a081-766 du 10 août 1981",
       "5\u00a0% au maximum",
       "Nous n’offrons aucune garantie commerciale en plus des garanties légales",
-      "Venez retirer vos livres pendant nos horaires habituels, du mercredi au samedi, de 14\u00a0h à 19\u00a0h. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis.",
+      "Venez retirer vos livres pendant nos horaires habituels, du mercredi au vendredi, de 14\u00a0h à 19\u00a0h, et le samedi, de 9\u00a0h à 12\u00a0h et de 14\u00a0h à 19\u00a0h. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis.",
       "toutes taxes comprises",
     ]],
   ]) {

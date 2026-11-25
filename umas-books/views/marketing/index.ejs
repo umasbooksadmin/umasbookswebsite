@@ -20,7 +20,12 @@ const jsonLd = {
     dayOfWeek: legalText.shopOpenDays,
     opens: legalText.shopOpens,
     closes: legalText.shopCloses,
-  }],
+  }].concat(legalText.shopSatPeriods.map((p) => ({
+    "@type": "OpeningHoursSpecification",
+    dayOfWeek: "Saturday",
+    opens: p[0],
+    closes: p[1],
+  }))),
 };
 jsonLd.inLanguage = (typeof lang !== 'undefined' && lang === 'fr') ? 'fr' : 'en';
 if (_base) {

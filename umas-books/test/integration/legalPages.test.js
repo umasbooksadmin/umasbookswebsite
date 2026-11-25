@@ -18,7 +18,9 @@ test("visit page: street and hours from the constants, in the page and in both d
   const en = await get("/visit.html");
   assert.match(en, /<span class="value" data-i18n="visit\.where\.v">9 rue de l&#39;Hôtel de Ville, 81000 Albi<\/span>/);
   assert.match(en, /data-i18n="visit\.hours\.time">14:00–19:00</);
+  assert.match(en, /data-i18n="visit\.hours\.sat\.time">9:00–12:00 and 14:00–19:00</);
   const d = dictOf(en);
+  assert.equal(d.fr["visit.hours.sat.time"], `9${NB}h–12${NB}h et 14${NB}h–19${NB}h`);
   assert.equal(d.en["visit.hours.time"], "14:00–19:00");
   assert.equal(d.fr["visit.hours.time"], `14${NB}h–19${NB}h`);
   assert.equal(d.fr["visit.where.v"], "9 rue de l'Hôtel de Ville, 81000 Albi");
@@ -46,8 +48,8 @@ test("home page structured data: street and opening hours from the constants", a
   const html = await get("/");
   const ld = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
   assert.equal(ld.address.streetAddress, "9 rue de l'Hôtel de Ville");
-  assert.equal(ld.openingHoursSpecification.length, 1, "the regular hours only: no extras in structured data");
-  assert.deepEqual(ld.openingHoursSpecification[0].dayOfWeek, ["Wednesday", "Thursday", "Friday", "Saturday"]);
+  assert.equal(ld.openingHoursSpecification.length, 3, "the regular hours only: no extras in structured data");
+  assert.deepEqual(ld.openingHoursSpecification[0].dayOfWeek, ["Wednesday", "Thursday", "Friday"]);
   assert.equal(ld.openingHoursSpecification[0].opens, "14:00");
   assert.equal(ld.openingHoursSpecification[0].closes, "19:00");
 });
@@ -56,10 +58,10 @@ test("visit and volunteer pages show the SHORT hours text (regular hours + extra
   const legal = require("../../src/lib/legal");
   for (const page of ["/visit.html", "/volunteer.html"]) {
     const en = await get(page);
-    assert.ok(en.includes('Open Wednesday to Saturday, 14:00–19:00. Extra opening hours when volunteers are available: see our <a href="https://www.instagram.com/umas_books_adventures/" target="_blank" rel="noopener noreferrer">Instagram</a>.'), `${page} EN`);
+    assert.ok(en.includes('Open Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19:00. Extra opening hours when volunteers are available: see our <a href="https://www.instagram.com/umas_books_adventures/" target="_blank" rel="noopener noreferrer">Instagram</a>.'), `${page} EN`);
     const fr = await get(page, "fr");
     assert.ok(fr.includes(legal.shopHoursShort("fr", true)), `${page} FR`);
-    assert.ok(fr.includes(`Ouvert du mercredi au samedi, de 14${NB}h à 19${NB}h. Ouvertures supplémentaires selon la disponibilité des bénévoles${NB}: voir notre <a href=`));
+    assert.ok(fr.includes(`Ouvert du mercredi au vendredi, de 14${NB}h à 19${NB}h, et le samedi, de 9${NB}h à 12${NB}h et de 14${NB}h à 19${NB}h. Ouvertures supplémentaires selon la disponibilité des bénévoles${NB}: voir notre <a href=`));
     assert.doesNotMatch(en + fr, /Tuesday|mardi|Tue &ndash;/);
   }
 });
