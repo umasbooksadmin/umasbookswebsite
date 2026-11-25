@@ -76,7 +76,7 @@ test("customer pickup reminder (order paid online): day 10 to 14 only, once, EN 
   assert.match(to(due)[0].subject, /Your books are waiting at the shop/);
   assert.match(to(due)[0].text, /within 14 days of payment/);
   assert.match(to(due)[0].text, /Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00\. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed\./);
-  assert.match(to(due)[0].text, /Rue Peyrolière/);
+  assert.match(to(due)[0].text, /9 rue de l'Hôtel de Ville/);
   assert.match(to(due)[0].text, /write to us at admin@umasbooks\.org/);
   assert.equal(to(dueFr).length, 1);
   assert.match(to(dueFr)[0].subject, /Vos livres vous attendent à la boutique/);

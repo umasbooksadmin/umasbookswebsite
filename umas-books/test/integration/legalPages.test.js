@@ -16,12 +16,12 @@ const dictOf = (html) => JSON.parse(html.match(/<script type="application\/json"
 
 test("visit page: street and hours from the constants, in the page and in both dictionaries", async () => {
   const en = await get("/visit.html");
-  assert.match(en, /<span class="value" data-i18n="visit\.where\.v">Rue Peyrolière, 81000 Albi<\/span>/);
+  assert.match(en, /<span class="value" data-i18n="visit\.where\.v">9 rue de l&#39;Hôtel de Ville, 81000 Albi<\/span>/);
   assert.match(en, /data-i18n="visit\.hours\.time">14:00–19:00</);
   const d = dictOf(en);
   assert.equal(d.en["visit.hours.time"], "14:00–19:00");
   assert.equal(d.fr["visit.hours.time"], `14${NB}h–19${NB}h`);
-  assert.equal(d.fr["visit.where.v"], "Rue Peyrolière, 81000 Albi");
+  assert.equal(d.fr["visit.where.v"], "9 rue de l'Hôtel de Ville, 81000 Albi");
   assert.ok(!JSON.stringify(d).includes("{shop"), "no placeholder is left in the dictionaries");
   const fr = await get("/visit.html", "fr");
   assert.ok(fr.includes(`14${NB}h–19${NB}h`));
@@ -35,17 +35,17 @@ test("volunteer page: the shop shifts row uses the same hours", async () => {
 
 test("legal notice: the shop line follows the street constant; no placeholder leaks", async () => {
   const en = await get("/mentions-legales.html");
-  assert.ok(en.includes("<strong>Shop:</strong> Rue Peyrolière, 81000 Albi, France"));
+  assert.ok(en.replace(/&#39;/g, "'").includes("<strong>Shop:</strong> 9 rue de l'Hôtel de Ville, 81000 Albi, France"));
   assert.ok(!en.includes("{shop"));
   const fr = await get("/mentions-legales.html", "fr");
-  assert.ok(fr.includes(`<strong>Boutique${NB}:</strong> Rue Peyrolière, 81000 Albi, France`));
+  assert.ok(fr.replace(/&#39;/g, "'").includes(`<strong>Boutique${NB}:</strong> 9 rue de l’Hôtel de Ville, 81000 Albi, France`));
   assert.ok(!fr.includes("{shop"));
 });
 
 test("home page structured data: street and opening hours from the constants", async () => {
   const html = await get("/");
   const ld = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
-  assert.equal(ld.address.streetAddress, "Rue Peyrolière");
+  assert.equal(ld.address.streetAddress, "9 rue de l'Hôtel de Ville");
   assert.equal(ld.openingHoursSpecification.length, 1, "the regular hours only: no extras in structured data");
   assert.deepEqual(ld.openingHoursSpecification[0].dayOfWeek, ["Wednesday", "Thursday", "Friday", "Saturday"]);
   assert.equal(ld.openingHoursSpecification[0].opens, "14:00");

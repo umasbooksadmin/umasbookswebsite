@@ -7,9 +7,9 @@ const legal = require("./legal");
 const { noReturnsShortPlain, vatNotice, itemsKind, forItems } = require("./legalText");
 const { frenchPlainText } = require("./frenchTypography");
 
-// The shop you pick up at (Rue Peyrolière) is NOT the association's
-// registered office (siège, legal.REGISTERED_OFFICE): customers get the shop
-// address for collection and the siège only in the legal identity block.
+// Pickup uses the shop address (legal.shopStreet) and the legal identity block the registered
+// office (siège, legal.REGISTERED_OFFICE). Since 1 January 2027 they are the same address, but
+// they stay two constants: the shop can move without the siège.
 // The shop's identity block for order emails (French consumer-law
 // mentions: who sells, and that VAT does not apply; the VAT line follows
 // VAT_NOTICE_ARTICLE in lib/legal.js).

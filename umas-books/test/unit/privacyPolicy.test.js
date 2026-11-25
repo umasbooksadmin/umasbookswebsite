@@ -38,7 +38,7 @@ test("privacy policy: names the controller exactly as in the legal notice", () =
     assert.match(d["pp.s1.p"], /Uma’s Books/);
     assert.match(d["pp.s1.p"], /W811011706/);
     assert.match(d["pp.s1.p"], /109 441 147 00013/);
-    assert.match(d["pp.s1.p"], /5, rue Hippolyte Savary, 81000 Albi/);
+    assert.match(d["pp.s1.p"], /9, rue de l'Hôtel de Ville, 81000 Albi/);
   }
 });
 

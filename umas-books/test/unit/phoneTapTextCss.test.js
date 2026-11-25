@@ -166,7 +166,7 @@ test("cart: the 14-day sentence is shown once; the second paragraph says only wh
     const l = legalFor(lang);
     assert.match(l.nothingPaidOnline, lang === "en" ? /We hold your books for 14 days/ : /Nous gardons vos livres 14 jours/);
     assert.doesNotMatch(l.pickupWhere, /hold|gardons|14 days|14 jours/, `${lang}: pickupWhere has no hold period`);
-    assert.match(l.pickupWhere, /Peyrolière/);
+    assert.match(l.pickupWhere, /Hôtel de Ville/);
     assert.ok(l.pickup.includes(l.pickupWhere), `${lang}: pickup is "hold" + pickupWhere (the other pages keep using it)`);
   }
   const cart = read("umas-books", "views", "cart.ejs");

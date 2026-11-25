@@ -69,11 +69,10 @@ const SOCIAL_LINKS = { instagram: "https://www.instagram.com/umas_books_adventur
 // docs/legal-todos.md ("set the membership price constant").
 const MEMBERSHIP_PRICE_EUR = "";
 
-// Street number of the shop (rue Peyrolière, Albi). EMPTY until the
-// association gives it: the shop address then reads "Rue Peyrolière" as before;
-// once set it reads "12 rue Peyrolière" everywhere (legal notice, emails, visit
+// Street number of the shop (rue de l'Hôtel de Ville, Albi). When EMPTY the shop address
+// reads "Rue de l'Hôtel de Ville"; once set it reads "9 rue de l'Hôtel de Ville" everywhere (legal notice, emails, visit
 // page, structured data). See docs/legal-todos.md ("give the street number").
-const SHOP_STREET_NUMBER = "";
+const SHOP_STREET_NUMBER = "9";
 
 // The shop's phone number: the ONE place it is written. Shown in the
 // international form (no leading 0); the tel: link uses digits only. Pages and
@@ -100,10 +99,10 @@ const SIRET = "109 441 147 00013";
 const RNA = "W811011706";
 
 // Registered office (siege social), in the two spellings the texts use: the plain one
-// ("5 rue Hippolyte Savary, 81000 Albi") and the formal one of the legal notice
-// ("5, rue Hippolyte Savary, 81000 Albi, France"). Not the shop address (SHOP_STREET_NUMBER).
-const REGISTERED_OFFICE = "5 rue Hippolyte Savary, 81000 Albi";
-const REGISTERED_OFFICE_FORMAL = "5, rue Hippolyte Savary, 81000 Albi, France";
+// ("9 rue de l'Hôtel de Ville, 81000 Albi") and the formal one of the legal notice
+// ("9, rue de l'Hôtel de Ville, 81000 Albi, France"). Since 1 January 2027 the registered office and the shop are the same address. Not the shop address (SHOP_STREET_NUMBER).
+const REGISTERED_OFFICE = "9 rue de l'Hôtel de Ville, 81000 Albi";
+const REGISTERED_OFFICE_FORMAL = "9, rue de l'Hôtel de Ville, 81000 Albi, France";
 
 // Opening days and hours of the shop: Wednesday to Saturday, 14:00 to 19:00.
 // Machine format for structured data (schema.org day names, 24-hour times),
@@ -131,14 +130,14 @@ const SHOP_HOURS_FR_SPOKEN = "de 14\u00a0h à 19\u00a0h";
 // ends "see our Instagram" with that word as a link; leave it EMPTY to drop it.
 const SHOP_EXTRA_HOURS_NOTE_URL = "https://www.instagram.com/umas_books_adventures/";
 
-// "Rue Peyrolière" or "12 rue Peyrolière". `capital` is for the start of a
-// sentence, a line or a field ("Rue Peyrolière, 81000 Albi"); inside a French
-// sentence leave it off to get "rue Peyrolière". With a number it is always
-// "12 rue Peyrolière" (the number comes first, so the word stays lowercase).
+// "Rue de l'Hôtel de Ville" or "9 rue de l'Hôtel de Ville". `capital` is for the start of a
+// sentence, a line or a field ("Rue de l'Hôtel de Ville, 81000 Albi"); inside a French
+// sentence leave it off to get "rue de l'Hôtel de Ville". With a number it is always
+// "9 rue de l'Hôtel de Ville" (the number comes first, so the word stays lowercase).
 function shopStreet(lang, capital = true) {
   const n = String(module.exports.SHOP_STREET_NUMBER).trim();
-  if (n) return `${n} rue Peyrolière`;
-  return capital || lang !== "fr" ? "Rue Peyrolière" : "rue Peyrolière";
+  if (n) return `${n} rue de l'Hôtel de Ville`;
+  return capital || lang !== "fr" ? "Rue de l'Hôtel de Ville" : "rue de l'Hôtel de Ville";
 }
 
 function shopDays(lang) {

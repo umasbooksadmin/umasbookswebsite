@@ -19,23 +19,23 @@ function withConstants(values, fn) {
   try { return fn(); } finally { Object.assign(legal, saved); }
 }
 
-test("the street: 'Rue Peyrolière' until a number is given, then '12 rue Peyrolière' everywhere", () => {
-  assert.equal(legal.SHOP_STREET_NUMBER, "", "empty by default");
-  assert.equal(legal.shopStreet("en"), "Rue Peyrolière");
-  assert.equal(legal.shopStreet("fr"), "Rue Peyrolière", "start of a line or field");
-  assert.equal(legal.shopStreet("fr", false), "rue Peyrolière", "inside a French sentence it is lower case");
-  assert.match(legalText.PICKUP.fr, /, rue Peyrolière, Albi\. Venez retirer/);
-  withConstants({ SHOP_STREET_NUMBER: "12" }, () => {
-    assert.equal(legal.shopStreet("en"), "12 rue Peyrolière");
-    assert.equal(legal.shopStreet("fr", false), "12 rue Peyrolière");
-    assert.match(legalText.PICKUP.en, /Rue Peyrolière|12 rue Peyrolière, Albi\./);
-    assert.match(legalText.PICKUP.fr, /12 rue Peyrolière, Albi\./);
-    assert.equal(legalText.legalFor("fr").shopStreet, "12 rue Peyrolière");
-    const d = legalText.fillVat({ a: "Shop: {shopStreet}, 81000 Albi", b: "à la {shopStreetInline}" }, "fr");
-    assert.equal(d.a, "Shop: 12 rue Peyrolière, 81000 Albi");
-    assert.equal(d.b, "à la 12 rue Peyrolière");
+test("the street: '9 rue de l'Hôtel de Ville' everywhere, and without a number 'Rue de l'Hôtel de Ville'", () => {
+  assert.equal(legal.SHOP_STREET_NUMBER, "9");
+  assert.equal(legal.shopStreet("en"), "9 rue de l'Hôtel de Ville");
+  assert.equal(legal.shopStreet("fr"), "9 rue de l'Hôtel de Ville");
+  assert.equal(legal.shopStreet("fr", false), "9 rue de l'Hôtel de Ville");
+  assert.match(legalText.PICKUP.fr, /, 9 rue de l'Hôtel de Ville, Albi\. Venez retirer/);
+  assert.equal(legalText.legalFor("fr").shopStreet, "9 rue de l'Hôtel de Ville");
+  const d = legalText.fillVat({ a: "Shop: {shopStreet}, 81000 Albi", b: "à la {shopStreetInline}" }, "fr");
+  assert.equal(d.a, "Shop: 9 rue de l'Hôtel de Ville, 81000 Albi");
+  assert.equal(d.b, "à la 9 rue de l'Hôtel de Ville");
+  withConstants({ SHOP_STREET_NUMBER: "" }, () => {
+    assert.equal(legal.shopStreet("en"), "Rue de l'Hôtel de Ville", "no number: capital at the start of a line");
+    assert.equal(legal.shopStreet("fr"), "Rue de l'Hôtel de Ville", "start of a line or field");
+    assert.equal(legal.shopStreet("fr", false), "rue de l'Hôtel de Ville", "inside a French sentence it is lower case");
+    assert.match(legalText.PICKUP.fr, /, rue de l'Hôtel de Ville, Albi\. Venez retirer/);
   });
-  withConstants({ SHOP_STREET_NUMBER: "  " }, () => assert.equal(legal.shopStreet("en"), "Rue Peyrolière", "blank counts as empty"));
+  withConstants({ SHOP_STREET_NUMBER: "  " }, () => assert.equal(legal.shopStreet("en"), "Rue de l'Hôtel de Ville", "blank counts as empty"));
 });
 
 test("the opening hours come from ONE constant: Wednesday to Saturday, 14:00–19:00 (14 h–19 h, no-break spaces, in French)", () => {
@@ -133,11 +133,11 @@ test("no page or email we own keeps its own copy of the hours or the street", ()
   for (const f of files) {
     const src = view(f);
     assert.doesNotMatch(src, /14:00|19:00|10:00|10h00|10 h à 19 h|de 10h à 19h|Tuesday|mardi/, `${f}: hours come from SHOP_HOURS_*`);
-    assert.doesNotMatch(src.replace(/legalText\.shop\w+/g, ""), /Rue Peyrolière|Rue Peyroli&egrave;re|rue Peyrolière/, `${f}: street comes from shopStreet()`);
+    assert.doesNotMatch(src.replace(/legalText\.shop\w+/g, ""), /Rue de l'Hôtel de Ville|Rue Peyroli&egrave;re|rue de l'Hôtel de Ville/, `${f}: street comes from shopStreet()`);
   }
   for (const f of ["src/lib/orderSweeps.js", "src/lib/bookRequests.js", "src/lib/legalText.js"]) {
     const src = fs.readFileSync(path.join(root, f), "utf8").replace(/^\s*\/\/.*$/gm, "");
-    assert.doesNotMatch(src.replace(/legal\.shop\w+\([^)]*\)/g, ""), /Rue Peyrolière|rue Peyrolière|10:00|14:00|19:00|10 h|14 h/, `${f}: no literal street or hours`);
+    assert.doesNotMatch(src.replace(/legal\.shop\w+\([^)]*\)/g, ""), /Rue de l'Hôtel de Ville|rue de l'Hôtel de Ville|10:00|14:00|19:00|10 h|14 h/, `${f}: no literal street or hours`);
   }
 });
 

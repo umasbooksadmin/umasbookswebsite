@@ -10,17 +10,12 @@ says who has to decide or do it: *maintainer* (Sharon), *accountant* or
 
 ## Items for the maintainer
 
-- [ ] **1. Give the shop street number** (owner: maintainer). The shop address
-  on the website has no street number ("Rue Peyrolière, 81000 Albi").
-  Recommendation: find the number, then set `SHOP_STREET_NUMBER` in
-  `umas-books/src/lib/legal.js` (for example `"12"`). It then reads "12 rue
-  Peyrolière" everywhere the shop address appears: legal notice, visit page,
-  structured data, terms of sale (section 4), cart confirmation page, the order
-  and reservation emails, the pickup reminder and the book-request emails. They
-  all use `shopStreet(lang, capital)` in `legal.js` (or the `{shopStreet}` and
-  `{shopStreetInline}` tokens filled by `fillVat(dict, lang)` in `legalText.js`),
-  with "rue" in lower case in the middle of a French sentence. Do not write the
-  street by hand in a new text: use the helper.
+- [x] **1. Give the shop street number** (done). Since 1 January 2027 both are
+  9 rue de l'Hôtel de Ville, 81000 Albi (statutes changed by the extraordinary general
+  meeting of 10 December 2026; the association declares the change at the préfecture within 3
+  months). `REGISTERED_OFFICE`, `REGISTERED_OFFICE_FORMAL` and `SHOP_STREET_NUMBER` in
+  `umas-books/src/lib/legal.js` hold it; everything else reads them.
+
 - [ ] **2. Set the membership price constant** (owner: maintainer). Set
   `MEMBERSHIP_PRICE_EUR` in `umas-books/src/lib/legal.js` (a number or a string,
   for example `"20"`) to the price configured on the HelloAsso membership form.

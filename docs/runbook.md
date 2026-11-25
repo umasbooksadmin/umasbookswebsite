@@ -805,7 +805,7 @@ the answer is theirs):
   date and "accepted" next to it).
 - [ ] **Shop street number set.** *Owner: Sharon.* `SHOP_STREET_NUMBER` in
   `umas-books/src/lib/legal.js` (read by `shopStreet()`) is no longer empty, so the
-  legal notice, footer, terms and emails say "<number> rue Peyrolière" (legal
+  legal notice, footer, terms and emails say "9 rue de l'Hôtel de Ville" (legal
   to-do item 1). A developer makes the one-line change in a pull request.
 - [ ] **VAT wording confirmed.** *Owner: accountant, then Sharon.* The accountant
   names the article (261-7-1° or 293 B of the CGI) or confirms plain "TVA non
@@ -1073,7 +1073,7 @@ a day. Only the book's ISBN is sent out; no member or customer data.
 
 **How it works.** A customer reserves books (and drop-in seats) on the website,
 with an account or as a **guest** (no account: name, email, optional phone). **Nothing is paid online.** The customer comes to the shop
-(Rue Peyrolière, Wednesday to Saturday, 14:00 to 19:00), and you take the payment
+(9 rue de l'Hôtel de Ville, Wednesday to Saturday, 14:00 to 19:00), and you take the payment
 yourself (cash, card machine or cheque). Then you record it on the website, so
 the books count as sold and the sale appears in the reports. For a drop-in seat
 the customer pays at the session. **Only the membership is still paid online
