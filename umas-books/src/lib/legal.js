@@ -109,19 +109,29 @@ const REGISTERED_OFFICE_FORMAL = "9, rue de l'Hôtel de Ville, 81000 Albi, Franc
 // then the text printed on pages: English 14:00–19:00, French 14 h–19 h (a
 // no-break space between the number and "h"). EVERY page, email and structured
 // data block reads these: never type the days or hours anywhere else.
-const SHOP_OPEN_DAYS = ["Wednesday", "Thursday", "Friday", "Saturday"];
+// Wednesday to Friday 14:00-19:00, and Saturday 9:00-12:00 and 14:00-19:00 (two periods).
+const SHOP_OPEN_DAYS = ["Wednesday", "Thursday", "Friday"];
 const SHOP_OPENS = "14:00";
 const SHOP_CLOSES = "19:00";
+const SHOP_SAT_PERIODS = [["09:00", "12:00"], ["14:00", "19:00"]];
 const SHOP_HOURS_EN = "14:00–19:00";
 const SHOP_HOURS_FR = "14\u00a0h–19\u00a0h";
+// Written from the periods above so the times exist once: "9:00–12:00 and 14:00–19:00" / "9 h–12 h et 14 h–19 h".
+const clock = (t) => String(Number(t.slice(0, 2))) + t.slice(2);
+const clockFr = (t) => String(Number(t.slice(0, 2))) + "\u00a0h" + (t.slice(3) === "00" ? "" : t.slice(3));
+const SHOP_SAT_HOURS_EN = SHOP_SAT_PERIODS.map(([a, b]) => `${clock(a)}–${clock(b)}`).join(" and ");
+const SHOP_SAT_HOURS_FR = SHOP_SAT_PERIODS.map(([a, b]) => `${clockFr(a)}–${clockFr(b)}`).join(" et ");
 // The days as text: "Wednesday to Saturday" / "du mercredi au samedi" (they
 // follow "open" / "ouvert" in a sentence), and the short form of the visit page.
-const SHOP_DAYS_EN = "Wednesday to Saturday";
-const SHOP_DAYS_FR = "du mercredi au samedi";
-const SHOP_DAYS_SHORT_EN = "Wed – Sat";
-const SHOP_DAYS_SHORT_FR = "Mer – Sam";
+const SHOP_DAYS_EN = "Wednesday to Friday";
+const SHOP_DAYS_FR = "du mercredi au vendredi";
+const SHOP_DAYS_SHORT_EN = "Wed – Fri";
+const SHOP_DAYS_SHORT_FR = "Mer – Ven";
+const SHOP_SAT_SHORT_EN = "Sat";
+const SHOP_SAT_SHORT_FR = "Sam";
 // The French "from 14 h to 19 h" form used inside the two helper texts below.
 const SHOP_HOURS_FR_SPOKEN = "de 14\u00a0h à 19\u00a0h";
+const SHOP_SAT_FR_SPOKEN = SHOP_SAT_PERIODS.map(([a, b]) => `de ${clockFr(a)} à ${clockFr(b)}`).join(" et ");
 
 // The shop may ALSO open at other times when volunteers are available, but ONLY
 // the regular hours above are guaranteed (and only they go in structured data).
@@ -156,8 +166,8 @@ function shopHoursShort(lang, html = false) {
   const fr = lang === "fr";
   const url = String(module.exports.SHOP_EXTRA_HOURS_NOTE_URL).trim();
   const regular = fr
-    ? `Ouvert ${module.exports.SHOP_DAYS_FR}, ${module.exports.SHOP_HOURS_FR_SPOKEN}.`
-    : `Open ${module.exports.SHOP_DAYS_EN}, ${module.exports.SHOP_HOURS_EN}.`;
+    ? `Ouvert ${whenSpoken("fr")}.`
+    : `Open ${whenSpoken("en")}.`;
   const extra = fr
     ? "Ouvertures supplémentaires selon la disponibilité des bénévoles"
     : "Extra opening hours when volunteers are available";
@@ -173,12 +183,32 @@ function shopHoursShort(lang, html = false) {
 // `items`: the reservation holds educational items (new goods), so it says "items" instead of "books".
 function shopHoursFirm(lang, items = false) {
   return lang === "fr"
-    ? `Venez retirer ${items ? "vos articles" : "vos livres"} pendant nos horaires habituels, ${module.exports.SHOP_DAYS_FR}, ${module.exports.SHOP_HOURS_FR_SPOKEN}. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis.`
-    : `Collect your ${items ? "items" : "books"} during our regular hours, ${module.exports.SHOP_DAYS_EN}, ${module.exports.SHOP_HOURS_EN}. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed.`;
+    ? `Venez retirer ${items ? "vos articles" : "vos livres"} pendant nos horaires habituels, ${whenSpoken("fr")}. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis.`
+    : `Collect your ${items ? "items" : "books"} during our regular hours, ${whenSpoken("en")}. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed.`;
 }
 
-function shopHours(lang) {
+// The weekday hours alone (the Wednesday-to-Friday cell of the visit page), and the Saturday ones.
+function shopHoursWeek(lang) {
   return lang === "fr" ? module.exports.SHOP_HOURS_FR : module.exports.SHOP_HOURS_EN;
+}
+function shopHoursSat(lang) {
+  return lang === "fr" ? module.exports.SHOP_SAT_HOURS_FR : module.exports.SHOP_SAT_HOURS_EN;
+}
+function shopSatShort(lang) {
+  return lang === "fr" ? module.exports.SHOP_SAT_SHORT_FR : module.exports.SHOP_SAT_SHORT_EN;
+}
+// All the regular hours in one phrase that follows the days ("{shopDays}, {shopHours}" in the page texts):
+// "14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19:00" / "14 h–19 h, et le samedi, 9 h–12 h et 14 h–19 h".
+function shopHours(lang) {
+  return lang === "fr"
+    ? `${module.exports.SHOP_HOURS_FR}, et le samedi, ${module.exports.SHOP_SAT_HOURS_FR}`
+    : `${module.exports.SHOP_HOURS_EN}, and Saturday, ${module.exports.SHOP_SAT_HOURS_EN}`;
+}
+// The same in running text: "Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19:00".
+function whenSpoken(lang) {
+  return lang === "fr"
+    ? `${module.exports.SHOP_DAYS_FR}, ${module.exports.SHOP_HOURS_FR_SPOKEN}, et le samedi, ${module.exports.SHOP_SAT_FR_SPOKEN}`
+    : `${module.exports.SHOP_DAYS_EN}, ${module.exports.SHOP_HOURS_EN}, and Saturday, ${module.exports.SHOP_SAT_HOURS_EN}`;
 }
 
 // The membership price as text for a language ("20,00 €" / "€20.00"), or "".
@@ -195,7 +225,7 @@ module.exports = {
   GUEST_HOLD_MAX_COPIES, GUEST_HOLD_MAX_PER_IP,
   CONTACT_EMAIL, SIREN, SIRET, RNA, REGISTERED_OFFICE, REGISTERED_OFFICE_FORMAL,
   MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER, SHOP_PHONE_DISPLAY, SHOP_PHONE_TEL,
-  SHOP_OPEN_DAYS, SHOP_OPENS, SHOP_CLOSES, SHOP_HOURS_EN, SHOP_HOURS_FR,
+  SHOP_OPEN_DAYS, SHOP_OPENS, SHOP_CLOSES, SHOP_SAT_PERIODS, SHOP_HOURS_EN, SHOP_HOURS_FR, SHOP_SAT_HOURS_EN, SHOP_SAT_HOURS_FR, SHOP_SAT_SHORT_EN, SHOP_SAT_SHORT_FR, SHOP_SAT_FR_SPOKEN,
   SHOP_DAYS_EN, SHOP_DAYS_FR, SHOP_DAYS_SHORT_EN, SHOP_DAYS_SHORT_FR, SHOP_HOURS_FR_SPOKEN, SHOP_EXTRA_HOURS_NOTE_URL,
-  shopStreet, shopHours, shopDays, shopDaysShort, shopHoursShort, shopHoursFirm, membershipPrice,
+  shopStreet, shopHours, shopHoursWeek, shopHoursSat, shopSatShort, shopDays, shopDaysShort, shopHoursShort, shopHoursFirm, membershipPrice,
 };

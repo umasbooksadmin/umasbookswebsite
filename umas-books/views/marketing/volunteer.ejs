@@ -2,7 +2,9 @@
   "meta.title": "Volunteer — Uma's Books and Adventures",
   "meta.description": "Volunteer at Uma's Books in Albi: help on the shop floor, sort and shelve donations, run events or support English and French speakers. All language levels welcome.",
   "visit.hours.days": "{shopDaysShort}",
-  "visit.hours.time": "{shopHours}",
+  "visit.hours.time": "{shopHoursWeek}",
+  "visit.hours.sat.days": "{shopSatShort}",
+  "visit.hours.sat.time": "{shopHoursSat}",
   "visit.hours.note": "{shopHoursShort}",
   "volunteer.kicker": "Get Involved",
   "volunteer.title": "Volunteer With Us",
@@ -37,7 +39,9 @@
   "meta.title": "Bénévolat — Uma’s Books and Adventures",
   "meta.description": "Devenez bénévole chez Uma’s Books à Albi : aidez en boutique, triez et rangez les dons, animez des événements ou accompagnez les anglophones et francophones. Tous les niveaux de langue sont bienvenus.",
   "visit.hours.days": "{shopDaysShort}",
-  "visit.hours.time": "{shopHours}",
+  "visit.hours.time": "{shopHoursWeek}",
+  "visit.hours.sat.days": "{shopSatShort}",
+  "visit.hours.sat.time": "{shopHoursSat}",
   "visit.hours.note": "{shopHoursShort}",
   "volunteer.kicker": "S’impliquer",
   "volunteer.title": "Devenir bénévole",
@@ -120,7 +124,8 @@ const errP = (k) => (E[k]
           <tr><th data-i18n="volunteer.schedule.day">Days</th><th data-i18n="volunteer.schedule.time">Time</th></tr>
         </thead>
         <tbody>
-          <tr><td data-i18n="visit.hours.days"><%= legalText.shopDaysShort %></td><td data-i18n="visit.hours.time"><%= legalText.shopHours %></td></tr>
+          <tr><td data-i18n="visit.hours.days"><%= legalText.shopDaysShort %></td><td data-i18n="visit.hours.time"><%= legalText.shopHoursWeek %></td></tr>
+          <tr><td data-i18n="visit.hours.sat.days"><%= legalText.shopSatShort %></td><td data-i18n="visit.hours.sat.time"><%= legalText.shopHoursSat %></td></tr>
         </tbody>
       </table>
       <p class="form-hint" data-i18n-html="visit.hours.note"><%- legalText.shopHoursShort %></p>

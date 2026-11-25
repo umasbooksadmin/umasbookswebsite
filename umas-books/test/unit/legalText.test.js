@@ -84,8 +84,8 @@ test("the VAT line is 'TVA non applicable' until VAT_NOTICE_ARTICLE is set, then
 
 test("the reservation email gives the shop days and hours, in both languages", () => {
   const o = { id: 1, buyer_name: "A", total_amount: 5, created_at: new Date() };
-  assert.match(buildOrderConfirmationText(o, [{ item_title: "B", price: 5 }], ""), /Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00\..*only the regular hours are guaranteed\. Please quote reservation #1\./);
-  assert.match(buildOrderConfirmationText({ ...o, lang: "fr" }, [{ item_title: "B", price: 5 }], ""), /du mercredi au samedi, de 14\u00a0h à 19\u00a0h\..*seuls les horaires habituels sont garantis\./);
+  assert.match(buildOrderConfirmationText(o, [{ item_title: "B", price: 5 }], ""), /Collect your books during our regular hours, Wednesday to Friday, 14:00–19:00, and Saturday, 9:00–12:00 and 14:00–19:00\..*only the regular hours are guaranteed\. Please quote reservation #1\./);
+  assert.match(buildOrderConfirmationText({ ...o, lang: "fr" }, [{ item_title: "B", price: 5 }], ""), /du mercredi au vendredi, de 14\u00a0h à 19\u00a0h, et le samedi, de 9\u00a0h à 12\u00a0h et de 14\u00a0h à 19\u00a0h\..*seuls les horaires habituels sont garantis\./);
 });
 
 test("the pickup hours match the opening hours in the home page's structured data", () => {

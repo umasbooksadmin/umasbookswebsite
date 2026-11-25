@@ -91,7 +91,7 @@ test("the queued confirmation and the resent one both carry the legal text", asy
     assert.ok(!t.includes("Used books are not taken back"), "a French reservation carries the French legal text only");
     for (const needle of [
       "Les livres d’occasion ne sont ni repris, ni échangés, ni remboursés pour simple changement d’avis une fois achetés en boutique",
-      "rue de l'Hôtel de Ville, 81000 Albi. Venez retirer vos livres pendant nos horaires habituels, du mercredi au samedi, de 14 h à 19 h.",
+      "rue de l'Hôtel de Ville, 81000 Albi. Venez retirer vos livres pendant nos horaires habituels, du mercredi au vendredi, de 14 h à 19 h, et le samedi, de 9 h à 12 h et de 14 h à 19 h.",
       "Conditions générales de vente acceptées le",
       "TVA non applicable",
       "CM2C",
